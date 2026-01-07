@@ -111,7 +111,7 @@ development_status:
   epic-9: in-progress
   9-1-structure-public-github-repository: done
   9-2-create-architecture-decision-records: done
-  9-3-capture-and-document-grafana-screenshots: backlog
+  9-3-capture-and-document-grafana-screenshots: done
   9-4-write-and-publish-first-technical-blog-post: backlog
   9-5-document-all-deployed-services: backlog
   epic-9-retrospective: optional

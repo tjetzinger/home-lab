@@ -218,6 +218,7 @@ home-lab/
 │   └── loki/                # Log aggregation Helm values
 │
 ├── docs/                    # Documentation
+│   ├── VISUAL_TOUR.md       # 📸 Grafana screenshots & architecture diagrams
 │   ├── adrs/                # Architecture Decision Records
 │   ├── runbooks/            # Operational procedures
 │   ├── diagrams/            # Architecture diagrams and screenshots
@@ -229,6 +230,7 @@ home-lab/
 ```
 
 **Key Files:**
+- `docs/VISUAL_TOUR.md` - Grafana dashboard screenshots and architecture diagrams (visual proof of operational infrastructure)
 - `infrastructure/*/values-homelab.yaml` - Helm chart customizations for this cluster
 - `docs/adrs/ADR-*.md` - Architectural decisions with context and trade-offs
 - `docs/runbooks/*.md` - Operational procedures for maintenance tasks
@@ -406,6 +408,7 @@ Used Claude Code with BMAD methodology for systematic implementation. Every stor
 
 ### Documentation
 
+- **Visual Tour (Screenshots & Diagrams):** [docs/VISUAL_TOUR.md](docs/VISUAL_TOUR.md) - Grafana dashboards and architecture diagrams
 - **Architecture Decision Records:** [docs/adrs/](docs/adrs/)
 - **Operational Runbooks:** [docs/runbooks/](docs/runbooks/)
 - **Implementation Stories:** [docs/implementation-artifacts/](docs/implementation-artifacts/)
@@ -414,8 +417,7 @@ Used Claude Code with BMAD methodology for systematic implementation. Every stor
 ### External Resources
 
 - **Blog Posts:** (Coming soon - technical deep-dives on key learnings)
-- **Grafana Screenshots:** [docs/diagrams/](docs/diagrams/) (Coming soon - cluster metrics, dashboards)
-- **LinkedIn:** [Connect with me](https://linkedin.com/in/yourprofile)
+- **LinkedIn:** [linkedin.com/in/tjetzinger](https://www.linkedin.com/in/tjetzinger/)
 
 ### Key Technologies
 
