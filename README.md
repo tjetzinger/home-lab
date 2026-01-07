@@ -11,7 +11,7 @@ A production-ready Kubernetes home lab running on Proxmox VE, demonstrating plat
 
 ## Why This Project?
 
-After years designing embedded systems and real-time controls in automotive, I'm transitioning to cloud-native platform engineering. While certifications validate knowledge, **this lab proves I can build and operate real infrastructure**. It's not a tutorial follow-along—it's a working production environment that I use daily, monitor, maintain, and continuously improve.
+After years working on IVI systems (In-Vehicle Infotainment) and LBS Navigation Systems—building embedded, mobile, and cloud solutions for online routing—I'm expanding into cloud-native platform engineering. This lab serves as a hands-on portfolio demonstrating Kubernetes infrastructure deployment and operations. It's a working environment that I use daily, monitor, maintain, and continuously improve.
 
 ### What Makes This Different
 
