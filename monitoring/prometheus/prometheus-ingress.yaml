@@ -1,0 +1,76 @@
+# Prometheus IngressRoute for home-lab
+# Namespace: monitoring
+#
+# Story: 4.3 - Verify Prometheus Metrics and Queries
+# FR: FR25 - Operator can query Prometheus for historical metrics
+# NFR: NFR7 - All ingress traffic uses TLS 1.2+ with valid certificates
+# NFR: NFR13 - Prometheus retains metrics for 7 days minimum
+# NFR: NFR18 - All components emit Prometheus metrics on /metrics endpoint
+#
+# Access: https://prometheus.home.jetzinger.com
+# Security: HTTPS-only via Let's Encrypt, Tailscale VPN for remote access
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: prometheus-tls
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: kube-prometheus-stack-prometheus
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: prometheus-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - prometheus.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# HTTPS IngressRoute for Prometheus
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus-ingress
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: kube-prometheus-stack-prometheus
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`prometheus.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: kube-prometheus-stack-prometheus
+          port: 9090
+  tls:
+    secretName: prometheus-tls
+---
+# HTTP to HTTPS redirect for Prometheus
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus-ingress-redirect
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: kube-prometheus-stack-prometheus-redirect
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`prometheus.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: monitoring
+      services:
+        - name: kube-prometheus-stack-prometheus
+          port: 9090

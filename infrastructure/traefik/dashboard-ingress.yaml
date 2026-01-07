@@ -1,0 +1,98 @@
+# Traefik Dashboard IngressRoute for home-lab
+# Namespace: kube-system (where Traefik is deployed)
+#
+# Story: 3.2 - Configure Traefik Ingress Controller (initial HTTP setup)
+# Story: 3.5 - Create First HTTPS Ingress Route (HTTPS upgrade)
+# FR: FR23 - Operator can view Traefik dashboard for ingress status
+# NFR: NFR7 - All ingress traffic uses TLS 1.2+ with valid certificates
+#
+# Access: https://traefik.home.jetzinger.com/dashboard/
+# Security: IP whitelist to home network + Tailscale, TLS via Let's Encrypt
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: traefik-dashboard-tls
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/instance: traefik-dashboard
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: traefik-dashboard-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - traefik.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: dashboard-ipwhitelist
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/instance: traefik-dashboard
+    app.kubernetes.io/part-of: home-lab
+spec:
+  ipAllowList:
+    sourceRange:
+      # Home network
+      - 192.168.2.0/24
+      # Tailscale network (for remote access)
+      - 100.64.0.0/10
+      # Pod/Node networks (needed due to SNAT with externalTrafficPolicy: Cluster)
+      - 10.42.0.0/16
+      - 10.43.0.0/16
+---
+# HTTPS IngressRoute for dashboard
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: traefik-dashboard
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/instance: traefik-dashboard
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`traefik.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: dashboard-ipwhitelist
+          namespace: kube-system
+      services:
+        - name: api@internal
+          kind: TraefikService
+  tls:
+    secretName: traefik-dashboard-tls
+---
+# HTTP to HTTPS redirect for dashboard
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: traefik-dashboard-redirect
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/instance: traefik-dashboard-redirect
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`traefik.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: kube-system
+      services:
+        - name: api@internal
+          kind: TraefikService

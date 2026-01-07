@@ -1,0 +1,76 @@
+# Alertmanager IngressRoute for home-lab
+# Namespace: monitoring
+#
+# Story: 4.4 - Configure Alertmanager with Alert Rules
+# FR: FR28 - System sends alerts via Alertmanager when thresholds exceeded
+# FR: FR30 - Operator can view alert history and status
+# NFR: NFR5 - Alertmanager sends P1 alerts within 1 minute of threshold breach
+# NFR: NFR7 - All ingress traffic uses TLS 1.2+ with valid certificates
+#
+# Access: https://alertmanager.home.jetzinger.com
+# Security: HTTPS-only via Let's Encrypt, Tailscale VPN for remote access
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: alertmanager-tls
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/instance: kube-prometheus-stack-alertmanager
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: alertmanager-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - alertmanager.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# HTTPS IngressRoute for Alertmanager
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: alertmanager-ingress
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/instance: kube-prometheus-stack-alertmanager
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`alertmanager.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: kube-prometheus-stack-alertmanager
+          port: 9093
+  tls:
+    secretName: alertmanager-tls
+---
+# HTTP to HTTPS redirect for Alertmanager
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: alertmanager-ingress-redirect
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/instance: kube-prometheus-stack-alertmanager-redirect
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`alertmanager.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: monitoring
+      services:
+        - name: kube-prometheus-stack-alertmanager
+          port: 9093

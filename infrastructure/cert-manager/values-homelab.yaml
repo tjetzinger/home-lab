@@ -1,0 +1,74 @@
+# cert-manager Helm values for home-lab
+# Chart: jetstack/cert-manager
+# Namespace: infra
+#
+# Story: 3.3 - Deploy cert-manager with Let's Encrypt
+# FR: FR10 - Automatic TLS certificate provisioning
+#
+# Components:
+# - Controller: Manages Certificate lifecycle
+# - Webhook: Validates cert-manager resources
+# - CAInjector: Injects CA bundles into resources
+---
+
+# Install CRDs with the chart
+crds:
+  enabled: true
+  keep: true  # Don't delete CRDs on uninstall
+
+# Resource labels
+global:
+  commonLabels:
+    app.kubernetes.io/part-of: home-lab
+
+# Controller configuration
+replicaCount: 1
+
+# Resource limits for home lab environment
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+# Webhook configuration
+webhook:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# CAInjector configuration
+cainjector:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Prometheus metrics (for future monitoring)
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: false  # Enable when Prometheus is deployed (Epic 4)
+
+# Logging and DNS configuration
+extraArgs:
+  - --logging-format=text
+  # Set to 2 for debug, 0 for info
+  - --v=2
+  # Use Cloudflare DNS for ACME DNS-01 propagation checks
+  # Required because NextDNS rewrites *.home.jetzinger.com to 192.168.2.100
+  # which prevents proper TXT record resolution for ACME challenges
+  - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+  - --dns01-recursive-nameservers-only

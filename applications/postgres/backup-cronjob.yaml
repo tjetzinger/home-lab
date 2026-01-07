@@ -1,0 +1,77 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: data
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: home-lab
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 86400  # 24 hours
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: postgres
+            app.kubernetes.io/component: backup
+            app.kubernetes.io/part-of: home-lab
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: registry-1.docker.io/bitnami/postgresql:latest
+            imagePullPolicy: IfNotPresent
+            command: ["/bin/bash", "-c"]
+            args:
+              - |
+                set -e
+                echo "Starting PostgreSQL backup at $(date)"
+
+                # Create backup file with timestamp
+                BACKUP_FILE="/backup/postgres-backup-$(date +%Y-%m-%d-%H%M%S).sql.gz"
+                echo "Backup file: $BACKUP_FILE"
+
+                # Run pg_dumpall and compress
+                pg_dumpall -h $PGHOST -U postgres | gzip > $BACKUP_FILE
+
+                echo "Backup completed successfully"
+                echo "Backup size: $(du -h $BACKUP_FILE | cut -f1)"
+
+                # Retention: keep last 7 backups, delete older ones
+                echo "Applying retention policy (keep last 7 backups)"
+                cd /backup
+                ls -t postgres-backup-*.sql.gz | tail -n +8 | xargs -r rm -v
+
+                echo "Current backups:"
+                ls -lh postgres-backup-*.sql.gz 2>/dev/null || echo "No backups found"
+
+                echo "Backup job finished at $(date)"
+            env:
+            - name: PGHOST
+              value: postgres-postgresql.data.svc.cluster.local
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-postgresql
+                  key: postgres-password
+            volumeMounts:
+            - name: backup
+              mountPath: /backup
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+          volumes:
+          - name: backup
+            persistentVolumeClaim:
+              claimName: postgres-backup

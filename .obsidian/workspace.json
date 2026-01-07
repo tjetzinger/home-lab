@@ -1,0 +1,225 @@
+{
+  "main": {
+    "id": "b55bc0d978d09781",
+    "type": "split",
+    "children": [
+      {
+        "id": "d92f95b018dc87da",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "ca28139e5b54ed96",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "infrastructure/k3s/README.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "README"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "df67610e3d95bc25",
+    "type": "split",
+    "children": [
+      {
+        "id": "8a28966dbf3e9e22",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "6b3e0aca0a87f3a4",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "0a15139ef0713489",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "bdba5a836173bff7",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "8b6a3c5a60e8d8fd",
+    "type": "split",
+    "children": [
+      {
+        "id": "2ab7c4a3a9208080",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "808a5a475ff9e026",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "infrastructure/k3s/README.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for README"
+            }
+          },
+          {
+            "id": "a3bc1cbba3f62676",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "infrastructure/k3s/README.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from README"
+            }
+          },
+          {
+            "id": "9b2fd73db8ecfcd3",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "ebcb71bc8ddffad1",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "13e0ac6de76cf627",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "infrastructure/k3s/README.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of README"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "ca28139e5b54ed96",
+  "lastOpenFiles": [
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/templates/strategy-section.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/templates/shopping-section.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/templates/profile-section.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/templates/prep-schedule-section.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/templates/nutrition-plan.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/templates/assessment-section.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/steps/step-06-prep-schedule.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/steps/step-05-shopping.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/steps/step-04-strategy.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/steps/step-03-assessment.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/steps/step-02-profile.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/steps/step-01b-continue.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/steps/step-01-init.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/data/recipe-database.csv",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/data/macro-calculator.csv",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/data/dietary-restrictions.csv",
+    "_bmad/bmb/workflows/create-agent/data/reference/agents/expert-examples/journal-keeper/README.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/workflow.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/templates",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/steps",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition/data",
+    "_bmad/bmb/workflows/create-agent/data/reference/agents/simple-examples/README.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/agents/module-examples/README.md",
+    "_bmad/bmb/workflows/create-agent/data/reference/agents/expert-examples/journal-keeper",
+    "_bmad/bmb/workflows/create-agent/data/reference/workflows/meal-prep-nutrition",
+    "_bmad/bmb/workflows/create-agent/data/reference/agents/simple-examples",
+    "_bmad/bmb/workflows/create-agent/data/reference/agents/module-examples",
+    "_bmad/bmb/workflows/create-agent/data/reference/README.md",
+    "_bmad/bmb/workflows/create-agent/steps/step-08-celebrate.md",
+    "_bmad/bmb/workflows/create-agent/steps/step-07-validate.md",
+    "_bmad/bmb/workflows/create-agent/steps/step-06-build.md",
+    "_bmad/bmb/workflows/create-agent/steps/step-05-name.md",
+    "_bmad/bmb/workflows/create-agent/steps/step-04-commands.md",
+    "_bmad/bmb/workflows/create-agent/steps/step-03-persona.md",
+    "_bmad/bmb/workflows/create-agent/steps/step-02-discover.md",
+    "_bmad/bmb/workflows/create-agent/steps/step-01-brainstorm.md"
+  ]
+}

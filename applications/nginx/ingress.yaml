@@ -1,0 +1,73 @@
+# Nginx Dev Proxy Ingress Configuration
+# Namespace: dev
+#
+# Story: 7.2 - Configure Ingress for Dev Proxy Access
+# FR: FR42 - Developer can access local dev servers via cluster ingress
+# NFR: NFR7 - All ingress traffic uses TLS 1.2+ with valid certificates
+#
+# Purpose: External HTTPS access to nginx dev proxy for local dev server access
+# Access: https://dev.home.jetzinger.com
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: dev-proxy-tls
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: dev-proxy-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - dev.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dev-proxy-ingress
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`dev.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: nginx-proxy
+          port: 80
+  tls:
+    secretName: dev-proxy-tls
+---
+# HTTP to HTTPS redirect
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dev-proxy-ingress-redirect
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy-redirect
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`dev.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: kube-system
+      services:
+        - name: nginx-proxy
+          port: 80

@@ -1,0 +1,270 @@
+# kube-prometheus-stack Helm values for home-lab
+# Story: 4.1 - Deploy kube-prometheus-stack
+# Epic: 4 - Observability Stack
+#
+# NFRs:
+# - NFR13: Prometheus retains metrics for 7 days minimum
+# - NFR14: Grafana dashboards load within 5 seconds
+# - NFR16: All services expose Prometheus metrics on /metrics endpoint
+#
+# Components: Prometheus, Grafana, Alertmanager, node-exporter, kube-state-metrics
+
+# Global labels applied to all resources
+commonLabels:
+  app.kubernetes.io/part-of: home-lab
+  app.kubernetes.io/managed-by: helm
+
+# Prometheus configuration
+prometheus:
+  prometheusSpec:
+    # Retention configuration (NFR13: 7 days minimum)
+    retention: 7d
+    retentionSize: "15GB"
+
+    # Resource limits for home lab environment
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 1000m
+        memory: 4Gi
+
+    # Storage configuration - using emptyDir for initial deployment
+    # TODO: Consider NFS PVC for persistence in future story if needed
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+    # Scrape interval and evaluation
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+
+    # Service monitors - enable all by default
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+    # Enable metrics from all namespaces
+    ruleSelectorNilUsesHelmValues: false
+
+# Grafana configuration
+grafana:
+  enabled: true
+
+  # Admin credentials stored in secrets/grafana-secrets.yaml (gitignored)
+  # Deployment: ./scripts/deploy-prometheus.sh (auto-merges secrets)
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Persistence - using emptyDir for initial deployment
+  persistence:
+    enabled: false  # Will enable with NFS PVC in Story 4.2 if needed
+
+  # Grafana configuration
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/"
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+
+  # Prometheus datasource is automatically configured by the chart
+  # Loki datasource added for log aggregation (Story 4.6)
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki.monitoring.svc.cluster.local:3100
+      jsonData:
+        maxLines: 1000
+
+  # Labels for home-lab consistency
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: kube-prometheus-stack-grafana
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/part-of: home-lab
+
+# Alertmanager configuration
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    # Resource limits
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+    # Storage - using emptyDir for initial deployment
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+  # Alertmanager configuration (enhanced in Story 4.5 for mobile notifications)
+  # FR29: Mobile notifications for P1 alerts
+  # NFR5: Alert delivery within 1 minute
+  config:
+    global:
+      resolve_timeout: 5m
+
+    # Routing configuration - P1 alerts to mobile, others to null
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s          # NFR5: Quick grouping for P1 alerts
+      group_interval: 5m       # Subsequent alerts in same group
+      repeat_interval: 4h      # Repeat notification interval for ongoing alerts
+      receiver: 'null'         # Default receiver for non-critical alerts
+
+      # Routes for specific alert severities
+      routes:
+        # P1/Critical alerts go to mobile notifications
+        - matchers:
+            - severity = "critical"
+          receiver: 'mobile-notifications'
+          continue: false  # Stop processing after mobile notification
+
+        # Watchdog alert (always firing) goes to null
+        - matchers:
+            - alertname = "Watchdog"
+          receiver: 'null'
+
+    # Receivers configuration
+    receivers:
+      # Null receiver for non-critical alerts
+      - name: 'null'
+
+      # Mobile notifications via ntfy.sh
+      # Webhook URL stored in secrets/ntfy-secrets.yaml (gitignored)
+      - name: 'mobile-notifications'
+        webhook_configs:
+          # url stored in secrets/ntfy-secrets.yaml
+          - send_resolved: true  # Send notification when alert resolves
+            http_config:
+              follow_redirects: true
+            # Custom message format for ntfy
+            # Title: Alert name and severity
+            # Message: Full alert details
+            max_alerts: 0  # Send all alerts, no limit
+
+# Prometheus Node Exporter (FR26: Collect metrics from all nodes)
+prometheus-node-exporter:
+  enabled: true
+
+  # Labels for home-lab consistency
+  labels:
+    app.kubernetes.io/name: prometheus-node-exporter
+    app.kubernetes.io/instance: kube-prometheus-stack-node-exporter
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: home-lab
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+  # Ensure node-exporter runs on ALL nodes (master + workers)
+  # This satisfies AC3: Verify one pod per node
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+# kube-state-metrics (FR27: Collect K8s object metrics)
+kube-state-metrics:
+  enabled: true
+
+  # Labels for home-lab consistency
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/instance: kube-prometheus-stack-kube-state-metrics
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: home-lab
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Prometheus Operator configuration
+prometheusOperator:
+  enabled: true
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  # Labels for home-lab consistency
+  labels:
+    app.kubernetes.io/name: prometheus-operator
+    app.kubernetes.io/instance: kube-prometheus-stack-operator
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/part-of: home-lab
+
+# Default rules and alerts (pre-configured)
+defaultRules:
+  create: true
+  rules:
+    alertmanager: true
+    etcd: false  # K3s doesn't expose etcd metrics by default
+    configReloaders: true
+    general: true
+    k8s: true
+    kubeApiserverAvailability: true
+    kubeApiserverSlos: true
+    kubelet: true
+    kubeProxy: true
+    kubePrometheusGeneral: true
+    kubePrometheusNodeRecording: true
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    kubeScheduler: true
+    kubeStateMetrics: true
+    network: true
+    node: true
+    nodeExporterAlerting: true
+    nodeExporterRecording: true
+    prometheus: true
+    prometheusOperator: true
+
+# Disable components not needed for home lab
+kubeEtcd:
+  enabled: false  # K3s uses embedded etcd, not exposed
+kubeControllerManager:
+  enabled: false  # K3s runs these internally
+kubeScheduler:
+  enabled: false  # K3s runs these internally
+kubeProxy:
+  enabled: true  # K3s uses kube-proxy

@@ -1,0 +1,63 @@
+# Custom PrometheusRule for home-lab
+# Namespace: monitoring
+#
+# Story: 4.4 - Configure Alertmanager with Alert Rules
+# FR: FR28 - System sends alerts via Alertmanager when thresholds exceeded
+# NFR: NFR5 - Alertmanager sends P1 alerts within 1 minute of threshold breach
+#
+# Custom alert rules for home-lab specific services:
+# - PostgreSQL database availability (P1)
+# - NFS storage provisioner availability (P1)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: home-lab-custom-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: home-lab
+    prometheus: kube-prometheus-stack-prometheus  # Required for auto-discovery
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: home-lab-custom.rules
+      interval: 30s  # Evaluate every 30 seconds to meet NFR5 (P1 alerts within 1 minute)
+      rules:
+        # PostgreSQL Unhealthy Alert (P1)
+        - alert: PostgreSQLUnhealthy
+          expr: |
+            kube_deployment_status_replicas_available{deployment="postgresql", namespace="data"} == 0
+            or
+            absent(kube_deployment_status_replicas_available{deployment="postgresql", namespace="data"})
+          for: 0s  # Fire immediately - no pending period for P1
+          labels:
+            severity: critical
+            component: database
+            service: postgresql
+            priority: P1
+          annotations:
+            summary: "PostgreSQL database unavailable"
+            description: "PostgreSQL deployment in namespace 'data' has no available replicas. Database is unavailable."
+            runbook_url: "https://github.com/yourusername/home-lab/blob/main/docs/runbooks/postgresql-recovery.md"
+            impact: "All applications depending on PostgreSQL database will fail"
+            action: "Check PostgreSQL pod status, logs, and PVC availability. Verify NFS connectivity."
+
+        # NFS Provisioner Unreachable Alert (P1)
+        - alert: NFSProvisionerUnreachable
+          expr: |
+            kube_deployment_status_replicas_available{deployment="nfs-provisioner-nfs-subdir-external-provisioner", namespace="infra"} == 0
+            or
+            absent(kube_deployment_status_replicas_available{deployment="nfs-provisioner-nfs-subdir-external-provisioner", namespace="infra"})
+          for: 0s  # Fire immediately - no pending period for P1
+          labels:
+            severity: critical
+            component: storage
+            service: nfs-provisioner
+            priority: P1
+          annotations:
+            summary: "NFS storage provisioner unreachable"
+            description: "NFS subdir external provisioner in namespace 'infra' has no available replicas. Dynamic PVC provisioning is unavailable."
+            runbook_url: "https://github.com/yourusername/home-lab/blob/main/docs/runbooks/nfs-recovery.md"
+            impact: "New PVC requests will fail. Stateful workloads cannot scale or restart successfully."
+            action: "Check NFS provisioner pod status, logs, and Synology NFS export accessibility. Verify network connectivity to Synology."

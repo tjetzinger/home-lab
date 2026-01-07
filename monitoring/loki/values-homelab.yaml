@@ -1,0 +1,180 @@
+# Loki Helm values for home-lab
+# Story: 4.6 - Deploy Loki for Log Aggregation
+# Epic: 4 - Observability Stack
+#
+# NFRs:
+# - NFR19: Pod logs retained for 7 days minimum
+#
+# Simplified configuration for SingleBinary deployment mode
+
+# Deployment mode: monolithic (single binary, suitable for home lab)
+deploymentMode: SingleBinary
+
+# Loki configuration
+loki:
+  # Authentication disabled for internal cluster use
+  auth_enabled: false
+
+  # Common configuration
+  commonConfig:
+    replication_factor: 1
+
+  # Storage configuration
+  storage:
+    type: filesystem
+
+  # Schema configuration (use defaults)
+  schemaConfig:
+    configs:
+      - from: 2024-01-01
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  # Limits configuration with 7-day retention (NFR19)
+  limits_config:
+    retention_period: 168h  # 7 days
+
+  # Compactor configuration for retention
+  compactor:
+    working_directory: /var/loki/compactor
+    compaction_interval: 10m
+    retention_enabled: true
+    retention_delete_delay: 2h
+    retention_delete_worker_count: 150
+    delete_request_store: filesystem
+
+# Single Binary specific configuration
+singleBinary:
+  replicas: 1
+
+  # Resource limits (conservative for home lab)
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  # Persistence - NFS storage
+  persistence:
+    enabled: true
+    storageClass: nfs-client
+    size: 10Gi
+
+# Promtail configuration (log collection agent)
+promtail:
+  enabled: true
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Tolerations to run on all nodes including control plane
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+  # Promtail configuration
+  config:
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    scrape_configs:
+      # Kubernetes pods
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+
+        relabel_configs:
+          # Namespace label
+          - source_labels:
+              - __meta_kubernetes_pod_namespace
+            target_label: namespace
+
+          # Pod name label
+          - source_labels:
+              - __meta_kubernetes_pod_name
+            target_label: pod
+
+          # Container name label
+          - source_labels:
+              - __meta_kubernetes_pod_container_name
+            target_label: container
+
+          # Node name label
+          - source_labels:
+              - __meta_kubernetes_pod_node_name
+            target_label: node
+
+          # Copy all pod labels
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+
+          # Set log file path
+          - source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            target_label: __path__
+            separator: /
+            replacement: /var/log/pods/*$1/*.log
+
+        pipeline_stages:
+          - cri: {}
+
+# Disable components not needed for SingleBinary
+backend:
+  replicas: 0
+
+read:
+  replicas: 0
+
+write:
+  replicas: 0
+
+gateway:
+  enabled: false
+
+# Disable Loki Canary
+lokiCanary:
+  enabled: false
+
+# Disable caching layers (not needed for small deployment)
+chunksCache:
+  enabled: false
+
+resultsCache:
+  enabled: false
+
+# Monitoring integration
+monitoring:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+
+# Disable test pods
+test:
+  enabled: false
+
+# Common labels for all resources
+commonLabels:
+  app.kubernetes.io/part-of: home-lab
+  app.kubernetes.io/managed-by: helm

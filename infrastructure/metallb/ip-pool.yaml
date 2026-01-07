@@ -1,0 +1,43 @@
+# MetalLB IP Address Pool and L2 Advertisement for home-lab
+# Namespace: metallb-system
+#
+# Story: 3.1 - Deploy MetalLB for LoadBalancer Services
+# FR: FR19 - Expose services via LoadBalancer using MetalLB
+#
+# IP Range: 192.168.2.100-192.168.2.149 (50 IPs)
+# Network: 192.168.2.0/24 (home network)
+# Mode: L2 (Layer 2 / ARP-based)
+---
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: homelab-pool
+  namespace: metallb-system
+  labels:
+    app.kubernetes.io/name: metallb
+    app.kubernetes.io/instance: metallb
+    app.kubernetes.io/part-of: home-lab
+spec:
+  # IP address range for LoadBalancer services
+  # Range: 192.168.2.100-192.168.2.149 (50 IPs available)
+  # This range is outside the typical DHCP range and reserved for k8s services
+  addresses:
+    - 192.168.2.100-192.168.2.149
+  # Auto-assign IPs from this pool (default behavior)
+  autoAssign: true
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: homelab-l2
+  namespace: metallb-system
+  labels:
+    app.kubernetes.io/name: metallb
+    app.kubernetes.io/instance: metallb
+    app.kubernetes.io/part-of: home-lab
+spec:
+  # Advertise IPs from the homelab-pool via Layer 2 (ARP)
+  ipAddressPools:
+    - homelab-pool
+  # Advertise on all interfaces (default)
+  # nodeSelectors: [] would restrict to specific nodes if needed

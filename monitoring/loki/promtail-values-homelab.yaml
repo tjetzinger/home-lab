@@ -1,0 +1,84 @@
+# Promtail Helm values for home-lab
+# Story: 4.6 - Deploy Loki for Log Aggregation
+# Epic: 4 - Observability Stack
+#
+# Promtail - Log collection agent for Loki
+
+# Resource limits
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Tolerations to run on all nodes including control plane
+tolerations:
+  - effect: NoSchedule
+    operator: Exists
+
+# Promtail configuration
+config:
+  # Send logs to Loki
+  clients:
+    - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+  # Position tracking
+  positions:
+    filename: /tmp/positions.yaml
+
+  # Scrape configuration
+  scrape_configs:
+    # Kubernetes pods
+    - job_name: kubernetes-pods
+      kubernetes_sd_configs:
+        - role: pod
+
+      relabel_configs:
+        # Namespace label
+        - source_labels:
+            - __meta_kubernetes_pod_namespace
+          target_label: namespace
+
+        # Pod name label
+        - source_labels:
+            - __meta_kubernetes_pod_name
+          target_label: pod
+
+        # Container name label
+        - source_labels:
+            - __meta_kubernetes_pod_container_name
+          target_label: container
+
+        # Node name label
+        - source_labels:
+            - __meta_kubernetes_pod_node_name
+          target_label: node
+
+        # Copy all pod labels
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+
+        # Set log file path
+        - source_labels:
+            - __meta_kubernetes_pod_uid
+            - __meta_kubernetes_pod_container_name
+          target_label: __path__
+          separator: /
+          replacement: /var/log/pods/*$1/*.log
+
+      pipeline_stages:
+        # Parse container runtime format
+        - cri: {}
+
+# Enable service monitor for Prometheus
+serviceMonitor:
+  enabled: true
+  labels:
+    release: kube-prometheus-stack
+
+# Common labels
+commonLabels:
+  app.kubernetes.io/part-of: home-lab
+  app.kubernetes.io/managed-by: helm

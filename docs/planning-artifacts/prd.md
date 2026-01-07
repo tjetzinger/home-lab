@@ -1,0 +1,518 @@
+---
+stepsCompleted: [1, 2, 3, 4, 7, 8, 9, 10, 11]
+workflow_completed: true
+inputDocuments:
+  - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
+  - 'docs/planning-artifacts/research/domain-k8s-platform-career-positioning-research-2025-12-27.md'
+  - 'docs/analysis/brainstorming-session-2025-12-27.md'
+workflowType: 'prd'
+lastStep: 10
+briefCount: 1
+researchCount: 1
+brainstormingCount: 1
+projectDocsCount: 0
+date: '2025-12-27'
+author: 'Tom'
+project_name: 'home-lab'
+---
+
+# Product Requirements Document - home-lab
+
+**Author:** Tom
+**Date:** 2025-12-27
+
+## Executive Summary
+
+**home-lab** is a production-grade Kubernetes learning platform that serves dual purposes: functional home infrastructure running real workloads AND a career portfolio demonstrating the transition from Navigation Systems Project Manager to Platform Engineer.
+
+The project applies 10+ years of automotive distributed systems experience—OTA updates, cloud navigation services, multi-platform coordination—to modern cloud-native infrastructure patterns. Built using AI-assisted engineering practices, it showcases both hands-on infrastructure capability and effective collaboration with AI development tools.
+
+### What Makes This Special
+
+1. **Domain Bridge**: Direct translation of automotive expertise to platform engineering:
+   - OTA updates → Kubernetes deployments
+   - Cloud Navigation → Distributed platforms
+   - IVI reliability → SRE practices
+
+2. **AI-Assisted Engineering**: Entire build process documented as an AI-augmented portfolio piece, demonstrating modern engineering workflows
+
+3. **Production Mindset**: Not toy examples—real services (AI inference, observability, databases), real constraints (hardware limits, network architecture), real decisions (documented ADRs)
+
+4. **Complete Narrative**: End-to-end documentation from brainstorming through running cluster, providing proof of capability beyond certifications
+
+5. **Dual Purpose**: Simultaneously a learning platform for skill acquisition AND functional home infrastructure running daily workloads
+
+## Project Classification
+
+**Technical Type:** Infrastructure/DevOps (Kubernetes home lab)
+**Domain:** General with ML/AI workloads
+**Complexity:** Medium
+**Project Context:** Greenfield - new infrastructure build
+
+**Technical Stack:**
+- Orchestration: K3s on Proxmox VMs
+- Storage: NFS via Synology DS920+
+- Networking: Traefik ingress, MetalLB, Tailscale
+- Observability: Prometheus, Grafana
+- AI/ML: Ollama, vLLM, n8n
+- GPU: NVIDIA RTX 3060 via eGPU (future)
+- Document Management: Paperless-ngx
+- Development: Dev Containers via Nginx proxy (VS Code + Claude Code)
+
+## Success Criteria
+
+### User Success Definition
+
+**Aha Moments** - The project succeeds when:
+
+1. **`kubectl get pods` moment**: Running `kubectl get pods` and seeing all services healthy across the cluster—proof that you built and operate real infrastructure, not just followed tutorials
+
+2. **Recruiter mention moment**: Receiving a message from a recruiter or hiring manager that explicitly references the home-lab portfolio—validation that the career bridge strategy works
+
+### Business Success (Career Objectives)
+
+| Metric | Target | Timeline |
+|--------|--------|----------|
+| Job offer | Senior Platform Engineer / MLOps role | 6 months |
+| Salary target | $180K-$250K range (or equivalent) | With offer |
+| Inbound recruiter interest | 2+ messages/month citing portfolio | Ongoing |
+| Interview confidence | Fluent architecture discussion | Before interviews |
+
+### Technical Success
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Cluster uptime | 95%+ | Prometheus alerts |
+| All planned services | Deployed and healthy | `kubectl get pods` |
+| GPU workloads | Ollama/vLLM responding | API health checks |
+| Storage reliability | No data loss | NFS mount status |
+| Component explanation | 100% of infrastructure | Self-assessment |
+
+### Measurable Outcomes
+
+**Leading Indicators (predict success):**
+- Weekly GitHub commits (active development)
+- Content publishing cadence (1-2 posts/month)
+- LinkedIn profile views trend (visibility growth)
+
+**Lagging Indicators (confirm success):**
+- Job offer received citing portfolio
+- "Saw your home-lab project" in recruiter message
+- Interview questions based on portfolio content
+
+### Product Scope
+
+**MVP (Minimum Viable Product):**
+- K3s cluster: control plane + 2 workers
+- Full infrastructure stack: NFS, Traefik, MetalLB
+- Observability: Prometheus + Grafana
+- Data: PostgreSQL StatefulSet
+- AI workloads: Ollama operational
+- Dev tooling: Nginx reverse proxy
+- Portfolio: GitHub repo public, first blog post published
+
+**Growth Phase:**
+- GPU worker with NVIDIA Operator
+- vLLM production inference
+- Rancher cluster management
+- n8n workflow automation
+- GitOps (ArgoCD/Flux)
+- CKA certification achieved
+
+**Vision:**
+- Complete CKA + CKS certifications
+- Published case study on AI-assisted infrastructure building
+- Community following from career transition content
+- Ongoing experimentation platform for emerging technologies
+
+## User Journeys
+
+### Journey 1: Tom the Builder - First Cluster Victory
+
+Tom has been a Navigation Systems PM for over a decade, coordinating complex distributed systems across millions of vehicles. He knows distributed architecture deeply—but through specifications, vendor meetings, and architecture reviews. Not through `kubectl`. When recruiters ask "have you built infrastructure?" he hesitates. Certifications feel hollow. Tutorials feel like painting by numbers.
+
+One Friday evening, Tom opens his terminal in the basement office. The Proxmox host hums quietly. He's read about K3s for weeks. Tonight, he builds.
+
+The first VM spins up—`k3s-master` at 192.168.2.20. A single curl command. His heart races watching the installation scroll by. Then the moment: `kubectl get nodes`. One node. Ready. He built that.
+
+Saturday morning, he adds the first worker. `kubectl get nodes` now shows two. He deploys nginx—watches it schedule to the worker, not the master. He understands *why* it scheduled there because he configured it that way. This isn't a tutorial telling him what to type. This is his cluster, his decisions.
+
+By Sunday evening, Traefik serves HTTPS traffic to `hello.home.jetzinger.com`. He shows his wife on her phone—a real website, running on infrastructure he built in their basement. The domains of automotive OTA and Kubernetes deployments suddenly collapse into one understanding: they're the same distributed systems problem, just different tools.
+
+**Requirements revealed:** VM provisioning documentation, network configuration, incremental deployment path, validation checkpoints.
+
+### Journey 2: Tom the Operator - 2am Incident Response
+
+Three months in. Tom's cluster runs Ollama, Prometheus, PostgreSQL, and a dozen other services. It's become infrastructure he relies on daily.
+
+At 2:17am, his phone buzzes. Alertmanager: "PostgreSQL pod CrashLoopBackOff." Half-asleep, Tom reaches for his laptop. Tailscale connects him to the home network from bed.
+
+`kubectl get pods -n data` — PostgreSQL is cycling. `kubectl describe pod` reveals: NFS mount timeout. The Synology had rebooted for a firmware update.
+
+Tom's automotive instincts kick in. This is the same pattern as vehicle-cloud sync failures—when the backend goes away, clients retry with backoff. He checks the NFS provisioner logs, sees it reconnecting. He knows not to panic-restart everything.
+
+Within 10 minutes, NFS recovers. PostgreSQL stabilizes. Tom adds a runbook entry: "NFS recovery procedure" and tweaks the Prometheus alert to include Synology health. He falls back asleep knowing he diagnosed and resolved a real production incident—exactly the story he'll tell in interviews.
+
+**Requirements revealed:** Monitoring stack, alerting, remote access via Tailscale, runbooks, service dependency mapping.
+
+### Journey 3: Tom the Career Showcaser - The Recruiter Message
+
+Four months into the build. Tom's GitHub repo has 47 stars. His dev.to article "From OTA Updates to GitOps: What Navigation Systems Taught Me About Kubernetes" got 2,400 views. LinkedIn shows 89 profile views this week—up 340% from before.
+
+Tuesday morning, a LinkedIn message: "Hi Tom, I'm hiring for a Senior Platform Engineer at [SDV Startup]. Your home-lab project caught my attention—especially the automotive background combined with hands-on K8s. Would you be open to a conversation?"
+
+Tom smiles. This is the moment. Not "saw your CKA certification" but "saw your home-lab project."
+
+The interview goes differently than his previous attempts. When asked about StatefulSet challenges, he doesn't recite documentation—he tells the PostgreSQL NFS story. When asked about monitoring, he shares his Grafana dashboard screenshots. When asked "why should we hire you over someone with more K8s years?" he explains how coordinating OTA updates across 3 million vehicles taught him distributed systems thinking that no amount of cluster time replaces.
+
+The offer comes two weeks later. Senior Platform Engineer. The salary meets his target. The hiring manager's feedback: "We loved that he built real infrastructure and could explain every decision."
+
+**Requirements revealed:** Public GitHub repository, technical blog content, ADRs, visual proof (dashboards), narrative connecting automotive to K8s.
+
+### Journey 4: The Hiring Manager - Portfolio Discovery
+
+Sarah leads Platform Engineering at an SDV startup. She's reviewed 47 resumes this month. Most blur together: CKA certified, 3 years Kubernetes, "passionate about cloud-native." Same keywords, no differentiation.
+
+She opens Tom's LinkedIn from a referral. The headline catches her: "Navigation Systems → Platform Engineering." Automotive background? Interesting. She clicks through to the GitHub link.
+
+The README isn't a wall of commands—it's a story. Problem statement, architecture decisions, lessons learned. She clicks into the `/docs/adrs` folder. ADR-003: "Why NFS over Longhorn" shows genuine trade-off analysis. This person thinks, not just executes.
+
+The Grafana screenshots show real metrics from real services. The blog post about translating OTA patterns to Kubernetes deployments demonstrates deep understanding of both domains. This isn't tutorial completion—this is engineering judgment.
+
+Sarah forwards Tom's profile to her team with a note: "Interview this one. He actually built something and can explain why."
+
+**Requirements revealed:** Professional README, ADRs with rationale, visible running infrastructure, domain-bridging content, navigable repository structure.
+
+### Journey Requirements Summary
+
+| Journey | Key Capabilities Required |
+|---------|--------------------------|
+| Builder - First Victory | Documented setup path, incremental deployment, validation checkpoints |
+| Operator - Incident | Monitoring stack, alerting, remote access, runbooks, dependency mapping |
+| Career Showcaser | GitHub presence, blog content, ADRs, visual proof, narrative structure |
+| Portfolio Audience | Professional documentation, easy navigation, clear decision rationale |
+
+## Infrastructure Requirements
+
+### Cluster Architecture
+
+**Topology:** Multi-node, single master (learning-focused, not HA)
+
+| Node | Role | IP | Resources |
+|------|------|-----|-----------|
+| k3s-master | Control plane | 192.168.2.20 | 2 vCPU, 4GB RAM, 32GB disk |
+| k3s-worker-01 | General compute | 192.168.2.21 | 4 vCPU, 8GB RAM, 50GB disk |
+| k3s-worker-02 | General compute | 192.168.2.22 | 4 vCPU, 8GB RAM, 50GB disk |
+| k3s-nuc (future) | GPU/ML workloads | 192.168.2.30 | Intel NUC + RTX 3060 eGPU |
+
+**Outside Cluster (by design):**
+- Raspberry Pi (192.168.2.162): VPN rescue hatch—if cluster dies, remote access survives
+- Synology DS920+ (192.168.2.2): NFS storage provider, 8.8TB RAID1
+
+### Networking Architecture
+
+| Component | Solution | Rationale |
+|-----------|----------|-----------|
+| CNI | Flannel (K3s default) | Start simple, swap if needed |
+| Ingress | Traefik (K3s default) | Built-in, dashboard, automatic HTTPS |
+| Load Balancer | MetalLB | Required for bare-metal LoadBalancer services |
+| LB IP Pool | 192.168.2.100-120 | Reserved range on home subnet |
+| Remote Access | Tailscale subnet routers | NAS + Pi as exit nodes |
+| DNS | NextDNS with Rewrites | *.home.jetzinger.com → cluster ingress |
+| TLS | cert-manager + Let's Encrypt | Automatic HTTPS for all services |
+
+### Storage Architecture
+
+| Type | Provider | Use Case |
+|------|----------|----------|
+| NFS (primary) | Synology DS920+ | Persistent volumes, shared data |
+| Local-path | K3s default | Ephemeral, non-critical workloads |
+| PVC Strategy | Dynamic provisioning | NFS CSI driver with StorageClass |
+
+**Design Decision:** NFS over distributed storage (Longhorn/Rook) because Synology handles redundancy, simpler to operate, and sufficient for home lab scale.
+
+### Namespace Strategy
+
+| Namespace | Purpose | Resource Limits |
+|-----------|---------|-----------------|
+| `kube-system` | K3s core components | Default |
+| `infra` | Traefik, MetalLB, cert-manager | Moderate |
+| `monitoring` | Prometheus, Grafana, Alertmanager | Moderate |
+| `data` | PostgreSQL, future databases | High memory |
+| `apps` | General applications, n8n | Moderate |
+| `ml` | Ollama, vLLM, GPU workloads | GPU-enabled, high resources |
+| `docs` | Paperless-ngx, Redis | Moderate |
+| `dev` | Nginx reverse proxy, dev containers, git worktrees | High |
+
+### Security Model
+
+| Concern | Approach |
+|---------|----------|
+| Secrets | Native K8s secrets (initial), Sealed Secrets (future) |
+| Network Policies | Default allow (learning phase), progressive tightening |
+| RBAC | Cluster-admin for Tom (single user) |
+| External Access | Tailscale only, no public exposure except via ingress |
+| TLS | Enforced for all ingress routes |
+
+### Observability Stack
+
+| Component | Role | Integration |
+|-----------|------|-------------|
+| Prometheus | Metrics collection | ServiceMonitors for all workloads |
+| Grafana | Visualization | Pre-built dashboards + custom |
+| Alertmanager | Alert routing | Phone notifications via Pushover/Slack |
+| Node Exporter | Node metrics | DaemonSet on all nodes |
+| kube-state-metrics | K8s object metrics | Cluster-wide |
+
+**Alert Priorities:**
+- P1: Node down, PostgreSQL unhealthy, NFS unreachable
+- P2: Pod CrashLoopBackOff, high memory pressure
+- P3: Certificate expiry warning, disk usage >80%
+
+### GPU/ML Infrastructure
+
+| Component | Specification |
+|-----------|---------------|
+| Hardware | Intel NUC11TNKi5 + RTX 3060 eGPU (12GB VRAM) |
+| Operator | NVIDIA GPU Operator |
+| Scheduling | Dedicated `ml` namespace with GPU resource requests |
+| Primary Workloads | Ollama (inference), vLLM (production serving) |
+| Resource Strategy | GPU exclusive to ML namespace |
+
+### Backup & Recovery
+
+| What | How | Frequency |
+|------|-----|-----------|
+| Cluster state | Velero + NFS backend | Daily |
+| PostgreSQL | pg_dump to NFS | Daily |
+| Persistent volumes | Synology snapshots | Hourly |
+| Configuration | Git repository | Every change |
+
+**Recovery Priority:**
+1. Control plane (rebuild from scratch if needed)
+2. Stateful workloads (PostgreSQL, configs)
+3. Stateless workloads (redeploy from manifests)
+
+### Upgrade Strategy
+
+| Component | Approach |
+|-----------|----------|
+| K3s | Manual upgrade, one node at a time, test in place |
+| Applications | Helm chart version bumps via Renovate (future) |
+| Node OS | Ubuntu unattended-upgrades for security only |
+| Breaking changes | Test on worker-02 first, promote if stable |
+
+## Scoping & Phased Development
+
+### MVP Strategy
+
+**Approach:** Platform MVP - Build foundation that demonstrates capability
+
+**Philosophy:** The "product" is both the infrastructure AND the portfolio documenting it. MVP success means a working cluster that can be shown to hiring managers.
+
+**Resource Model:** Solo builder, weekend implementation, AI-assisted engineering
+
+### Phase 1: MVP Scope
+
+**Core Infrastructure:**
+- K3s cluster: 1 control plane + 2 workers (VMs on Proxmox)
+- NFS storage via Synology DS920+
+- Traefik ingress with HTTPS (cert-manager + Let's Encrypt)
+- MetalLB for LoadBalancer services
+
+**Observability:**
+- Prometheus metrics collection
+- Grafana dashboards
+- Alertmanager for notifications
+
+**Workloads:**
+- PostgreSQL StatefulSet with NFS persistence
+- Ollama for LLM inference
+- Nginx reverse proxy to local dev servers
+- Paperless-ngx for document management (Redis + NFS storage)
+- Dev containers via Nginx proxy for VS Code remote + Claude Code
+
+**Portfolio Deliverables:**
+- Public GitHub repository with documentation
+- First technical blog post published
+- Architecture Decision Records (ADRs)
+
+**MVP Success Criteria:**
+- All nodes showing Ready status
+- All planned services healthy
+- Remote access working via Tailscale
+- At least one recruiter/hiring manager views portfolio
+
+### Phase 2: Growth Scope
+
+- Intel NUC with RTX 3060 eGPU as GPU worker
+- NVIDIA GPU Operator for GPU scheduling
+- vLLM for production-grade inference
+- Rancher for cluster management UI
+- n8n for workflow automation
+- GitOps implementation (ArgoCD or Flux)
+- CKA certification achieved
+
+### Phase 3: Vision Scope
+
+- CKS certification
+- Published case study: "Building Production-Grade Infrastructure with AI-Assisted Engineering"
+- Self-hosted blog running on cluster
+- Community following from content
+- Advanced ML/RAG pipelines
+
+### Risk Mitigation
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| NFS bottleneck | Medium | Monitor performance, Longhorn as backup plan |
+| GPU complexity | Low | Deferred to Phase 2, MVP works without GPU |
+| Hardware delays | Low | MVP runs entirely on VMs |
+| Time constraints | Medium | Phased weekend approach, one topic at a time |
+| Portfolio invisibility | High | Publish early, iterate publicly, share on LinkedIn |
+
+## Functional Requirements
+
+### Cluster Operations
+
+- FR1: Operator can deploy a K3s control plane on a dedicated VM
+- FR2: Operator can add worker nodes to the cluster
+- FR3: Operator can remove worker nodes from the cluster without data loss
+- FR4: Operator can view cluster node status and health
+- FR5: Operator can access the cluster remotely via Tailscale
+- FR6: Operator can run kubectl commands from any Tailscale-connected device
+
+### Workload Management
+
+- FR7: Operator can deploy containerized applications to the cluster
+- FR8: Operator can deploy applications using Helm charts
+- FR9: Operator can expose applications via ingress with HTTPS
+- FR10: Operator can configure automatic TLS certificate provisioning
+- FR11: Operator can assign workloads to specific namespaces
+- FR12: Operator can scale deployments up or down
+- FR13: Operator can view pod logs and events
+
+### Storage Management
+
+- FR14: Operator can provision persistent volumes from NFS storage
+- FR15: Operator can create PersistentVolumeClaims for applications
+- FR16: System provisions storage dynamically via StorageClass
+- FR17: Operator can verify storage mount health
+- FR18: Operator can backup persistent data to Synology snapshots
+
+### Networking & Ingress
+
+- FR19: Operator can expose services via LoadBalancer using MetalLB
+- FR20: Operator can configure ingress routes via Traefik
+- FR21: Operator can access services via *.home.jetzinger.com domain
+- FR22: System resolves internal DNS via NextDNS rewrites
+- FR23: Operator can view Traefik dashboard for ingress status
+
+### Observability
+
+- FR24: Operator can view cluster metrics in Grafana dashboards
+- FR25: Operator can query Prometheus for historical metrics
+- FR26: System collects metrics from all nodes via Node Exporter
+- FR27: System collects Kubernetes object metrics via kube-state-metrics
+- FR28: System sends alerts via Alertmanager when thresholds exceeded
+- FR29: Operator can receive mobile notifications for P1 alerts
+- FR30: Operator can view alert history and status
+
+### Data Services
+
+- FR31: Operator can deploy PostgreSQL as a StatefulSet
+- FR32: PostgreSQL persists data to NFS storage
+- FR33: Operator can backup PostgreSQL to NFS
+- FR34: Operator can restore PostgreSQL from backup
+- FR35: Applications can connect to PostgreSQL within cluster
+
+### AI/ML Workloads
+
+- FR36: Operator can deploy Ollama for LLM inference
+- FR37: Applications can query Ollama API for completions
+- FR38: Operator can deploy vLLM for production inference (Phase 2)
+- FR39: GPU workloads can request GPU resources via NVIDIA Operator (Phase 2)
+- FR40: Operator can deploy n8n for workflow automation
+
+### Development Proxy
+
+- FR41: Operator can configure Nginx to proxy to local dev servers
+- FR42: Developer can access local dev servers via cluster ingress
+- FR43: Operator can add/remove proxy targets without cluster restart
+
+### Cluster Maintenance
+
+- FR44: Operator can upgrade K3s version on nodes
+- FR45: Operator can backup cluster state via Velero
+- FR46: Operator can restore cluster from Velero backup
+- FR47: System applies security updates to node OS automatically
+- FR48: Operator can view upgrade history and rollback if needed
+
+### Portfolio & Documentation
+
+- FR49: Audience can view public GitHub repository
+- FR50: Audience can read architecture decision records (ADRs)
+- FR51: Audience can view Grafana dashboard screenshots
+- FR52: Audience can read technical blog posts about the build
+- FR53: Operator can document decisions as ADRs in repository
+- FR54: Operator can publish blog posts to dev.to or similar platform
+
+### Document Management (Paperless-ngx)
+
+- FR55: Operator can deploy Paperless-ngx with Redis backend
+- FR56: Paperless-ngx persists documents to NFS storage
+- FR57: User can access Paperless-ngx via ingress with HTTPS
+- FR58: User can upload, tag, and search scanned documents
+
+### Dev Containers
+
+- FR59: Nginx proxy routes to dev containers in `dev` namespace
+- FR60: Operator can provision dev containers with git worktree support
+- FR61: Developer can connect VS Code to dev container via Nginx proxy
+- FR62: Developer can run Claude Code inside dev containers
+- FR63: Dev containers use local storage for workspace data
+
+## Non-Functional Requirements
+
+### Reliability
+
+- NFR1: Cluster achieves 95%+ uptime measured monthly
+- NFR2: Control plane recovers from VM restart within 5 minutes
+- NFR3: Worker node failure does not cause service outage (pods reschedule)
+- NFR4: NFS storage remains accessible during Synology firmware updates
+- NFR5: Alertmanager sends P1 alerts within 1 minute of threshold breach
+- NFR6: Cluster state can be restored from Velero backup within 30 minutes
+
+### Security
+
+- NFR7: All ingress traffic uses TLS 1.2+ with valid certificates
+- NFR8: Cluster API access requires Tailscale VPN connection
+- NFR9: No services exposed to public internet without ingress authentication
+- NFR10: Kubernetes secrets encrypted at rest (K3s default)
+- NFR11: Node OS security updates applied within 7 days of release
+- NFR12: kubectl access requires valid kubeconfig (no anonymous access)
+
+### Performance
+
+- NFR13: Ollama API responds within 30 seconds for typical prompts
+- NFR14: Grafana dashboards load within 5 seconds
+- NFR15: Pod scheduling completes within 30 seconds of deployment
+- NFR16: NFS-backed PVCs mount within 10 seconds
+- NFR17: Traefik routes requests with <100ms added latency
+
+### Operability
+
+- NFR18: All cluster components emit Prometheus metrics
+- NFR19: Pod logs retained for 7 days minimum
+- NFR20: K3s upgrades complete with zero data loss
+- NFR21: New services deployable without cluster restart
+- NFR22: Runbooks exist for all P1 alert scenarios
+- NFR23: Single operator can manage entire cluster (no team required)
+
+### Documentation Quality
+
+- NFR24: All architecture decisions documented as ADRs
+- NFR25: README provides working cluster setup in <2 hours
+- NFR26: All deployed services have documented purpose and configuration
+- NFR27: Repository navigable by external reviewer (hiring manager)
+

@@ -1,0 +1,90 @@
+# Bitnami PostgreSQL Helm values for home-lab
+# Story: 5.1 - Deploy PostgreSQL via Bitnami Helm Chart
+# Epic: 5 - PostgreSQL Database Service
+#
+# FRs:
+# - FR8: Deploy applications using Helm charts
+# - FR31: Deploy PostgreSQL as StatefulSet
+#
+# Components: PostgreSQL primary instance (StatefulSet)
+
+# Global labels applied to all resources
+commonLabels:
+  app.kubernetes.io/part-of: home-lab
+  app.kubernetes.io/managed-by: helm
+
+# PostgreSQL authentication
+auth:
+  # PostgreSQL superuser password stored in secrets/postgres-secrets.yaml (gitignored)
+  # Deployment: ./scripts/deploy-postgres.sh (auto-merges secrets)
+  # Or manual: helm upgrade --install ... -f values-homelab.yaml -f ../../secrets/postgres-secrets.yaml
+
+  # PostgreSQL database name
+  database: "postgres"
+
+  # PostgreSQL username
+  username: "postgres"
+
+# Primary PostgreSQL configuration
+primary:
+  # Resource limits (conservative for home lab)
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  # Persistence configuration
+  # NOTE: Story 5.2 - NFS-backed persistent storage enabled
+  # PVC will be dynamically provisioned by nfs-subdir-external-provisioner
+  # Data persists across pod restarts and node failures
+  persistence:
+    enabled: true  # Story 5.2: Enable persistent storage with NFS
+    storageClass: nfs-client  # Story 5.2: Use NFS storage class (from Epic 2)
+    size: 8Gi  # Story 5.2: 8Gi storage allocation for home lab database
+    accessModes:
+      - ReadWriteOnce  # RWO: Volume can be mounted read-write by single node (StatefulSet requirement)
+
+  # Service configuration
+  service:
+    type: ClusterIP  # Internal cluster access only
+    ports:
+      postgresql: 5432  # PostgreSQL default port
+
+  # Labels for home-lab consistency
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-primary
+    app.kubernetes.io/component: database
+
+# Metrics configuration (integrates with Prometheus)
+metrics:
+  enabled: true  # Enable PostgreSQL exporter for monitoring
+
+  # ServiceMonitor for Prometheus scraping
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack  # Match Prometheus Operator label selector
+
+  # Metrics exporter resource limits
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# PostgreSQL configuration parameters
+# Use defaults from Bitnami chart for most settings
+# Custom configurations can be added here if needed
+
+# Disable read replicas (not needed for home lab)
+readReplicas:
+  replicaCount: 0
+
+# Security context
+# Use chart defaults for security settings

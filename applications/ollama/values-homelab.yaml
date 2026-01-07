@@ -1,0 +1,113 @@
+# Ollama Helm values for home-lab
+# Story: 6.1 - Deploy Ollama for LLM Inference
+# Epic: 6 - AI Inference Platform
+#
+# FRs:
+# - FR8: Deploy applications using Helm charts
+# - FR36: Deploy Ollama for LLM inference
+#
+# Components: Ollama LLM inference service (Deployment)
+
+# Ollama deployment configuration
+replicaCount: 1  # Single instance (CPU-only MVP)
+
+# Container image
+image:
+  repository: ollama/ollama
+  pullPolicy: IfNotPresent
+  tag: "latest"  # Use latest stable Ollama version
+
+# Ollama-specific configuration
+ollama:
+  # Port Ollama is listening on
+  port: 11434
+
+  # GPU disabled for CPU-only MVP
+  gpu:
+    enabled: false
+
+  # Models to pull at startup (empty for now, will pull manually in testing)
+  models:
+    pull: []
+    run: []
+    create: []
+    clean: false
+
+# Service configuration
+service:
+  type: ClusterIP  # Internal cluster access only
+  port: 11434  # Ollama default API port
+  annotations: {}
+  labels:
+    app.kubernetes.io/part-of: home-lab
+
+# Resource limits (conservative for home lab, CPU-only inference)
+resources:
+  requests:
+    cpu: 500m  # 0.5 CPU cores for inference
+    memory: 2Gi  # 2GB RAM for model loading
+  limits:
+    cpu: 4000m  # 4 CPU cores max (bursting allowed)
+    memory: 8Gi  # 8GB RAM max for larger models
+
+# Persistent storage for models
+persistentVolume:
+  enabled: true  # Enable NFS-backed model storage
+  storageClass: nfs-client  # Use NFS storage class (from Epic 2)
+  size: 50Gi  # 50GB storage for models
+  accessModes:
+    - ReadWriteOnce  # RWO: Single node mount
+  annotations: {}
+
+# Additional environment variables
+extraEnv:
+  - name: OLLAMA_HOST
+    value: "0.0.0.0:11434"  # Listen on all interfaces
+
+# Labels for home-lab consistency
+podLabels:
+  app.kubernetes.io/part-of: home-lab
+  app.kubernetes.io/component: llm-inference
+
+# Pod annotations
+podAnnotations: {}
+
+# Security context
+securityContext: {}
+podSecurityContext: {}
+
+# Node selector - deploy to any worker node
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}
+
+# Deployment update strategy
+updateStrategy:
+  type: Recreate
+
+# Probes
+livenessProbe:
+  enabled: true
+  path: /
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
+
+readinessProbe:
+  enabled: true
+  path: /
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 6
+  successThreshold: 1
+
+# Ingress disabled (will create IngressRoute separately)
+ingress:
+  enabled: false

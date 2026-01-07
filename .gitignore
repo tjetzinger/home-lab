@@ -1,0 +1,185 @@
+# ==============================================================================
+# Home Lab .gitignore
+# Security-focused exclusions for Kubernetes home lab repository
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Tool-Specific (Existing)
+# ------------------------------------------------------------------------------
+.obsidian                    # Obsidian notes/vault metadata
+.claude/                     # Claude Code CLI configuration
+.empirica/                   # Empirica epistemic self-assessment data
+.empirica_reflex_logs/       # Empirica logging output
+
+# ------------------------------------------------------------------------------
+# Sensitive Files - NEVER COMMIT
+# ------------------------------------------------------------------------------
+# Secrets directory (local credentials storage)
+secrets/
+*-secrets.yaml
+
+# Kubernetes configurations
+*.kubeconfig
+kubeconfig.yaml
+kubeconfig
+config
+.kube/config
+
+# Kubernetes secrets (if not using sealed secrets or external secret management)
+*-secret.yaml
+secrets.yaml
+secret.yaml
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Credentials and keys
+credentials.json
+*-credentials.json
+*.pem
+*.key
+id_rsa
+id_ed25519
+*.p12
+*.pfx
+
+# API tokens and passwords
+token
+*.token
+password
+*.password
+
+# ------------------------------------------------------------------------------
+# Generated Files
+# ------------------------------------------------------------------------------
+# Helm
+Chart.lock
+charts/*/charts/
+*.tgz
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+*.tfvars
+
+# Build artifacts
+dist/
+build/
+target/
+*.war
+*.jar
+*.ear
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*~
+*.swp
+*.swo
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# ------------------------------------------------------------------------------
+# IDE and Editor
+# ------------------------------------------------------------------------------
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs (IntelliJ, PyCharm, etc.)
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Vim
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ------------------------------------------------------------------------------
+# OS-Specific
+# ------------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# ------------------------------------------------------------------------------
+# Backup Files
+# ------------------------------------------------------------------------------
+*.backup
+*.bak
+*.old
+*-backup/
+
+# ------------------------------------------------------------------------------
+# Development and Testing
+# ------------------------------------------------------------------------------
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+env/
+ENV/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn/
+
+# Go
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# ------------------------------------------------------------------------------
+# Notes
+# ------------------------------------------------------------------------------
+# IP addresses (192.168.x.x) in documentation are internal-only and safe to commit
+# All manifests and Helm values files should be committed (infrastructure as code)
+# Use sealed-secrets or external secret management for sensitive Kubernetes data

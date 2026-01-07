@@ -1,0 +1,15 @@
+# HTTPS Redirect Middleware for monitoring namespace
+# Redirects HTTP requests to HTTPS
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: home-lab
+spec:
+  redirectScheme:
+    permanent: true
+    scheme: https

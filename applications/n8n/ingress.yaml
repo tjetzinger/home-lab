@@ -1,0 +1,92 @@
+# n8n IngressRoute for home-lab
+# Namespace: apps
+#
+# Story: 6.3 - Deploy n8n for Workflow Automation
+# FR: FR40 - Deploy n8n for workflow automation
+# NFR: NFR7 - All ingress traffic uses TLS 1.2+ with valid certificates
+#
+# Access: https://n8n.home.jetzinger.com
+# Security: HTTPS-only via Let's Encrypt, Tailscale VPN for remote access
+---
+# HTTPS redirect middleware for apps namespace
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: home-lab
+spec:
+  redirectScheme:
+    permanent: true
+    scheme: https
+---
+# Certificate for n8n.home.jetzinger.com
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: n8n-tls
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: n8n
+    app.kubernetes.io/instance: n8n
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: workflow-automation
+spec:
+  secretName: n8n-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - n8n.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# HTTPS IngressRoute for n8n
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: n8n-ingress
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: n8n
+    app.kubernetes.io/instance: n8n
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: workflow-automation
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`n8n.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: n8n
+          port: 5678
+  tls:
+    secretName: n8n-tls
+---
+# HTTP to HTTPS redirect for n8n
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: n8n-ingress-redirect
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: n8n
+    app.kubernetes.io/instance: n8n-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: workflow-automation
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`n8n.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: apps
+      services:
+        - name: n8n
+          port: 5678

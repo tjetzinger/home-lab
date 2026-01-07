@@ -1,0 +1,92 @@
+#!/bin/sh
+# Nginx Configuration Auto-Reload Watcher
+# Story: 7.3 - Enable Hot-Reload Configuration
+# Purpose: Monitor nginx.conf for changes and trigger graceful reload automatically
+
+# Configuration
+CONFIG_FILE="/etc/nginx/custom/nginx.conf"
+CHECK_INTERVAL=10  # Check every 10 seconds (well within 30-second AC requirement)
+STABLE_WAIT=5      # Wait 5 seconds for file to stabilize after change detected
+
+echo "[config-watcher] Starting nginx configuration watcher"
+echo "[config-watcher] Monitoring: $CONFIG_FILE"
+echo "[config-watcher] NOTE: ConfigMap mounted without subPath for auto-propagation"
+echo "[config-watcher] Check interval: ${CHECK_INTERVAL}s"
+echo
+
+# Get initial timestamp (-L follows all symlinks for ConfigMap mounts)
+LAST_TIMESTAMP=$(stat -L -c '%Y' "$CONFIG_FILE" 2>/dev/null)
+if [ -z "$LAST_TIMESTAMP" ]; then
+    echo "[config-watcher] ERROR: Cannot access $CONFIG_FILE"
+    exit 1
+fi
+
+echo "[config-watcher] Initial timestamp: $LAST_TIMESTAMP ($(date -d @$LAST_TIMESTAMP '+%Y-%m-%d %H:%M:%S'))"
+echo "[config-watcher] Watcher active - monitoring for configuration changes..."
+echo
+
+# Main watch loop
+while true; do
+    # Check current timestamp (-L follows all symlinks)
+    CURRENT_TIMESTAMP=$(stat -L -c '%Y' "$CONFIG_FILE" 2>/dev/null)
+
+    if [ -z "$CURRENT_TIMESTAMP" ]; then
+        echo "[config-watcher] WARNING: Cannot access $CONFIG_FILE - waiting..."
+        sleep $CHECK_INTERVAL
+        continue
+    fi
+
+    # Detect change
+    if [ "$CURRENT_TIMESTAMP" != "$LAST_TIMESTAMP" ]; then
+        echo
+        echo "[config-watcher] =============================================="
+        echo "[config-watcher] Configuration change detected!"
+        echo "[config-watcher] Old timestamp: $LAST_TIMESTAMP ($(date -d @$LAST_TIMESTAMP '+%Y-%m-%d %H:%M:%S'))"
+        echo "[config-watcher] New timestamp: $CURRENT_TIMESTAMP ($(date -d @$CURRENT_TIMESTAMP '+%Y-%m-%d %H:%M:%S'))"
+        echo "[config-watcher] =============================================="
+        echo
+
+        # Wait for file to stabilize (avoid reloading mid-write)
+        echo "[config-watcher] Waiting ${STABLE_WAIT}s for file to stabilize..."
+        sleep $STABLE_WAIT
+
+        # Re-check timestamp to ensure no further writes (-L follows all symlinks)
+        STABLE_TIMESTAMP=$(stat -L -c '%Y' "$CONFIG_FILE" 2>/dev/null)
+        if [ "$STABLE_TIMESTAMP" != "$CURRENT_TIMESTAMP" ]; then
+            echo "[config-watcher] File still changing, waiting another cycle..."
+            LAST_TIMESTAMP=$STABLE_TIMESTAMP
+            continue
+        fi
+
+        # Validate configuration syntax before reload
+        echo "[config-watcher] Validating configuration syntax..."
+        if nginx -t 2>&1 | grep -q "successful"; then
+            echo "[config-watcher] ✓ Configuration syntax valid"
+
+            # Trigger graceful reload
+            echo "[config-watcher] Triggering nginx graceful reload..."
+            RELOAD_TIME=$(date '+%Y-%m-%d %H:%M:%S')
+
+            if nginx -s reload 2>&1; then
+                echo "[config-watcher] ✓ Reload signal sent successfully at $RELOAD_TIME"
+                echo "[config-watcher] Master process will spawn new workers with updated config"
+                echo "[config-watcher] Old workers will gracefully finish current requests"
+            else
+                echo "[config-watcher] ✗ ERROR: Reload signal failed"
+            fi
+        else
+            echo "[config-watcher] ✗ ERROR: Configuration syntax invalid"
+            echo "[config-watcher] Reload NOT triggered - fix configuration errors"
+            nginx -t 2>&1
+        fi
+
+        # Update last known timestamp
+        LAST_TIMESTAMP=$CURRENT_TIMESTAMP
+        echo
+        echo "[config-watcher] Resuming watch for next configuration change..."
+        echo
+    fi
+
+    # Wait before next check
+    sleep $CHECK_INTERVAL
+done

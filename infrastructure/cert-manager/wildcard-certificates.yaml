@@ -1,0 +1,44 @@
+# Wildcard Certificates for dev environments
+# Managed by cert-manager with Let's Encrypt via DNS-01/Cloudflare
+#
+# These certificates auto-renew 30 days before expiry
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: pilates4-golf-wildcard
+  namespace: infra
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/instance: pilates4-golf-wildcard
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: pilates4-golf-wildcard-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - "*.dev.pilates4.golf"
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: belego-app-wildcard
+  namespace: infra
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/instance: belego-app-wildcard
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: belego-app-wildcard-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - "*.dev.belego.app"
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io

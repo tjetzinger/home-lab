@@ -1,0 +1,51 @@
+# MetalLB Helm Values for home-lab
+# Chart: metallb/metallb
+# Namespace: metallb-system (default)
+#
+# Story: 3.1 - Deploy MetalLB for LoadBalancer Services
+# FR: FR19 - Expose services via LoadBalancer using MetalLB
+
+# Controller configuration
+controller:
+  # Resource limits for controller
+  resources:
+    limits:
+      cpu: 100m
+      memory: 100Mi
+    requests:
+      cpu: 25m
+      memory: 50Mi
+
+# Speaker configuration (DaemonSet on all nodes)
+speaker:
+  # Resource limits for speaker pods
+  resources:
+    limits:
+      cpu: 100m
+      memory: 100Mi
+    requests:
+      cpu: 25m
+      memory: 50Mi
+
+  # Tolerate all taints to run on all nodes including master
+  tolerations:
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/master"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+# Prometheus metrics (for future observability integration)
+prometheus:
+  # Enable ServiceMonitor when Prometheus is deployed (Story 4.1)
+  serviceMonitor:
+    enabled: false
+  # Enable PodMonitor for speaker pods
+  podMonitor:
+    enabled: false
+
+# CRDs are managed by Helm
+crds:
+  enabled: true
+  validationFailurePolicy: Fail

@@ -1,0 +1,48 @@
+# NFS Subdir External Provisioner - Home Lab Configuration
+# Chart: nfs-subdir-external-provisioner/nfs-subdir-external-provisioner
+# Docs: https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner
+#
+# NFS Server: Synology DS920+ (192.168.2.2)
+# Export: /volume1/k8s-data
+# Capacity: 8.8TB RAID1
+
+# NFS server configuration
+nfs:
+  server: 192.168.2.2
+  path: /volume1/k8s-data
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - timeo=600
+    - retrans=3
+
+# StorageClass configuration
+storageClass:
+  # Name of the StorageClass
+  name: nfs-client
+  # Set as default StorageClass for the cluster
+  defaultClass: true
+  # Reclaim policy: Delete removes PV data when PVC is deleted
+  reclaimPolicy: Delete
+  # Archive on delete: false means data is deleted, not archived
+  archiveOnDelete: false
+  # Access modes supported
+  accessModes: ReadWriteOnce
+  # Allow volume expansion
+  allowVolumeExpansion: true
+
+# Provisioner settings
+replicaCount: 1
+
+# Pod resources
+resources:
+  limits:
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+# Pod scheduling - prefer running on worker nodes
+nodeSelector: {}
+tolerations: []
+affinity: {}

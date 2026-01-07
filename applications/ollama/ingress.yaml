@@ -1,0 +1,92 @@
+# Ollama IngressRoute for home-lab
+# Namespace: ml
+#
+# Story: 6.1 - Deploy Ollama for LLM Inference
+# FR: FR36 - Deploy Ollama for LLM inference
+# NFR: NFR7 - All ingress traffic uses TLS 1.2+ with valid certificates
+#
+# Access: https://ollama.home.jetzinger.com
+# Security: HTTPS-only via Let's Encrypt, Tailscale VPN for remote access
+---
+# HTTPS redirect middleware for ml namespace
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: home-lab
+spec:
+  redirectScheme:
+    permanent: true
+    scheme: https
+---
+# Certificate for ollama.home.jetzinger.com
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ollama-tls
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/instance: ollama
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+spec:
+  secretName: ollama-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - ollama.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# HTTPS IngressRoute for Ollama API
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ollama-ingress
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/instance: ollama
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`ollama.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: ollama
+          port: 11434
+  tls:
+    secretName: ollama-tls
+---
+# HTTP to HTTPS redirect for Ollama
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ollama-ingress-redirect
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/instance: ollama-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`ollama.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: ml
+      services:
+        - name: ollama
+          port: 11434

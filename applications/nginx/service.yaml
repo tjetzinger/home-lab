@@ -1,0 +1,30 @@
+# Nginx Reverse Proxy Service
+# Namespace: dev
+#
+# Story: 7.1 - Deploy Nginx Reverse Proxy
+# FR: FR41 - Configure Nginx to proxy to local dev servers
+#
+# Purpose: ClusterIP service for internal cluster access to nginx proxy
+# Ingress configuration deferred to Story 7.2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-proxy
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy
+    app.kubernetes.io/component: reverse-proxy
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy

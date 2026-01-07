@@ -1,0 +1,100 @@
+# Nginx Reverse Proxy Configuration
+# Namespace: dev
+#
+# Story: 7.1 - Deploy Nginx Reverse Proxy
+# FR: FR41 - Configure Nginx to proxy to local dev servers
+#
+# Purpose: ConfigMap-based nginx configuration for hot-reload capability (Story 7.3)
+# Proxy targets will be configured via ingress in Story 7.2
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-proxy-config
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy
+    app.kubernetes.io/component: reverse-proxy
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+data:
+  nginx.conf: |
+    # Nginx Reverse Proxy Configuration
+    # Generated for Story 7.1 - Deploy Nginx Reverse Proxy
+
+    user  nginx;
+    worker_processes  auto;
+
+    error_log  /var/log/nginx/error.log notice;
+    pid        /var/run/nginx.pid;
+
+    events {
+        worker_connections  1024;
+    }
+
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+
+        log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                          '$status $body_bytes_sent "$http_referer" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+
+        access_log  /var/log/nginx/access.log  main;
+
+        sendfile        on;
+        keepalive_timeout  65;
+
+        # Upstream definitions for dev servers
+        # Story 7.2: Configure Ingress for Dev Proxy Access
+        upstream app1 {
+            server 192.168.2.50:3000;
+        }
+
+        upstream app2 {
+            server 192.168.2.51:8080;
+        }
+
+        server {
+            listen       80;
+            server_name  localhost;
+
+            # Default location - returns nginx welcome page
+            location / {
+                root   /usr/share/nginx/html;
+                index  index.html index.htm;
+            }
+
+            # Proxy to app1 (dev server on 192.168.2.50:3000)
+            location /app1 {
+                proxy_pass http://app1;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+
+            # Proxy to app2 (dev server on 192.168.2.51:8080)
+            location /app2 {
+                proxy_pass http://app2;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+
+            # Health check endpoint
+            location /health {
+                access_log off;
+                return 200 "healthy\n";
+                add_header Content-Type text/plain;
+            }
+
+            # Error pages
+            error_page   500 502 503 504  /50x.html;
+            location = /50x.html {
+                root   /usr/share/nginx/html;
+            }
+        }
+    }

@@ -1,0 +1,96 @@
+# Nginx Reverse Proxy Deployment
+# Namespace: dev
+#
+# Story: 7.1 - Deploy Nginx Reverse Proxy
+# Story: 7.3 - Enable Hot-Reload Configuration
+# FR: FR41 - Configure Nginx to proxy to local dev servers
+# FR: FR43 - Add/remove proxy targets without cluster restart
+#
+# Purpose: Reverse proxy for accessing local development servers through cluster ingress
+# Configuration: ConfigMap-based with automatic hot-reload detection (Story 7.3)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-proxy
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy
+    app.kubernetes.io/component: reverse-proxy
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx
+      app.kubernetes.io/instance: nginx-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx
+        app.kubernetes.io/instance: nginx-proxy
+        app.kubernetes.io/component: reverse-proxy
+        app.kubernetes.io/part-of: home-lab
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27-alpine
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            # Start config watcher in background
+            sh /scripts/config-watcher.sh &
+            # Start nginx with custom config path (enables ConfigMap auto-propagation)
+            nginx -c /etc/nginx/custom/nginx.conf -g 'daemon off;'
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/custom
+          readOnly: true
+        - name: watcher-script
+          mountPath: /scripts
+          readOnly: true
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+      volumes:
+      - name: config
+        configMap:
+          name: nginx-proxy-config
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+      - name: watcher-script
+        configMap:
+          name: nginx-config-watcher
+          items:
+          - key: config-watcher.sh
+            path: config-watcher.sh
+            mode: 0755

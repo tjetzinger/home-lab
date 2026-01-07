@@ -1,0 +1,117 @@
+# generated: 2025-12-28
+# project: home-lab
+# tracking_system: file-system
+# story_location: docs/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2025-12-28
+project: home-lab
+tracking_system: file-system
+story_location: docs/implementation-artifacts
+
+development_status:
+  # Epic 1: Foundation - K3s Cluster with Remote Access
+  epic-1: done
+  1-1-create-k3s-control-plane: done
+  1-2-add-first-worker-node: done
+  1-3-add-second-worker-node: done
+  1-4-configure-remote-kubectl-access: done
+  1-5-document-node-removal-procedure: done
+  epic-1-retrospective: optional
+
+  # Epic 2: Storage & Persistence
+  epic-2: done
+  2-1-deploy-nfs-storage-provisioner: done
+  2-2-create-and-test-persistentvolumeclaim: done
+  2-3-verify-storage-mount-health: done
+  2-4-configure-synology-snapshots-for-backup: done
+  epic-2-retrospective: optional
+
+  # Epic 3: Ingress, TLS & Service Exposure
+  epic-3: done
+  3-1-deploy-metallb-for-loadbalancer-services: done
+  3-2-configure-traefik-ingress-controller: done
+  3-3-deploy-cert-manager-with-lets-encrypt: done
+  3-4-configure-dns-with-nextdns-rewrites: done
+  3-5-create-first-https-ingress-route: done
+  epic-3-retrospective: optional
+
+  # Epic 4: Observability Stack
+  epic-4: done
+  4-1-deploy-kube-prometheus-stack: done
+  4-2-configure-grafana-dashboards-and-ingress: done
+  4-3-verify-prometheus-metrics-and-queries: done
+  4-4-configure-alertmanager-with-alert-rules: done
+  4-5-setup-mobile-notifications-for-p1-alerts: done
+  4-6-deploy-loki-for-log-aggregation: done
+  epic-4-retrospective: optional
+
+  # Epic 5: PostgreSQL Database Service
+  epic-5: done
+  5-1-deploy-postgresql-via-bitnami-helm-chart: done
+  5-2-configure-nfs-persistence-for-postgresql: done
+  5-3-setup-postgresql-backup-with-pg-dump: done
+  5-4-validate-postgresql-restore-procedure: done
+  5-5-test-application-connectivity-to-postgresql: done
+  epic-5-retrospective: optional
+
+  # Epic 6: AI Inference Platform
+  epic-6: done
+  6-1-deploy-ollama-for-llm-inference: done
+  6-2-test-ollama-api-and-model-inference: done
+  6-3-deploy-n8n-for-workflow-automation: done
+  6-4-validate-scaling-and-log-access: done
+  epic-6-retrospective: optional
+
+  # Epic 7: Development Proxy
+  epic-7: done
+  7-1-deploy-nginx-reverse-proxy: done
+  7-2-configure-ingress-for-dev-proxy-access: done
+  7-3-enable-hot-reload-configuration: done
+  epic-7-retrospective: optional
+
+  # Epic 8: Cluster Operations & Maintenance
+  epic-8: done
+  8-1-configure-k3s-upgrade-procedure: done
+  8-2-setup-cluster-state-backup: done
+  8-3-validate-cluster-restore-procedure: done
+  8-4-configure-automatic-os-security-updates: done
+  8-5-document-rollback-and-history-procedures: done
+  epic-8-retrospective: optional
+
+  # Epic 9: Portfolio & Public Showcase
+  epic-9: in-progress
+  9-1-structure-public-github-repository: done
+  9-2-create-architecture-decision-records: done
+  9-3-capture-and-document-grafana-screenshots: backlog
+  9-4-write-and-publish-first-technical-blog-post: backlog
+  9-5-document-all-deployed-services: backlog
+  epic-9-retrospective: optional

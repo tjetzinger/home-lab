@@ -1,0 +1,145 @@
+# n8n Helm values for home-lab
+# Story: 6.3 - Deploy n8n for Workflow Automation
+# Epic: 6 - AI Inference Platform
+# Chart: community-charts/n8n
+#
+# FRs:
+# - FR8: Deploy applications using Helm charts
+# - FR40: Deploy n8n for workflow automation
+
+# Image configuration
+image:
+  repository: n8nio/n8n
+  pullPolicy: IfNotPresent
+  tag: ""  # Uses chart app version
+
+# Deployment strategy
+strategy:
+  type: Recreate  # Single instance with persistent data
+
+# Pod labels
+podLabels:
+  app.kubernetes.io/name: n8n
+  app.kubernetes.io/instance: n8n
+  app.kubernetes.io/part-of: home-lab
+
+# Security context
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: "OnRootMismatch"
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  privileged: false
+  runAsUser: 1000
+  runAsGroup: 1000
+
+# Service configuration
+service:
+  enabled: true
+  type: ClusterIP
+  port: 5678
+  name: http
+
+# Timezone configuration
+timezone: "America/New_York"
+
+# Security encryption key stored in secrets/n8n-secrets.yaml (gitignored)
+# Deployment: ./scripts/deploy-n8n.sh (auto-merges secrets)
+
+# Database configuration
+db:
+  type: postgresdb
+  postgresdb:
+    schema: public
+    poolSize: 2
+    connectionTimeout: 20000
+    idleConnectionTimeout: 30000
+
+# External PostgreSQL configuration
+# Password stored in secrets/n8n-secrets.yaml (gitignored)
+externalPostgresql:
+  host: postgres-postgresql.data
+  port: 5432
+  username: n8n
+  database: n8n
+
+# Main node configuration
+main:
+  # Resource limits
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+  # Persistent storage for n8n data
+  persistence:
+    enabled: true
+    storageClass: nfs-client
+    accessMode: ReadWriteOnce
+    size: 10Gi
+    mountPath: /home/node/.n8n
+    annotations:
+      helm.sh/resource-policy: keep
+
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /healthz/readiness
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  # Environment variables for n8n
+  extraEnvVars:
+    # Protocol and host
+    N8N_PROTOCOL: "https"
+    N8N_HOST: "n8n.home.jetzinger.com"
+    N8N_PORT: "5678"
+    WEBHOOK_URL: "https://n8n.home.jetzinger.com/"
+
+    # Database configuration (explicit for clarity)
+    # DB_POSTGRESDB_PASSWORD stored in secrets/n8n-secrets.yaml (gitignored)
+    DB_TYPE: "postgresdb"
+    DB_POSTGRESDB_HOST: "postgres-postgresql.data"
+    DB_POSTGRESDB_PORT: "5432"
+    DB_POSTGRESDB_DATABASE: "n8n"
+    DB_POSTGRESDB_USER: "n8n"
+    DB_POSTGRESDB_SCHEMA: "public"
+
+    # Execution settings
+    EXECUTIONS_PROCESS: "main"
+    EXECUTIONS_MODE: "regular"
+    EXECUTIONS_DATA_PRUNE: "true"
+    EXECUTIONS_DATA_MAX_AGE: "336"  # 14 days
+
+# Disable embedded PostgreSQL (using external)
+postgresql:
+  enabled: false
+
+# Disable embedded Redis (not needed for simple setup)
+redis:
+  enabled: false
+
+# Disable MinIO (not needed)
+minio:
+  enabled: false
