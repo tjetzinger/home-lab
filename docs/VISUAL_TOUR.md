@@ -62,34 +62,34 @@ All screenshots captured from **https://grafana.home.jetzinger.com** showing rea
 ![Pod Resource Metrics](diagrams/screenshots/grafana-pod-resources.png)
 
 **What this shows:**
-- **Namespace-level pod metrics**: Resource consumption broken down by individual pods
-- **Real application workloads**: Actual metrics from running services (not demo/tutorial data)
-- **Resource allocation**: How memory and CPU are distributed among pods
-- **Performance monitoring**: Ability to identify resource-intensive workloads
+- **Monitoring namespace pods**: Resource consumption for the observability stack (Prometheus, Grafana, Alertmanager, Loki, node-exporter)
+- **Production-grade monitoring**: Multiple specialized pods working together for comprehensive observability
+- **Resource allocation**: How memory and CPU are distributed among monitoring components
+- **Operational proof**: Real metrics from a functional observability stack running 24/7
 
 **Key Metrics Visible:**
-- Memory usage per pod
-- CPU usage per pod
-- Pod restart counts (stability indicator)
-- Resource requests vs limits compliance
+- Memory usage per pod (Prometheus, Grafana, Loki storage and query components)
+- CPU usage per monitoring component
+- Pod restart counts demonstrating stability
+- Resource efficiency of monitoring stack on modest hardware
 
 ---
 
-### Custom Dashboard
+### Workload Resource Dashboard
 
-![Custom Dashboard](diagrams/screenshots/grafana-custom-dashboard.png)
+![Workload Resource Metrics](diagrams/screenshots/grafana-custom-dashboard.png)
 
 **What this shows:**
-- **Comprehensive cluster health**: Overview dashboard showing key operational metrics
-- **Prometheus integration**: Metrics collection across all cluster components
-- **Observability stack operational**: Proof that monitoring infrastructure is functional and collecting data
-- **Production-ready monitoring**: Dashboard suitable for operational use (not just demo)
+- **Data namespace workloads**: PostgreSQL database deployment resource consumption
+- **Stateful workload monitoring**: Real metrics from production database (not ephemeral demo workload)
+- **Deployment-level metrics**: Resource usage aggregated by workload type (Deployment, StatefulSet)
+- **Database operations proof**: Active PostgreSQL instance serving n8n and other applications
 
 **Key Metrics Visible:**
-- Prometheus metrics collection status
-- Alert manager status
-- Query performance
-- Storage and retention metrics
+- PostgreSQL deployment CPU and memory usage
+- Database workload resource patterns over time
+- Comparison of resource requests vs actual consumption
+- Persistent workload demonstrating 24/7 operational database
 
 ---
 
