@@ -1995,7 +1995,44 @@ So that **I can evaluate the depth of implementation**.
 
 ---
 
-#### Story 10.2: Configure OCR with German and English Support
+#### Story 10.2: Configure PostgreSQL Backend
+
+**As a** platform engineer
+**I want** Paperless-ngx to use the existing cluster PostgreSQL database instead of SQLite
+**So that** the system can scale to 5,000+ documents with efficient metadata queries
+
+**Acceptance Criteria:**
+
+**Given** cluster PostgreSQL is running in `data` namespace
+**When** I configure Paperless-ngx database connection
+**Then** Helm values include:
+```yaml
+env:
+  PAPERLESS_DBENGINE: postgresql
+  PAPERLESS_DBHOST: postgresql.data.svc.cluster.local
+  PAPERLESS_DBNAME: paperless
+  PAPERLESS_DBUSER: paperless_user
+  PAPERLESS_DBPORT: "5432"
+```
+
+**Given** PostgreSQL credentials are configured
+**When** I create database and user in PostgreSQL
+**Then** database `paperless` exists with user `paperless_user`
+**And** credentials are stored in `secrets/paperless-secrets.yaml` (gitignored)
+**And** this validates FR66 (PostgreSQL backend for metadata)
+
+**Given** Paperless-ngx is upgraded with PostgreSQL config
+**When** I check pod logs
+**Then** logs show successful PostgreSQL connection
+**And** logs show database migration completion
+**And** no SQLite-related errors appear
+**And** this validates NFR29 (scales to 5,000+ documents)
+
+**Story Points:** 3
+
+---
+
+#### Story 10.3: Configure OCR with German and English Support
 
 **As a** user
 **I want** Paperless-ngx to perform OCR on scanned documents in German and English
@@ -2027,7 +2064,7 @@ env:
 
 ---
 
-#### Story 10.3: Configure NFS Persistent Storage
+#### Story 10.4: Configure NFS Persistent Storage
 
 **As a** platform engineer
 **I want** Paperless-ngx to store documents on NFS
@@ -2061,7 +2098,7 @@ env:
 
 ---
 
-#### Story 10.4: Configure Ingress with HTTPS
+#### Story 10.5: Configure Ingress with HTTPS
 
 **As a** user
 **I want** to access Paperless-ngx via HTTPS at `paperless.home.jetzinger.com`
@@ -2106,7 +2143,7 @@ spec:
 
 ---
 
-#### Story 10.5: Validate Document Management Workflow
+#### Story 10.6: Validate Document Management Workflow
 
 **As a** user
 **I want** to verify the complete document lifecycle

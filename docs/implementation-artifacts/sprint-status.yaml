@@ -118,11 +118,12 @@ development_status:
 
   # Epic 10: Document Management System (Paperless-ngx)
   epic-10: in-progress
-  10-1-deploy-paperless-ngx-with-redis-backend: review
-  10-2-configure-ocr-with-german-and-english-support: backlog
-  10-3-configure-nfs-persistent-storage: backlog
-  10-4-configure-ingress-with-https: backlog
-  10-5-validate-document-management-workflow: backlog
+  10-1-deploy-paperless-ngx-with-redis-backend: done
+  10-2-configure-postgresql-backend: done
+  10-3-configure-ocr-with-german-and-english-support: ready-for-dev
+  10-4-configure-nfs-persistent-storage: backlog
+  10-5-configure-ingress-with-https: backlog
+  10-6-validate-document-management-workflow: backlog
   epic-10-retrospective: optional
 
   # Epic 11: Dev Containers Platform

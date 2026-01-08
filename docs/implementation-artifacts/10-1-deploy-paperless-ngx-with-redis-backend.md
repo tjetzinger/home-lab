@@ -1,6 +1,6 @@
 # Story 10.1: Deploy Paperless-ngx with Redis Backend
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

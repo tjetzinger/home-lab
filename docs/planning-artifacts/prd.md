@@ -12,6 +12,7 @@ researchCount: 1
 brainstormingCount: 1
 projectDocsCount: 0
 date: '2025-12-27'
+lastUpdated: '2026-01-08'
 author: 'Tom'
 project_name: 'home-lab'
 ---
@@ -19,7 +20,11 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27
+**Date:** 2025-12-27 | **Last Updated:** 2026-01-08
+
+**Changelog:**
+- 2026-01-08: Added Phase 2 requirements - Paperless-ngx (FR64-66, NFR28-30), Dev Containers (FR67-70, NFR31-33), vLLM GPU (FR71-74, NFR34-38)
+- 2026-01-08: Updated FR66 - PostgreSQL backend moved from "deferred" to Epic 10, Story 10.2 (active implementation)
 
 ## Executive Summary
 
@@ -430,9 +435,13 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 
 - FR36: Operator can deploy Ollama for LLM inference
 - FR37: Applications can query Ollama API for completions
-- FR38: Operator can deploy vLLM for production inference (Phase 2)
-- FR39: GPU workloads can request GPU resources via NVIDIA Operator (Phase 2)
+- FR38: Operator can deploy vLLM for production inference
+- FR39: GPU workloads can request GPU resources via NVIDIA Operator
 - FR40: Operator can deploy n8n for workflow automation
+- FR71: GPU worker (Intel NUC + RTX 3060 eGPU) joins cluster via Tailscale overlay network
+- FR72: vLLM serves Mistral 7B and Llama 3.1 8B models simultaneously
+- FR73: vLLM workloads gracefully degrade to Ollama CPU when GPU worker unavailable
+- FR74: Operator can hot-plug GPU worker (add/remove on demand without cluster disruption)
 
 ### Development Proxy
 
@@ -463,6 +472,9 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - FR56: Paperless-ngx persists documents to NFS storage
 - FR57: User can access Paperless-ngx via ingress with HTTPS
 - FR58: User can upload, tag, and search scanned documents
+- FR64: Paperless-ngx performs OCR on uploaded documents with German and English language support
+- FR65: System handles thousands of documents with ongoing scanning and manual upload workflow
+- FR66: Paperless-ngx uses PostgreSQL backend for metadata storage (Epic 10, Story 10.2)
 
 ### Dev Containers
 
@@ -471,6 +483,10 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - FR61: Developer can connect VS Code to dev container via Nginx proxy
 - FR62: Developer can run Claude Code inside dev containers
 - FR63: Dev containers use local storage for workspace data
+- FR67: Dev containers use single base image with Node.js, Python, Claude Code CLI, git, kubectl, helm
+- FR68: Each dev container allocated 2 CPU cores and 4GB RAM
+- FR69: Dev containers mount persistent 10GB volumes for workspace data
+- FR70: Dev containers isolated via NetworkPolicy (accessible only via nginx proxy)
 
 ## Non-Functional Requirements
 
@@ -515,4 +531,24 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - NFR25: README provides working cluster setup in <2 hours
 - NFR26: All deployed services have documented purpose and configuration
 - NFR27: Repository navigable by external reviewer (hiring manager)
+
+### Document Management (Paperless-ngx)
+
+- NFR28: Paperless-ngx OCR processes German and English text with 95%+ accuracy
+- NFR29: Document library scales to 5,000+ documents without performance degradation
+- NFR30: Document search returns results within 3 seconds for full-text queries
+
+### Dev Containers
+
+- NFR31: Dev container provisioning completes within 90 seconds (image pull + volume mount)
+- NFR32: Persistent volumes retain workspace data across container restarts
+- NFR33: Dev containers isolated via NetworkPolicy (no cross-container communication)
+
+### GPU/ML Infrastructure
+
+- NFR34: vLLM achieves 50+ tokens/second for Mistral 7B and Llama 3.1 8B on RTX 3060
+- NFR35: vLLM handles 2-3 concurrent inference requests without significant performance degradation
+- NFR36: GPU worker joins cluster and becomes Ready within 2 minutes of boot via Tailscale
+- NFR37: NVIDIA GPU Operator installs and configures GPU drivers automatically (no manual setup)
+- NFR38: vLLM serves multiple models simultaneously (Mistral 7B + Llama 3.1 8B)
 

@@ -23,6 +23,14 @@ env:
   PAPERLESS_SECRET_KEY: "placeholder-overridden-by-secrets-file"  # Real secret in secrets/paperless-secrets.yaml (gitignored)
   PAPERLESS_REDIS: "redis://redis:6379"  # Redis connection for standalone deployment
 
+  # PostgreSQL database configuration (Story 10.2)
+  PAPERLESS_DBENGINE: postgresql
+  PAPERLESS_DBHOST: postgres-postgresql.data.svc.cluster.local  # Cluster PostgreSQL from Epic 5
+  PAPERLESS_DBNAME: paperless
+  PAPERLESS_DBUSER: paperless_user
+  PAPERLESS_DBPORT: "5432"
+  # PAPERLESS_DBPASS is in secrets/paperless-secrets.yaml (gitignored)
+
 # Service configuration
 service:
   main:
@@ -46,7 +54,7 @@ persistence:
   consume:
     enabled: false  # Ephemeral for now
 
-# PostgreSQL database disabled (will use existing cluster PostgreSQL later)
+# PostgreSQL subchart disabled (using existing cluster PostgreSQL from Epic 5)
 postgresql:
   enabled: false
 
