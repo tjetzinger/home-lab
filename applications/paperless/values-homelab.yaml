@@ -31,6 +31,10 @@ env:
   PAPERLESS_DBPORT: "5432"
   # PAPERLESS_DBPASS is in secrets/paperless-secrets.yaml (gitignored)
 
+  # OCR configuration (Story 10.3)
+  PAPERLESS_OCR_LANGUAGE: "deu+eng"  # German + English OCR support
+  PAPERLESS_OCR_MODE: "skip"  # Skip OCR if document already has text layer
+
 # Service configuration
 service:
   main:
