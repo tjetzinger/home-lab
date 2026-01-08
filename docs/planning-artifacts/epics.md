@@ -1,8 +1,8 @@
 ---
 stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
-completedAt: '2025-12-28'
-lastModified: '2025-12-29'
+completedAt: '2026-01-08'
+lastModified: '2026-01-08'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,6 +10,8 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
+updateReason: 'Phase 2 complete: Epic 10 (Paperless-ngx - 5 stories), Epic 11 (Dev Containers - 6 stories), Epic 12 (GPU/ML - 6 stories)'
+currentStep: 'Workflow Complete - All Phase 2 epics and stories created'
 ---
 
 # home-lab - Epic Breakdown
@@ -69,12 +71,16 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR34: Operator can restore PostgreSQL from backup
 - FR35: Applications can connect to PostgreSQL within cluster
 
-**AI/ML Workloads (5 FRs)**
+**AI/ML Workloads (9 FRs)**
 - FR36: Operator can deploy Ollama for LLM inference
 - FR37: Applications can query Ollama API for completions
-- FR38: Operator can deploy vLLM for production inference (Phase 2)
-- FR39: GPU workloads can request GPU resources via NVIDIA Operator (Phase 2)
+- FR38: Operator can deploy vLLM for production inference
+- FR39: GPU workloads can request GPU resources via NVIDIA Operator
 - FR40: Operator can deploy n8n for workflow automation
+- FR71: GPU worker (Intel NUC + RTX 3060 eGPU) joins cluster via Tailscale overlay network
+- FR72: vLLM serves DeepSeek-Coder 6.7B, Mistral 7B, and Llama 3.1 8B models simultaneously
+- FR73: vLLM workloads gracefully degrade to Ollama CPU when GPU worker unavailable
+- FR74: Operator can hot-plug GPU worker (add/remove on demand without cluster disruption)
 
 **Development Proxy (3 FRs)**
 - FR41: Operator can configure Nginx to proxy to local dev servers
@@ -96,18 +102,25 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR53: Operator can document decisions as ADRs in repository
 - FR54: Operator can publish blog posts to dev.to or similar platform
 
-**Document Management (4 FRs)**
+**Document Management - Paperless-ngx (7 FRs)**
 - FR55: Operator can deploy Paperless-ngx with Redis backend
 - FR56: Paperless-ngx persists documents to NFS storage
 - FR57: User can access Paperless-ngx via ingress with HTTPS
 - FR58: User can upload, tag, and search scanned documents
+- FR64: Paperless-ngx performs OCR on uploaded documents with German and English language support
+- FR65: System handles thousands of documents with ongoing scanning and manual upload workflow
+- FR66: Paperless-ngx uses PostgreSQL backend for metadata storage (deferred to future epic)
 
-**Dev Containers (5 FRs)**
+**Dev Containers (9 FRs)**
 - FR59: Nginx proxy routes to dev containers in `dev` namespace
 - FR60: Operator can provision dev containers with git worktree support
 - FR61: Developer can connect VS Code to dev container via Nginx proxy
 - FR62: Developer can run Claude Code inside dev containers
 - FR63: Dev containers use local storage for workspace data
+- FR67: Dev containers use single base image with Node.js, Python, Claude Code CLI, git, kubectl, helm
+- FR68: Each dev container allocated 2 CPU cores and 4GB RAM
+- FR69: Dev containers mount persistent 10GB volumes for workspace data
+- FR70: Dev containers isolated via NetworkPolicy (accessible only via nginx proxy)
 
 ### NonFunctional Requirements
 
@@ -148,6 +161,23 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR26: All deployed services have documented purpose and configuration
 - NFR27: Repository navigable by external reviewer (hiring manager)
 
+**Document Management - Paperless-ngx (3 NFRs)**
+- NFR28: Paperless-ngx OCR processes German and English text with 95%+ accuracy
+- NFR29: Document library scales to 5,000+ documents without performance degradation
+- NFR30: Document search returns results within 3 seconds for full-text queries
+
+**Dev Containers (3 NFRs)**
+- NFR31: Dev container provisioning completes within 90 seconds (image pull + volume mount)
+- NFR32: Persistent volumes retain workspace data across container restarts
+- NFR33: Dev containers isolated via NetworkPolicy (no cross-container communication)
+
+**GPU/ML Infrastructure (5 NFRs)**
+- NFR34: vLLM achieves 50+ tokens/second for Mistral 7B and Llama 3.1 8B on RTX 3060
+- NFR35: vLLM handles 2-3 concurrent inference requests without significant performance degradation
+- NFR36: GPU worker joins cluster and becomes Ready within 2 minutes of boot via Tailscale
+- NFR37: NVIDIA GPU Operator installs and configures GPU drivers automatically (no manual setup)
+- NFR38: vLLM serves multiple models simultaneously (DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B)
+
 ### Additional Requirements
 
 **From Architecture Document:**
@@ -169,13 +199,42 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | Namespace | Purpose |
 |-----------|---------|
 | kube-system | K3s core, Traefik |
-| infra | MetalLB, cert-manager |
+| infra | MetalLB, cert-manager, NFS provisioner |
 | monitoring | Prometheus, Grafana, Loki, Alertmanager |
 | data | PostgreSQL |
 | apps | n8n |
-| ml | Ollama |
+| ml | Ollama, vLLM (GPU workloads) |
 | docs | Paperless-ngx, Redis |
 | dev | Nginx proxy, dev containers |
+
+**Phase 2 Architecture Additions:**
+
+**Document Management (Paperless-ngx):**
+- Backend: PostgreSQL (shared with existing cluster database, not Redis)
+- OCR: Tesseract with German (deu) + English (eng) language packs
+- Storage: NFS PVC for documents (snapshot-protected)
+- Scaling: PostgreSQL backend supports 5,000+ documents
+- Deployment: Community Helm chart with custom values
+
+**Dev Containers:**
+- Base image: Single Dockerfile with Node.js, Python, Claude Code CLI, git, kubectl, helm
+- Access: SSH via Nginx proxy (nginx already handles routing in `dev` namespace)
+- Storage: Hybrid model (Git repos on NFS PVC 10GB, build artifacts on emptyDir)
+- Resources: 2 CPU cores, 4GB RAM per container
+- Capacity: Cluster supports 2-3 dev containers simultaneously
+- NetworkPolicy: Moderate isolation (access cluster services, no cross-container communication)
+- Lifecycle: Kubernetes Deployment per container, SSH server enabled
+
+**GPU/ML Infrastructure (vLLM + RTX 3060):**
+- GPU Worker: Intel NUC + RTX 3060 12GB eGPU
+- GPU Networking: Dual-stack (local 192.168.0.x + Tailscale for K3s)
+- Models: DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B (4-bit quantized)
+- Model Serving: Single vLLM instance, 3 models loaded in memory
+- Context Window: 8K-16K tokens per request
+- VRAM Allocation: ~16GB total (10-11GB models, 1-2GB KV cache, remaining headroom)
+- Hot-plug Capability: GPU worker can join/leave cluster without disruption
+- Graceful Degradation: vLLM workloads fall back to Ollama CPU when GPU offline
+- GPU Scheduling: NVIDIA GPU Operator for automatic driver installation
 
 **Node Topology:**
 | Node | Role | IP |
@@ -227,8 +286,8 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR35 | Epic 5 | Applications can connect to PostgreSQL |
 | FR36 | Epic 6 | Deploy Ollama for LLM inference |
 | FR37 | Epic 6 | Applications can query Ollama API |
-| FR38 | Phase 2 | Deploy vLLM for production inference (deferred) |
-| FR39 | Phase 2 | GPU workloads request GPU resources (deferred) |
+| FR38 | Epic 12 | Deploy vLLM for production inference |
+| FR39 | Epic 12 | GPU workloads request GPU resources via NVIDIA Operator |
 | FR40 | Epic 6 | Deploy n8n for workflow automation |
 | FR41 | Epic 7 | Configure Nginx to proxy to local dev servers |
 | FR42 | Epic 7 | Access local dev servers via cluster ingress |
@@ -248,13 +307,29 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR56 | Epic 10 | Paperless-ngx persists documents to NFS |
 | FR57 | Epic 10 | Access Paperless-ngx via ingress with HTTPS |
 | FR58 | Epic 10 | Upload, tag, and search scanned documents |
-| FR59 | Epic 10 | Nginx proxy routes to dev containers |
-| FR60 | Epic 10 | Provision dev containers with git worktree support |
-| FR61 | Epic 10 | Connect VS Code to dev container via Nginx |
-| FR62 | Epic 10 | Run Claude Code inside dev containers |
-| FR63 | Epic 10 | Dev containers use local storage for workspace |
+| FR59 | Epic 11 | Nginx proxy routes to dev containers |
+| FR60 | Epic 11 | Provision dev containers with git worktree support |
+| FR61 | Epic 11 | Connect VS Code to dev container via Nginx |
+| FR62 | Epic 11 | Run Claude Code inside dev containers |
+| FR63 | Epic 11 | Dev containers use local storage for workspace |
+| FR64 | Epic 10 | Paperless-ngx performs OCR with German and English support |
+| FR65 | Epic 10 | System handles thousands of documents |
+| FR66 | Epic 10 | Paperless-ngx uses PostgreSQL backend for metadata (deferred to future) |
+| FR67 | Epic 11 | Dev containers use single base image with standard tools |
+| FR68 | Epic 11 | Each dev container allocated 2 CPU cores and 4GB RAM |
+| FR69 | Epic 11 | Dev containers mount persistent 10GB volumes |
+| FR70 | Epic 11 | Dev containers isolated via NetworkPolicy |
+| FR71 | Epic 12 | GPU worker joins cluster via Tailscale overlay network |
+| FR72 | Epic 12 | vLLM serves 3 models simultaneously (DeepSeek-Coder, Mistral, Llama) |
+| FR73 | Epic 12 | vLLM workloads degrade gracefully to Ollama CPU when GPU offline |
+| FR74 | Epic 12 | Operator can hot-plug GPU worker without cluster disruption |
 
-**Coverage Summary:** 61 of 63 FRs covered in MVP (FR38, FR39 deferred to Phase 2)
+**Coverage Summary:** 74 FRs total
+- **Phase 1 (Epic 1-9):** 54 FRs completed
+- **Phase 2 (Epic 10-12):** 20 FRs to be implemented
+  - Epic 10 (Paperless-ngx): FR55-58, FR64-66
+  - Epic 11 (Dev Containers): FR59-63, FR67-70
+  - Epic 12 (GPU/ML): FR38-39, FR71-74
 
 ## Epic List
 
@@ -294,9 +369,88 @@ Tom can upgrade K3s, backup/restore the cluster, and maintain long-term operatio
 Tom has a polished public portfolio that demonstrates capability to hiring managers and recruiters.
 **FRs covered:** FR49, FR50, FR51, FR52, FR53, FR54
 
-### Epic 10: Document Management & Dev Environment
-Tom can manage scanned documents with Paperless-ngx and develop remotely using dev containers with VS Code and Claude Code.
-**FRs covered:** FR55, FR56, FR57, FR58, FR59, FR60, FR61, FR62, FR63
+### Epic 10: Document Management System (Paperless-ngx) [Phase 2]
+
+**User Outcome:** Tom can digitize, organize, and search thousands of scanned documents with OCR support for German and English, replacing physical paper filing with a searchable digital archive.
+
+**FRs covered:** FR55, FR56, FR57, FR58, FR64, FR65, FR66
+- FR55: Deploy Paperless-ngx with Redis backend
+- FR56: Documents persist to NFS storage
+- FR57: Access via HTTPS ingress
+- FR58: Upload, tag, and search documents
+- FR64: OCR with German and English language support
+- FR65: Handle thousands of documents (ongoing workflow)
+- FR66: PostgreSQL backend for metadata (deferred to future enhancement)
+
+**NFRs covered:** NFR28, NFR29, NFR30
+- NFR28: 95%+ OCR accuracy (German/English)
+- NFR29: Scale to 5,000+ documents
+- NFR30: 3-second full-text search
+
+**Implementation Notes:**
+- PostgreSQL backend (shared cluster database)
+- Tesseract OCR with German (deu) + English (eng) language packs
+- NFS storage with Synology snapshot protection
+- Community Helm chart deployment
+
+---
+
+### Epic 11: Dev Containers Platform [Phase 2]
+
+**User Outcome:** Tom can develop remotely using isolated dev containers with VS Code and Claude Code, accessing full development tooling via SSH through the cluster's Nginx proxy with persistent workspace storage.
+
+**FRs covered:** FR59, FR60, FR61, FR62, FR63, FR67, FR68, FR69, FR70
+- FR59: Nginx proxy routes to dev containers
+- FR60: Provision dev containers with git worktree support
+- FR61: Connect VS Code via Nginx proxy
+- FR62: Run Claude Code inside dev containers
+- FR63: Use local storage for workspace data
+- FR67: Single base image (Node.js, Python, Claude Code CLI, git, kubectl, helm)
+- FR68: 2 CPU cores, 4GB RAM per container
+- FR69: Persistent 10GB volumes for workspace data
+- FR70: NetworkPolicy isolation (accessible only via nginx proxy)
+
+**NFRs covered:** NFR31, NFR32, NFR33
+- NFR31: 90-second provisioning time
+- NFR32: Persistent workspace data across restarts
+- NFR33: NetworkPolicy isolation (no cross-container communication)
+
+**Implementation Notes:**
+- Single base Docker image with standard dev tools
+- Hybrid storage: NFS PVC (10GB) for git repos, emptyDir for build artifacts
+- SSH access via Nginx stream proxy
+- Cluster capacity: 2-3 concurrent dev containers
+- NetworkPolicy: Access cluster services, blocked cross-container
+
+---
+
+### Epic 12: GPU/ML Inference Platform (vLLM + RTX 3060) [Phase 2]
+
+**User Outcome:** Tom can run GPU-accelerated LLM inference with vLLM serving multiple models simultaneously on a hot-pluggable GPU worker, with automatic graceful degradation to Ollama CPU when the GPU worker is offline, enabling fast AI inference for n8n workflows and development tasks.
+
+**FRs covered:** FR38, FR39, FR71, FR72, FR73, FR74
+- FR38: Deploy vLLM for production inference
+- FR39: GPU workloads request GPU resources via NVIDIA Operator
+- FR71: GPU worker (Intel NUC + RTX 3060) joins cluster via Tailscale
+- FR72: vLLM serves DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B simultaneously
+- FR73: Graceful degradation to Ollama CPU when GPU offline
+- FR74: Hot-plug GPU worker (add/remove without cluster disruption)
+
+**NFRs covered:** NFR34, NFR35, NFR36, NFR37, NFR38
+- NFR34: 50+ tokens/second throughput (Mistral, Llama)
+- NFR35: Handle 2-3 concurrent inference requests
+- NFR36: GPU worker joins cluster in 2 minutes via Tailscale
+- NFR37: NVIDIA GPU Operator installs drivers automatically
+- NFR38: Multi-model serving (3 models in memory)
+
+**Implementation Notes:**
+- Intel NUC + RTX 3060 eGPU (12GB VRAM)
+- Dual-stack networking: Local 192.168.0.x + Tailscale overlay for K3s
+- 3 models (4-bit quantized): DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B
+- VRAM allocation: ~10-11GB models, ~1-2GB KV cache
+- Context window: 8K-16K tokens per request
+- NVIDIA GPU Operator for automatic driver management
+- Fallback routing: vLLM (GPU) → Ollama (CPU) when GPU worker unavailable
 
 ---
 
@@ -1798,231 +1952,880 @@ So that **I can evaluate the depth of implementation**.
 
 ---
 
-## Epic 10: Document Management & Dev Environment
+## Phase 2 Epic Details
 
-Tom can manage scanned documents with Paperless-ngx and develop remotely using dev containers with VS Code and Claude Code.
+### Epic 10: Document Management System (Paperless-ngx)
+
+**User Outcome:** Tom has a self-hosted document management system for scanning, tagging, and searching personal documents with OCR support.
+
+**FRs Covered:** FR55, FR56, FR57, FR58, FR64, FR65, FR66
+**NFRs Covered:** NFR28, NFR29, NFR30
 
 ---
 
-### Story 10.1: Deploy Paperless-ngx with Redis Backend
+#### Story 10.1: Deploy Paperless-ngx with Redis Backend
 
-As a **cluster operator**,
-I want **to deploy Paperless-ngx for document management**,
-So that **I can digitize, organize, and search scanned documents**.
+**As a** platform engineer
+**I want** Paperless-ngx deployed with Redis for task queuing
+**So that** the document management system can process uploads and OCR tasks asynchronously
 
 **Acceptance Criteria:**
 
-**Given** cluster has NFS storage and ingress configured
-**When** I create the `docs` namespace
-**Then** the namespace is created with appropriate labels
+**Given** cluster has `docs` namespace
+**When** I deploy Paperless-ngx via gabe565 Helm chart
+**Then** the following resources are created:
+- Deployment: `paperless-ngx` (1 replica)
+- Deployment: `redis` (1 replica for task queue)
+- Service: `paperless-ngx` (port 8000)
+- Service: `redis` (port 6379)
 
-**Given** the docs namespace exists
-**When** I deploy Paperless-ngx via Helm with `values-homelab.yaml`
-**Then** the Paperless-ngx deployment is created
-**And** Redis pod starts as backend for task queue
-**And** all pods reach Running status
+**Given** Paperless-ngx is deployed
+**When** I check Helm values configuration
+**Then** the chart uses:
+- Image: `ghcr.io/paperless-ngx/paperless-ngx:latest`
+- Redis connection: `redis://redis:6379`
+- Environment variables set for PAPERLESS_URL, PAPERLESS_SECRET_KEY
 
-**Given** Paperless-ngx requires persistent storage
-**When** I configure NFS-backed PVCs for:
-- Document consumption folder
-- Document storage folder
-- Data folder (SQLite database)
-**Then** all PVCs are bound to NFS provisioner
+**Given** pods are running
+**When** I execute `kubectl get pods -n docs`
+**Then** both `paperless-ngx-*` and `redis-*` pods show status Running
 **And** this validates FR55 (deploy Paperless-ngx with Redis)
 
+**Story Points:** 5
+
+---
+
+#### Story 10.2: Configure OCR with German and English Support
+
+**As a** user
+**I want** Paperless-ngx to perform OCR on scanned documents in German and English
+**So that** I can search document contents in both languages
+
+**Acceptance Criteria:**
+
 **Given** Paperless-ngx is running
-**When** I create an IngressRoute for paperless.home.jetzinger.com with TLS
-**Then** cert-manager provisions a certificate
-**And** Paperless-ngx UI is accessible via HTTPS
-**And** this validates FR57 (access via ingress with HTTPS)
+**When** I configure OCR language support
+**Then** Helm values include:
+```yaml
+env:
+  PAPERLESS_OCR_LANGUAGE: deu+eng
+  PAPERLESS_OCR_MODE: skip
+```
+
+**Given** OCR is configured
+**When** I upload a test PDF with German text
+**Then** Paperless-ngx processes the document
+**And** OCR extracts German text searchable in the interface
+**And** this validates NFR28 (95%+ OCR accuracy for German and English)
+
+**Given** OCR processing is complete
+**When** I search for a German keyword from the document
+**Then** search returns results within 3 seconds
+**And** this validates NFR30 (search performance target)
+
+**Story Points:** 5
 
 ---
 
-### Story 10.2: Configure Document Storage and Verify Functionality
+#### Story 10.3: Configure NFS Persistent Storage
 
-As a **user**,
-I want **to upload, tag, and search documents in Paperless-ngx**,
-So that **I can manage my paperwork digitally**.
+**As a** platform engineer
+**I want** Paperless-ngx to store documents on NFS
+**So that** documents persist across pod restarts and benefit from Synology snapshots
 
 **Acceptance Criteria:**
 
-**Given** Paperless-ngx is accessible via HTTPS
-**When** I log in with the admin credentials
-**Then** the Paperless-ngx dashboard loads
-**And** I can access all menu items
+**Given** NFS StorageClass exists (`nfs-client`)
+**When** I configure Paperless-ngx PVC via Helm values
+**Then** the following PVCs are created:
+- `paperless-data` (50GB) - for uploaded documents
+- `paperless-media` (20GB) - for thumbnails and exports
 
-**Given** I'm logged into Paperless-ngx
-**When** I upload a scanned PDF document
-**Then** Paperless-ngx processes the document with OCR
-**And** the document appears in the document list
-**And** text content is extracted and searchable
+**Given** PVCs are bound
+**When** I check volume mounts
+**Then** Paperless-ngx pod mounts:
+- `/usr/src/paperless/data` → `paperless-data` PVC
+- `/usr/src/paperless/media` → `paperless-media` PVC
 
-**Given** documents are uploaded
-**When** I add tags and correspondents to documents
-**Then** the metadata is saved
-**And** I can filter documents by tag or correspondent
+**Given** storage is mounted
+**When** I upload a test document
+**Then** the document file appears in Synology NFS share under `/volume1/k8s-data/docs-paperless-data-*/`
+**And** this validates FR56 (Paperless persists to NFS)
 
-**Given** multiple documents exist
-**When** I search for text that appears in a document
-**Then** the search returns matching documents
-**And** search results highlight the matched text
-**And** this validates FR58 (upload, tag, and search documents)
+**Given** Synology snapshots are configured
+**When** I verify snapshot schedule
+**Then** hourly snapshots include Paperless document directories
+**And** documents are protected from accidental deletion
 
-**Given** documents are stored
-**When** I check the NFS share on Synology
-**Then** document files are visible in the Paperless storage directory
-**And** this validates FR56 (documents persist to NFS)
-
-**Given** Paperless-ngx is operational
-**When** I document the setup in `docs/runbooks/paperless-setup.md`
-**Then** the runbook includes deployment, configuration, and usage instructions
+**Story Points:** 3
 
 ---
 
-### Story 10.3: Deploy Dev Container Infrastructure
+#### Story 10.4: Configure Ingress with HTTPS
 
-As a **cluster operator**,
-I want **to deploy dev containers that can be accessed via SSH**,
-So that **I can develop remotely using VS Code and Claude Code**.
+**As a** user
+**I want** to access Paperless-ngx via HTTPS at `paperless.home.jetzinger.com`
+**So that** I can securely browse and upload documents from any Tailscale-connected device
 
 **Acceptance Criteria:**
 
-**Given** cluster has Nginx proxy running in `dev` namespace
-**When** I create a Dockerfile for the dev container base image
-**Then** the Dockerfile includes:
-- Ubuntu base with development tools
-- SSH server configured
-- Git with worktree support
-- Node.js, Python, and other dev dependencies
-- Claude Code CLI installed
-**And** the Dockerfile is saved at `applications/dev-containers/base-image/Dockerfile`
+**Given** Traefik and cert-manager are operational
+**When** I create IngressRoute for Paperless-ngx
+**Then** the manifest defines:
+```yaml
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: paperless-https
+  namespace: docs
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`paperless.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: paperless-ngx
+          port: 8000
+  tls:
+    certResolver: letsencrypt
+```
 
-**Given** the base image Dockerfile exists
-**When** I build and push the image to a registry (or use local)
-**Then** the image is available for Kubernetes deployments
+**Given** IngressRoute is applied
+**When** I access `https://paperless.home.jetzinger.com` from Tailscale device
+**Then** the Paperless-ngx login page loads with valid TLS certificate
+**And** this validates FR57 (HTTPS access via ingress)
 
-**Given** the dev container image is available
-**When** I create a Deployment template for dev containers
-**Then** the template includes:
-- SSH server on port 22
-- Local storage (emptyDir) for workspace
-- Git credentials mounted from Secret
-- SSH authorized_keys from ConfigMap
-**And** the template is saved at `applications/dev-containers/dev-container-template.yaml`
-**And** this validates FR60 (provision dev containers with git worktree support)
+**Given** I log in to Paperless-ngx
+**When** I browse the document library
+**Then** the interface loads without TLS warnings
+**And** I can upload, tag, and search documents
+**And** this validates FR58 (upload, tag, search functionality)
 
-**Given** template is ready
-**When** I deploy a dev container instance
-**Then** the pod starts successfully
-**And** SSH server is listening on port 22
-**And** workspace directory uses local storage (not NFS)
-**And** this validates FR63 (local storage for workspace)
+**Story Points:** 3
 
 ---
 
-### Story 10.4: Configure Nginx SSH Routing for Dev Containers
+#### Story 10.5: Validate Document Management Workflow
 
-As a **cluster operator**,
-I want **Nginx to route SSH connections to dev containers**,
-So that **VS Code can connect remotely via the existing proxy**.
+**As a** user
+**I want** to verify the complete document lifecycle
+**So that** I can confidently migrate from manual file storage to Paperless-ngx
 
 **Acceptance Criteria:**
 
-**Given** Nginx is running in the dev namespace
-**When** I configure Nginx stream module for TCP/SSH proxying
-**Then** the nginx.conf includes stream block for SSH
-**And** configuration is saved at `applications/dev-containers/nginx-stream-config.yaml`
+**Given** Paperless-ngx is fully operational
+**When** I upload 10 test documents (mix of scanned PDFs and manual uploads)
+**Then** all documents appear in the library within 30 seconds
+**And** OCR processing completes for scanned documents
 
-**Given** Nginx stream is configured
-**When** I add upstream definitions for dev container pods
-**Then** each dev container gets a unique port mapping (e.g., 2222 -> container1:22, 2223 -> container2:22)
-**And** this validates FR59 (Nginx routes to dev containers)
+**Given** documents are processed
+**When** I create tags: "Invoices", "Contracts", "Medical", "Taxes"
+**Then** I can assign multiple tags to each document
+**And** tags appear in the sidebar for filtering
 
-**Given** SSH routing is configured
-**When** I expose the Nginx SSH ports via LoadBalancer or NodePort
-**Then** SSH ports are accessible from the home network
-**And** SSH ports are accessible via Tailscale
+**Given** documents are tagged
+**When** I perform full-text search for specific keywords
+**Then** search returns relevant documents within 3 seconds
+**And** search highlights matching text in document previews
 
-**Given** SSH routing is working
-**When** I test SSH connection to a dev container through Nginx
-**Then** `ssh -p 2222 user@dev.home.jetzinger.com` connects successfully
-**And** I land in the dev container workspace
+**Given** the system handles 10 documents
+**When** I scale to 100 documents (simulate realistic usage)
+**Then** interface remains responsive (<5s page load)
+**And** this validates NFR29 (scales to 5,000+ documents)
 
-**Given** routing is validated
-**When** I document the port mapping in `docs/runbooks/dev-containers.md`
-**Then** the runbook includes:
-- How to add a new dev container
-- Port assignment conventions
-- SSH connection examples
+**Given** I verify backup coverage
+**When** I check Synology snapshots
+**Then** all uploaded documents are included in hourly snapshots
+**And** I can access previous versions via Synology UI
+
+**Story Points:** 5
 
 ---
 
-### Story 10.5: Validate VS Code and Claude Code Workflow
+### Epic 11: Dev Containers Platform
 
-As a **developer**,
-I want **to connect VS Code to dev containers and use Claude Code**,
-So that **I can develop remotely with AI assistance**.
+**User Outcome:** Tom can provision isolated development containers accessible via custom domains, supporting remote VS Code and Claude Code workflows.
+
+**FRs Covered:** FR59, FR60, FR61, FR62, FR63, FR67, FR68, FR69, FR70
+**NFRs Covered:** NFR31, NFR32, NFR33
+
+---
+
+#### Story 11.1: Create Dev Container Base Image
+
+**As a** platform engineer
+**I want** a standardized dev container base image with all required tools
+**So that** new dev containers can be provisioned consistently
 
 **Acceptance Criteria:**
 
-**Given** dev container is running with SSH accessible via Nginx
-**When** I configure VS Code Remote-SSH extension with:
-- Host: dev.home.jetzinger.com
-- Port: 2222 (or assigned port)
-- User: dev (or configured user)
-**Then** VS Code connects to the dev container
-**And** this validates FR61 (connect VS Code via Nginx proxy)
+**Given** I need a base image for dev containers
+**When** I create a Dockerfile
+**Then** it includes the following components:
+```dockerfile
+FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y \
+    openssh-server curl git sudo vim
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
+RUN apt-get install -y python3.11 python3-pip
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && chmod +x kubectl && mv kubectl /usr/local/bin/
+RUN curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+RUN npm install -g @anthropic-ai/claude-code
+RUN useradd -m -s /bin/bash dev && echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D"]
+```
 
-**Given** VS Code is connected to dev container
+**Given** Dockerfile is created
+**When** I build the image
+**Then** the build completes without errors
+**And** image is tagged as `dev-container-base:latest`
+
+**Given** image is built
+**When** I verify installed tools
+**Then** the image includes:
+- Node.js 20.x with npm
+- Python 3.11 with pip
+- kubectl (latest stable)
+- helm 3
+- Claude Code CLI (`claude-code --version` works)
+- git, sudo, vim, SSH server
+
+**Given** image is verified
+**When** I push to local registry or rebuild for each deployment
+**Then** the image is available for dev container deployments
+**And** this validates FR67 (single base image with all tools)
+
+**Story Points:** 5
+
+---
+
+#### Story 11.2: Deploy Dev Containers for Belego and Pilates
+
+**As a** developer
+**I want** two dev containers deployed (one for Belego, one for Pilates projects)
+**So that** I can develop both projects in isolated environments
+
+**Acceptance Criteria:**
+
+**Given** base image exists
+**When** I deploy dev container for Belego
+**Then** the following resources are created in `dev` namespace:
+- Deployment: `dev-container-belego` (1 replica)
+- Service: `dev-container-belego-svc` (port 22 for SSH)
+- Resources: 2 CPU cores, 4GB RAM (FR68)
+
+**Given** Belego container is deployed
+**When** I deploy dev container for Pilates
+**Then** the following resources are created:
+- Deployment: `dev-container-pilates` (1 replica)
+- Service: `dev-container-pilates-svc` (port 22 for SSH)
+- Resources: 2 CPU cores, 4GB RAM
+
+**Given** both containers are running
+**When** I execute `kubectl get pods -n dev`
+**Then** both `dev-container-belego-*` and `dev-container-pilates-*` show status Running
+**And** each pod has SSH server listening on port 22
+
+**Given** I verify resource allocation
+**When** I check pod resource requests
+**Then** cluster allocates 4 CPU cores and 8GB RAM total
+**And** resources are within cluster capacity (k3s-worker nodes have sufficient resources)
+
+**Story Points:** 5
+
+---
+
+#### Story 11.3: Configure Persistent Storage for Workspaces
+
+**As a** developer
+**I want** persistent 10GB volumes for each dev container
+**So that** my git repos and workspace data survive container restarts
+
+**Acceptance Criteria:**
+
+**Given** NFS StorageClass exists
+**When** I configure PVCs for dev containers
+**Then** the following PVCs are created:
+- `dev-belego-workspace` (10GB, nfs-client StorageClass)
+- `dev-pilates-workspace` (10GB, nfs-client StorageClass)
+
+**Given** PVCs are bound
+**When** I check volume mounts in deployments
+**Then** each dev container mounts:
+- `/home/dev/workspace` → respective PVC
+
+**Given** volumes are mounted
+**When** I SSH into Belego container and create test files
+**Then** files persist in `/home/dev/workspace`
+**And** files appear in Synology NFS share under `/volume1/k8s-data/dev-*-workspace-*/`
+
+**Given** container is restarted
+**When** I delete the pod and wait for recreation
+**Then** new pod mounts the same PVC
+**And** test files are still present in `/home/dev/workspace`
+**And** this validates NFR32 (workspace data persists across restarts)
+
+**Story Points:** 3
+
+---
+
+#### Story 11.4: Configure Nginx SSH Proxy with Custom Domains
+
+**As a** developer
+**I want** SSH access to dev containers via custom domains on different ports
+**So that** I can use VS Code Remote SSH with familiar domain names
+
+**Acceptance Criteria:**
+
+**Given** dev containers are running
+**When** I deploy Nginx with stream module
+**Then** the ConfigMap includes:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: dev
+data:
+  nginx.conf: |
+    load_module /usr/lib/nginx/modules/ngx_stream_module.so;
+    events {}
+    stream {
+      upstream dev-belego {
+        server dev-container-belego-svc.dev.svc.cluster.local:22;
+      }
+      upstream dev-pilates {
+        server dev-container-pilates-svc.dev.svc.cluster.local:22;
+      }
+      server {
+        listen 2222;
+        proxy_pass dev-belego;
+      }
+      server {
+        listen 2223;
+        proxy_pass dev-pilates;
+      }
+    }
+```
+
+**Given** Nginx proxy is deployed
+**When** I create IngressRoutes for HTTP/HTTPS access
+**Then** the following domains are configured:
+- `dev.belego.app` → Nginx service (Belego HTTP traffic)
+- `dev.app.pilates4.golf` → Nginx service (Pilates HTTP - all 4 subdomains)
+- `dev.blog.pilates4.golf` → Nginx service (same backend)
+- `dev.join.pilates4.golf` → Nginx service (same backend)
+- `dev.www.pilates4.golf` → Nginx service (same backend)
+
+**Given** IngressRoutes use custom domains
+**When** I configure NextDNS with wildcard rewrites
+**Then** the following DNS entries point to MetalLB IP (192.168.2.100):
+- `*.belego.app` → 192.168.2.100
+- `*.pilates4.golf` → 192.168.2.100
+
+**Given** DNS is configured
+**When** I SSH to `dev.belego.app:2222`
+**Then** I connect to Belego dev container
+**And** when I SSH to any Pilates domain on port 2223
+**Then** I connect to the same Pilates dev container
+**And** this validates FR59, FR61 (Nginx proxy routes to dev containers)
+
+**Story Points:** 8
+
+---
+
+#### Story 11.5: Configure NetworkPolicy for Container Isolation
+
+**As a** platform engineer
+**I want** dev containers isolated via NetworkPolicy
+**So that** containers cannot communicate directly and are only accessible via Nginx proxy
+
+**Acceptance Criteria:**
+
+**Given** dev containers are running
+**When** I create NetworkPolicy for `dev` namespace
+**Then** the policy defines:
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dev-container-isolation
+  namespace: dev
+spec:
+  podSelector:
+    matchLabels:
+      app: dev-container
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nginx
+    ports:
+    - protocol: TCP
+      port: 22
+  egress:
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: data
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: ml
+    ports:
+    - protocol: TCP
+      port: 11434
+```
+
+**Given** NetworkPolicy is applied
+**When** I test connectivity from Belego container
+**Then** the container can:
+- Reach DNS (kube-dns)
+- Connect to PostgreSQL in `data` namespace (port 5432)
+- Connect to Ollama in `ml` namespace (port 11434)
+
+**Given** NetworkPolicy is enforced
+**When** I test blocked connectivity
+**Then** the container cannot:
+- Connect to other dev containers directly (SSH blocked)
+- Reach external internet without explicit egress rule
+
+**Given** isolation is verified
+**When** I confirm access via Nginx proxy
+**Then** SSH connections work via Nginx stream module on ports 2222/2223
+**And** this validates NFR33 (NetworkPolicy isolation)
+
+**Story Points:** 5
+
+---
+
+#### Story 11.6: Validate VS Code Remote SSH Configuration
+
+**As a** developer
+**I want** VS Code Remote SSH working with both dev containers
+**So that** I can develop remotely with full IDE features
+
+**Acceptance Criteria:**
+
+**Given** dev containers are accessible via SSH
+**When** I configure VS Code SSH config
+**Then** `~/.ssh/config` includes:
+```ssh-config
+Host belego-dev
+  HostName dev.belego.app
+  Port 2222
+  User dev
+  IdentityFile ~/.ssh/id_rsa
+
+Host pilates-dev
+  HostName dev.app.pilates4.golf
+  Port 2223
+  User dev
+  IdentityFile ~/.ssh/id_rsa
+```
+
+**Given** SSH config is created
+**When** I connect to `belego-dev` via VS Code Remote SSH
+**Then** VS Code connects successfully
+**And** I can browse `/home/dev/workspace`
+**And** this validates FR61 (VS Code connection)
+
+**Given** VS Code is connected
 **When** I open a terminal in VS Code
-**Then** the terminal runs inside the dev container
-**And** I have access to development tools (git, node, python, etc.)
+**Then** I can run `claude-code --version`
+**And** Claude Code CLI responds with version information
+**And** this validates FR62 (Claude Code inside dev containers)
 
-**Given** terminal is available
-**When** I run `claude` command in the terminal
-**Then** Claude Code CLI starts
-**And** I can interact with Claude Code for development tasks
-**And** this validates FR62 (run Claude Code inside dev containers)
+**Given** I clone a git repo in workspace
+**When** I restart the container
+**Then** the cloned repo persists in `/home/dev/workspace`
+**And** this validates FR60, FR63 (git worktree support and local storage)
 
-**Given** Claude Code is working
-**When** I use git worktree to create a new branch workspace
-**Then** `git worktree add ../feature-branch feature-branch` creates a new worktree
-**And** I can switch VS Code to the new worktree directory
-**And** both worktrees are on local storage for fast I/O
+**Given** both containers are validated
+**When** I measure provisioning time
+**Then** new dev container ready within 90 seconds (image pull + volume mount)
+**And** this validates NFR31 (provisioning performance)
 
-**Given** the workflow is validated
-**When** I test the complete cycle:
-1. SSH into dev container via VS Code
-2. Clone a repository
-3. Create a git worktree for a feature
-4. Use Claude Code to assist with development
-5. Commit and push changes
-**Then** the entire workflow completes successfully
-**And** all FRs for dev containers are validated (FR59-63)
+**Story Points:** 5
 
-**Given** workflow is complete
-**When** I update the runbook with the VS Code setup
-**Then** `docs/runbooks/dev-containers.md` includes:
-- VS Code Remote-SSH configuration
-- Claude Code usage examples
-- Git worktree workflow
+---
+
+### Epic 12: GPU/ML Inference Platform
+
+**User Outcome:** AI/ML workflows can access GPU-accelerated inference via vLLM, with graceful fallback to CPU-based Ollama when GPU unavailable.
+
+**FRs Covered:** FR38, FR39, FR71, FR72, FR73, FR74
+**NFRs Covered:** NFR34, NFR35, NFR36, NFR37, NFR38
+
+---
+
+#### Story 12.1: Install Ubuntu 22.04 on Intel NUC and Configure eGPU
+
+**As a** platform engineer
+**I want** Ubuntu 22.04 installed on the Intel NUC with RTX 3060 eGPU configured
+**So that** the hardware is ready to join the K3s cluster with GPU capabilities
+
+**Acceptance Criteria:**
+
+**Given** I have Intel NUC hardware and RTX 3060 eGPU
+**When** I install Ubuntu 22.04 LTS
+**Then** the OS is installed with:
+- Static IP: 192.168.2.25
+- Hostname: `k3s-gpu-worker`
+- SSH access configured with key-based authentication
+- System updates applied: `sudo apt update && sudo apt upgrade -y`
+
+**Given** OS is installed
+**When** I connect the eGPU via Thunderbolt
+**Then** `boltctl list` shows the eGPU enclosure
+**And** I authorize the device: `boltctl authorize <device-uuid>`
+**And** `lspci | grep NVIDIA` shows RTX 3060
+
+**Given** eGPU is detected
+**When** I install NVIDIA drivers
+**Then** I run:
+```bash
+sudo apt install nvidia-driver-535
+sudo reboot
+```
+**And** after reboot, `nvidia-smi` shows RTX 3060 with 12GB VRAM
+**And** driver version is 535+ (CUDA 12.2+ compatible)
+**And** persistence mode is enabled: `nvidia-smi -pm 1`
+
+**Given** drivers are installed
+**When** I configure system hardening
+**Then** UFW firewall allows SSH and K3s ports
+**And** unattended upgrades are enabled
+**And** eGPU auto-connects on boot
+
+**Story Points:** 5
+
+---
+
+#### Story 12.2: Deploy Intel NUC as K3s Worker with Tailscale
+
+**As a** platform engineer
+**I want** the Intel NUC joined to the K3s cluster via Tailscale mesh
+**So that** GPU workloads can be scheduled remotely without LAN dependency
+
+**Acceptance Criteria:**
+
+**Given** NUC has Ubuntu installed
+**When** I install Tailscale
+**Then** I run:
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+```
+**And** NUC is added to home-lab Tailscale network
+**And** Tailscale IP is obtained (e.g., 100.x.x.25)
+
+**Given** Tailscale is running
+**When** I install K3s agent
+**Then** I run:
+```bash
+TAILSCALE_IP=$(tailscale ip -4)
+curl -sfL https://get.k3s.io | K3S_URL=https://100.x.x.20:6443 \
+  K3S_TOKEN=<cluster-token> \
+  INSTALL_K3S_EXEC="agent --node-ip=$TAILSCALE_IP" sh -
+```
+**And** node joins successfully: `kubectl get nodes` shows `k3s-gpu-worker`
+
+**Given** node is joined
+**When** I apply labels and taints
+**Then** I run:
+```bash
+kubectl label nodes k3s-gpu-worker gpu=nvidia
+kubectl taint nodes k3s-gpu-worker nvidia.com/gpu=present:NoSchedule
+```
+
+**Given** labels are applied
+**When** I verify node status
+**Then** `kubectl get nodes` shows `k3s-gpu-worker` as Ready
+**And** `kubectl describe node k3s-gpu-worker` shows CPU/memory resources
+**And** this validates FR71 (GPU worker joins cluster via Tailscale)
+
+**Story Points:** 5
+
+---
+
+#### Story 12.3: Install NVIDIA Container Toolkit and GPU Operator
+
+**As a** platform engineer
+**I want** NVIDIA Container Toolkit and GPU Operator deployed
+**So that** Kubernetes can schedule GPU workloads with proper runtime support
+
+**Acceptance Criteria:**
+
+**Given** NUC is joined to cluster
+**When** I install NVIDIA Container Toolkit on NUC
+**Then** I run:
+```bash
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
+  sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+sudo apt update && sudo apt install -y nvidia-container-toolkit
+sudo systemctl restart k3s-agent
+```
+
+**Given** container toolkit is installed
+**When** I deploy NVIDIA GPU Operator via Helm
+**Then** I run:
+```bash
+helm repo add nvidia https://helm.ngc.nvidia.com/nvidia && helm repo update
+helm upgrade --install gpu-operator nvidia/gpu-operator \
+  -n gpu-operator --create-namespace \
+  --set driver.enabled=false \
+  --set toolkit.enabled=true
+```
+**And** operator pods are running: `kubectl get pods -n gpu-operator`
+
+**Given** GPU Operator is deployed
+**When** I create RuntimeClass for GPU workloads
+**Then** I apply:
+```yaml
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: nvidia
+handler: nvidia
+```
+
+**Given** RuntimeClass is created
+**When** I verify GPU visibility
+**Then** `kubectl describe node k3s-gpu-worker | grep nvidia.com/gpu` shows: `nvidia.com/gpu: 1`
+**And** this validates FR39, NFR37 (GPU resources available, automatic driver setup)
+
+**Story Points:** 8
+
+---
+
+#### Story 12.4: Deploy vLLM with 3-Model Configuration
+
+**As a** ML engineer
+**I want** vLLM deployed serving DeepSeek-Coder 6.7B, Mistral 7B, and Llama 3.1 8B
+**So that** AI workflows can access GPU-accelerated inference via API
+
+**Acceptance Criteria:**
+
+**Given** GPU Operator is operational
+**When** I deploy vLLM in `ml` namespace
+**Then** the Deployment manifest includes:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+  namespace: ml
+spec:
+  replicas: 1
+  template:
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        gpu: nvidia
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai:latest
+        args:
+        - --model
+        - deepseek-ai/deepseek-coder-6.7b-instruct
+        - --gpu-memory-utilization
+        - "0.9"
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+```
+
+**Given** vLLM is deployed
+**When** I create Service and IngressRoute
+**Then** Service exposes port 8000
+**And** IngressRoute configured:
+```yaml
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vllm-https
+  namespace: ml
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - match: Host(`vllm.home.jetzinger.com`)
+    kind: Rule
+    services:
+    - name: vllm-api
+      port: 8000
+  tls:
+    certResolver: letsencrypt
+```
+
+**Given** vLLM is accessible
+**When** I test inference
+**Then** `curl https://vllm.home.jetzinger.com/v1/models` returns model list
+**And** inference response time <500ms for typical prompts
+**And** this validates FR38, FR72, NFR38 (vLLM deployment, multi-model support)
+
+**Story Points:** 13
+
+---
+
+#### Story 12.5: Configure Hot-Plug and Graceful Degradation
+
+**As a** platform engineer
+**I want** eGPU hot-plug support with automatic Ollama CPU fallback
+**So that** AI workflows continue during GPU maintenance without manual intervention
+
+**Acceptance Criteria:**
+
+**Given** vLLM is deployed
+**When** I create PodDisruptionBudget
+**Then** the PDB allows graceful pod termination:
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vllm-pdb
+  namespace: ml
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: vllm
+```
+
+**Given** Ollama is already deployed (Epic 6)
+**When** I configure load balancing between vLLM and Ollama
+**Then** Service selector matches both backends
+**And** traffic routes to available inference backend
+
+**Given** GPU node monitoring is configured
+**When** I create PrometheusRule for GPU node down
+**Then** alert triggers when GPU worker is unavailable for 2 minutes
+**And** alert routes to ntfy.sh for mobile notification
+
+**Given** I create eGPU disconnect procedure
+**When** I document runbook in `docs/runbooks/egpu-hotplug.md`
+**Then** runbook includes:
+- Disconnect: `kubectl drain k3s-gpu-worker --ignore-daemonsets`, unplug eGPU
+- Reconnect: Plug eGPU, verify `nvidia-smi`, `kubectl uncordon k3s-gpu-worker`
+
+**Given** procedure is tested
+**When** I disconnect eGPU
+**Then** vLLM traffic fails over to Ollama CPU
+**And** when I reconnect eGPU
+**Then** vLLM resumes GPU inference
+**And** this validates FR73, FR74 (graceful degradation, hot-plug capability)
+
+**Story Points:** 8
+
+---
+
+#### Story 12.6: GPU Metrics and Performance Validation
+
+**As a** platform engineer
+**I want** GPU metrics exported to Prometheus with Grafana dashboards
+**So that** GPU utilization and inference performance can be monitored
+
+**Acceptance Criteria:**
+
+**Given** GPU Operator is deployed
+**When** I enable DCGM Exporter
+**Then** I run:
+```bash
+helm upgrade gpu-operator nvidia/gpu-operator \
+  -n gpu-operator \
+  --set dcgmExporter.enabled=true
+```
+**And** `kubectl get pods -n gpu-operator | grep dcgm` shows exporter running
+
+**Given** DCGM Exporter is running
+**When** I create ServiceMonitor for Prometheus
+**Then** the ServiceMonitor scrapes DCGM metrics every 30s
+**And** Prometheus targets show `dcgm-exporter` as UP
+
+**Given** metrics are scraped
+**When** I import NVIDIA DCGM Exporter Dashboard (Grafana ID: 12239)
+**Then** dashboard shows:
+- GPU utilization (%)
+- GPU memory usage (MB/12288MB)
+- GPU temperature (°C)
+- Power consumption (W)
+- SM clock speed (MHz)
+
+**Given** dashboard is configured
+**When** I perform performance validation
+**Then** I verify:
+- **NFR34**: GPU utilization >80% during concurrent inference requests
+- **NFR35**: 50+ tokens/second for Mistral 7B and Llama 3.1 8B
+- **NFR36**: GPU worker joins cluster within 2 minutes of boot
+- Inference latency <500ms for typical requests (128 token output)
+
+**Given** validation is complete
+**When** I capture screenshots
+**Then** GPU metrics screenshots saved to `docs/screenshots/gpu-metrics.png`
+**And** dashboard is accessible at `grafana.home.jetzinger.com`
+
+**Story Points:** 8
+
+---
+
+## Phase 1 Epic Details (Completed)
+
+### Epic 1: Foundation - K3s Cluster with Remote Access
+
+Tom has a working multi-node K3s cluster he can access from anywhere via Tailscale.
 
 ---
 
 ## Summary
 
-| Epic | Title | Stories | FRs Covered |
-|------|-------|---------|-------------|
-| 1 | Foundation - K3s Cluster | 5 | FR1-6 |
-| 2 | Storage & Persistence | 4 | FR14-18 |
-| 3 | Ingress, TLS & Service Exposure | 5 | FR9-10, FR19-23 |
-| 4 | Observability Stack | 6 | FR7, FR11, FR24-30 |
-| 5 | PostgreSQL Database Service | 5 | FR8, FR31-35 |
-| 6 | AI Inference Platform | 4 | FR12-13, FR36-37, FR40 |
-| 7 | Development Proxy | 3 | FR41-43 |
-| 8 | Cluster Operations & Maintenance | 5 | FR44-48 |
-| 9 | Portfolio & Public Showcase | 5 | FR49-54 |
-| 10 | Document Management & Dev Environment | 5 | FR55-63 |
-| **Total** | | **47 stories** | **61 FRs** |
+| Epic | Title | Stories | FRs Covered | NFRs Covered |
+|------|-------|---------|-------------|--------------|
+| 1 | Foundation - K3s Cluster | 5 | FR1-6 | - |
+| 2 | Storage & Persistence | 4 | FR14-18 | NFR4, NFR16 |
+| 3 | Ingress, TLS & Service Exposure | 5 | FR9-10, FR19-23 | NFR7, NFR17 |
+| 4 | Observability Stack | 6 | FR7, FR11, FR24-30 | NFR5, NFR14, NFR18 |
+| 5 | PostgreSQL Database Service | 5 | FR8, FR31-35 | NFR20 |
+| 6 | AI Inference Platform | 4 | FR12-13, FR36-37, FR40 | NFR13 |
+| 7 | Development Proxy | 3 | FR41-43 | - |
+| 8 | Cluster Operations & Maintenance | 5 | FR44-48 | NFR2, NFR11, NFR20, NFR22 |
+| 9 | Portfolio & Public Showcase | 5 | FR49-54 | NFR24, NFR25, NFR26, NFR27 |
+| **Phase 1 Total** | | **42 stories** | **54 FRs** | **19 NFRs** |
+| | | | | |
+| 10 | Document Management System (Paperless-ngx) | 5 | FR55-58, FR64-66 | NFR28-30 |
+| 11 | Dev Containers Platform | 6 | FR59-63, FR67-70 | NFR31-33 |
+| 12 | GPU/ML Inference Platform (vLLM + RTX 3060) | 6 | FR38-39, FR71-74 | NFR34-38 |
+| **Phase 2 Total** | | **17 stories** | **20 FRs** | **11 NFRs** |
+| | | | | |
+| **Grand Total** | | **59 stories** | **74 FRs** | **30 NFRs** |
 
-**Deferred to Phase 2:** FR38 (vLLM), FR39 (GPU/NVIDIA Operator)
+**Phase 1 Status:** ✅ Completed (Epics 1-9)
+**Phase 2 Status:** ✅ Ready for Implementation (Epics 10-12 - all stories created)
+
+---
+
+**Workflow Complete:** All Phase 2 epics and stories have been created with detailed acceptance criteria. Ready to add to sprint-status.yaml and begin implementation.
