@@ -121,7 +121,7 @@ development_status:
   10-1-deploy-paperless-ngx-with-redis-backend: done
   10-2-configure-postgresql-backend: done
   10-3-configure-ocr-with-german-and-english-support: done
-  10-4-configure-nfs-persistent-storage: backlog
+  10-4-configure-nfs-persistent-storage: done
   10-5-configure-ingress-with-https: backlog
   10-6-validate-document-management-workflow: backlog
   epic-10-retrospective: optional

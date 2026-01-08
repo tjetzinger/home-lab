@@ -47,16 +47,34 @@ ingress:
   main:
     enabled: false
 
-# Persistent storage disabled (NFS storage configured in Story 10.3)
+# Persistent storage configuration (Story 10.4 - NFS backend from Epic 2)
+# StorageClass: nfs-client (Synology DS920+ at 192.168.2.5:/volume1/k8s-data)
+# Capacity planning: NFR29 targets 5,000+ documents (~50GB originals + 20GB media)
 persistence:
   data:
-    enabled: false  # Will enable with NFS in Story 10.3
+    enabled: true
+    storageClass: nfs-client
+    accessMode: ReadWriteOnce
+    size: 50Gi  # Documents, search index, configuration files
+    retain: true
   media:
-    enabled: false  # Will enable with NFS in Story 10.3
+    enabled: true
+    storageClass: nfs-client
+    accessMode: ReadWriteOnce
+    size: 20Gi  # Thumbnails, archived versions, document originals
+    retain: true
   export:
-    enabled: false  # Ephemeral for now
+    enabled: true
+    storageClass: nfs-client
+    accessMode: ReadWriteOnce
+    size: 5Gi  # Document exports (temporary storage)
+    retain: true
   consume:
-    enabled: false  # Ephemeral for now
+    enabled: true
+    storageClass: nfs-client
+    accessMode: ReadWriteOnce
+    size: 5Gi  # Watch directory for auto-import
+    retain: true
 
 # PostgreSQL subchart disabled (using existing cluster PostgreSQL from Epic 5)
 postgresql:
@@ -69,6 +87,16 @@ mariadb:
 # Redis subchart DISABLED - will deploy standalone Redis instead
 redis:
   enabled: false
+
+# Pod security context for NFS volume permissions (Story 10.4)
+# fsGroup: Changes group ownership of volumes to 1024
+# supplementalGroups: Ensures ALL processes keep group 1024, even after dropping privileges
+# Note: Paperless drops from root to UID 1000, supplementalGroups preserves group access
+podSecurityContext:
+  fsGroup: 1024
+  fsGroupChangePolicy: "OnRootMismatch"
+  supplementalGroups:
+    - 1024
 
 # Kubernetes recommended labels
 podLabels:
