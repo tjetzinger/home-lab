@@ -1,0 +1,93 @@
+# Paperless-ngx IngressRoute for home-lab
+# Namespace: docs
+#
+# Story: 10.5 - Configure Ingress with HTTPS
+# FR: FR57 - User can access Paperless-ngx via ingress with HTTPS
+# FR: FR58 - User can upload, tag, and search scanned documents
+# NFR: NFR7 - All ingress traffic uses TLS 1.2+ with valid certificates
+#
+# Access: https://paperless.home.jetzinger.com
+# Security: HTTPS-only via Let's Encrypt, Tailscale VPN for remote access
+---
+# HTTPS redirect middleware for docs namespace
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: home-lab
+spec:
+  redirectScheme:
+    permanent: true
+    scheme: https
+---
+# Certificate for paperless.home.jetzinger.com
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: paperless-tls
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-ngx
+    app.kubernetes.io/instance: paperless
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: document-management
+spec:
+  secretName: paperless-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - paperless.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# HTTPS IngressRoute for Paperless-ngx
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: paperless-ingress
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-ngx
+    app.kubernetes.io/instance: paperless
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: document-management
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`paperless.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: paperless-paperless-ngx
+          port: 8000
+  tls:
+    secretName: paperless-tls
+---
+# HTTP to HTTPS redirect for Paperless-ngx
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: paperless-ingress-redirect
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-ngx
+    app.kubernetes.io/instance: paperless-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: document-management
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`paperless.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: docs
+      services:
+        - name: paperless-paperless-ngx
+          port: 8000
