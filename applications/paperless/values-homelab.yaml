@@ -1,0 +1,66 @@
+# Paperless-ngx Helm values for home-lab
+# Story: 10.1 - Deploy Paperless-ngx with Redis Backend
+# Epic: 10 - Document Management System
+#
+# FRs:
+# - FR8: Deploy applications using Helm charts
+# - FR55: Deploy Paperless-ngx with Redis for task queuing
+# - FR56: Configure OCR with German and English support
+#
+# Components: Paperless-ngx (Deployment), Redis (StatefulSet)
+
+# Paperless-ngx image configuration
+image:
+  repository: ghcr.io/paperless-ngx/paperless-ngx
+  pullPolicy: IfNotPresent
+  tag: "latest"  # Use latest stable Paperless-ngx version
+
+# Environment variables for Paperless-ngx configuration
+# Reference: https://docs.paperless-ngx.com/configuration/
+env:
+  TZ: Europe/Berlin  # German timezone
+  PAPERLESS_URL: "https://paperless.home.jetzinger.com"  # Public-facing URL (Story 10.4)
+  PAPERLESS_SECRET_KEY: "placeholder-overridden-by-secrets-file"  # Real secret in secrets/paperless-secrets.yaml (gitignored)
+  PAPERLESS_REDIS: "redis://redis:6379"  # Redis connection for standalone deployment
+
+# Service configuration
+service:
+  main:
+    ports:
+      http:
+        port: 8000  # Paperless-ngx default port
+
+# Ingress disabled (IngressRoute created in Story 10.4)
+ingress:
+  main:
+    enabled: false
+
+# Persistent storage disabled (NFS storage configured in Story 10.3)
+persistence:
+  data:
+    enabled: false  # Will enable with NFS in Story 10.3
+  media:
+    enabled: false  # Will enable with NFS in Story 10.3
+  export:
+    enabled: false  # Ephemeral for now
+  consume:
+    enabled: false  # Ephemeral for now
+
+# PostgreSQL database disabled (will use existing cluster PostgreSQL later)
+postgresql:
+  enabled: false
+
+# MariaDB database disabled (using PostgreSQL strategy)
+mariadb:
+  enabled: false
+
+# Redis subchart DISABLED - will deploy standalone Redis instead
+redis:
+  enabled: false
+
+# Kubernetes recommended labels
+podLabels:
+  app.kubernetes.io/name: paperless-ngx
+  app.kubernetes.io/instance: paperless
+  app.kubernetes.io/part-of: home-lab
+  app.kubernetes.io/managed-by: helm
