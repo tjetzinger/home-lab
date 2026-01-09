@@ -92,11 +92,22 @@ docker run --rm dev-container-base:latest ssh -V
 ```
 applications/dev-containers/
 ├── base-image/
-│   └── Dockerfile              # Dev container base image
-├── dev-container-template.yaml # Template for new containers
-├── ssh-configmap.yaml          # SSH authorized_keys template
-└── README.md                   # This file
+│   └── Dockerfile                    # Dev container base image
+├── dev-container-template.yaml       # Template for new containers
+├── ssh-configmap.yaml                # SSH authorized_keys template
+├── dev-container-belego.yaml         # Belego container deployment
+├── dev-container-belego-ssh.yaml     # Belego SSH ConfigMap
+├── dev-container-pilates.yaml        # Pilates container deployment
+├── dev-container-pilates-ssh.yaml    # Pilates SSH ConfigMap
+└── README.md                         # This file
 ```
+
+## Deployed Containers
+
+| Container | Namespace | SSH Service | Storage |
+|-----------|-----------|-------------|---------|
+| dev-container-belego | dev | dev-container-belego-svc:22 | 10GB NFS PVC |
+| dev-container-pilates | dev | dev-container-pilates-svc:22 | 10GB NFS PVC |
 
 ## Architecture Notes
 
