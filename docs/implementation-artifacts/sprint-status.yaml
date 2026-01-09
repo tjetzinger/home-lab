@@ -117,7 +117,7 @@ development_status:
   epic-9-retrospective: optional
 
   # Epic 10: Document Management System (Paperless-ngx Ecosystem)
-  epic-10: in-progress
+  epic-10: done
   10-1-deploy-paperless-ngx-with-redis-backend: done
   10-2-configure-postgresql-backend: done
   10-3-configure-ocr-with-german-and-english-support: done
