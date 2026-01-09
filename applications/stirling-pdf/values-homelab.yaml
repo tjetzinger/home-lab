@@ -1,0 +1,73 @@
+# Stirling-PDF Helm values for home-lab
+# Story: 10.10 - Deploy Stirling-PDF
+# Epic: 10 - Document Management System
+#
+# FRs:
+# - FR84: Stirling-PDF deployed for PDF manipulation
+# - FR85: Split, merge, rotate, compress PDF capabilities
+# - FR86: Stirling-PDF ingress with HTTPS
+#
+# Components: Stirling-PDF (Deployment), Service (ClusterIP port 8080)
+
+# Replica count - single instance for home lab
+replicaCount: 1
+
+# Image configuration (uses chart defaults from docker.stirlingpdf.com)
+image:
+  pullPolicy: IfNotPresent
+
+# Environment variables for Stirling-PDF configuration
+envs:
+  # Disable login for home lab simplicity (FR84)
+  - name: SECURITY_ENABLELOGIN
+    value: "false"
+  # German locale to match user preference
+  - name: SYSTEM_DEFAULTLOCALE
+    value: "de-DE"
+  # Application display name
+  - name: UI_APPNAME
+    value: "Stirling PDF"
+  # Max file size for PDF operations (100MB)
+  - name: SYSTEM_MAXFILESIZE
+    value: "100"
+  # Disable Google visibility for privacy
+  - name: SYSTEM_GOOGLEVISIBILITY
+    value: "false"
+
+# Service configuration
+service:
+  type: ClusterIP
+  externalPort: 8080
+
+# Persistence disabled - stateless operation (FR84)
+# PDF processing is ephemeral, no need to persist temporary files
+persistence:
+  enabled: false
+
+# Resource limits for single-user home lab
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+# Common labels for consistency with home-lab naming conventions
+# Note: app.kubernetes.io/name and instance are set by chart defaults
+commonLabels:
+  app.kubernetes.io/part-of: home-lab
+
+# Probe configuration - Java app needs longer startup time
+probes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 5
+  readiness:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5

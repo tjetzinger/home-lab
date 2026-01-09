@@ -1,0 +1,68 @@
+# Stirling-PDF IngressRoute for Traefik
+# Story: 10.10 - Deploy Stirling-PDF
+# FR86: Stirling-PDF ingress with HTTPS
+---
+# Certificate for TLS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: stirling-tls
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: stirling-pdf
+    app.kubernetes.io/instance: stirling-pdf
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: stirling-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - stirling.home.jetzinger.com
+---
+# Main IngressRoute for HTTPS
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: stirling-ingress
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: stirling-pdf
+    app.kubernetes.io/instance: stirling-pdf
+    app.kubernetes.io/component: pdf-tools
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`stirling.home.jetzinger.com`)
+      services:
+        - name: stirling-pdf-stirling-pdf-chart
+          port: 8080
+  tls:
+    secretName: stirling-tls
+---
+# HTTP to HTTPS redirect
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: stirling-ingress-redirect
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: stirling-pdf
+    app.kubernetes.io/instance: stirling-pdf-redirect
+    app.kubernetes.io/component: pdf-tools
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`stirling.home.jetzinger.com`)
+      middlewares:
+        - name: https-redirect
+          namespace: docs
+      services:
+        - name: stirling-pdf-stirling-pdf-chart
+          port: 8080
