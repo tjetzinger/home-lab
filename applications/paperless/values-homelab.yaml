@@ -1,11 +1,19 @@
 # Paperless-ngx Helm values for home-lab
-# Story: 10.1 - Deploy Paperless-ngx with Redis Backend
+# Stories: 10.1-10.7 - Document Management System
 # Epic: 10 - Document Management System
 #
 # FRs:
 # - FR8: Deploy applications using Helm charts
 # - FR55: Deploy Paperless-ngx with Redis for task queuing
 # - FR56: Configure OCR with German and English support
+# - FR75: Single-user folder-based organization (Story 10.7)
+# - FR76: Duplicate document detection (Story 10.7)
+# - FR77: NFS mount from workstation (Story 10.7)
+# - FR78: Auto-import within 30 seconds (Story 10.7)
+#
+# NFRs:
+# - NFR39: NFS polling mode required (inotify incompatible)
+# - NFR40: 10-second polling interval
 #
 # Components: Paperless-ngx (Deployment), Redis (StatefulSet)
 
@@ -35,8 +43,8 @@ env:
   PAPERLESS_OCR_LANGUAGE: "deu+eng"  # German + English OCR support
   PAPERLESS_OCR_MODE: "skip"  # Skip OCR if document already has text layer
 
-  # Multi-user configuration (3 users: thomas, willi, shared)
-  PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"  # Auto-tag docs by consume subfolder (thomas, willi, shared)
+  # Single-user configuration (Story 10.7: FR75-78, NFR39-40)
+  PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"  # Auto-tag docs by subfolder name (optional organization)
   PAPERLESS_CONSUMER_RECURSIVE: "true"  # Watch subdirectories in /consume
   PAPERLESS_CONSUMER_DELETE_DUPLICATES: "true"  # Prevent duplicate document imports
 
