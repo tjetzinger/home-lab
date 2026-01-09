@@ -1,0 +1,58 @@
+# Apache Tika Deployment for Paperless-ngx Office Document Processing
+# Story: 10.9 - Deploy Office Document Processing (Tika + Gotenberg)
+# Epic: 10 - Document Management System
+#
+# FRs:
+# - FR81: Apache Tika for text extraction from Office documents
+#
+# Tika extracts text and metadata from Office documents (.docx, .xlsx, .pptx)
+# for full-text search in Paperless-ngx.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tika
+  namespace: docs
+  labels:
+    app: tika
+    app.kubernetes.io/name: tika
+    app.kubernetes.io/instance: tika
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tika
+  template:
+    metadata:
+      labels:
+        app: tika
+        app.kubernetes.io/name: tika
+        app.kubernetes.io/instance: tika
+    spec:
+      containers:
+        - name: tika
+          image: apache/tika:latest
+          ports:
+            - containerPort: 9998
+              name: http
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /tika
+              port: 9998
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /tika
+              port: 9998
+            initialDelaySeconds: 10
+            periodSeconds: 10

@@ -1,5 +1,5 @@
 # Paperless-ngx Helm values for home-lab
-# Stories: 10.1-10.8 - Document Management System
+# Stories: 10.1-10.9 - Document Management System
 # Epic: 10 - Document Management System
 #
 # FRs:
@@ -12,10 +12,14 @@
 # - FR78: Auto-import within 30 seconds (Story 10.7)
 # - FR79: CSRF protection enabled (Story 10.8)
 # - FR80: CORS restricted to authorized origins (Story 10.8)
+# - FR81: Apache Tika for text extraction (Story 10.9)
+# - FR82: Gotenberg for PDF conversion (Story 10.9)
+# - FR83: Direct Office format import (Story 10.9)
 #
 # NFRs:
 # - NFR39: NFS polling mode required (inotify incompatible)
 # - NFR40: 10-second polling interval
+# - NFR41: 2 parallel OCR workers (Story 10.9)
 #
 # Components: Paperless-ngx (Deployment), Redis (StatefulSet)
 
@@ -67,6 +71,11 @@ env:
   PAPERLESS_CORS_ALLOWED_HOSTS: "https://paperless.home.jetzinger.com"  # CORS security
   PAPERLESS_LOGOUT_REDIRECT_URL: "/"  # Redirect to homepage after logout
   PAPERLESS_ENABLE_HTTP_REMOTE_USER: "false"  # Disable reverse proxy auth (using built-in auth)
+
+  # Office document processing (Story 10.9: FR81-83)
+  PAPERLESS_TIKA_ENABLED: "true"  # Enable Apache Tika integration for Office documents
+  PAPERLESS_TIKA_ENDPOINT: "http://tika:9998"  # Tika server for text extraction
+  PAPERLESS_TIKA_GOTENBERG_ENDPOINT: "http://gotenberg:3000"  # Gotenberg for PDF conversion
 
   # Data management and consumer settings
   PAPERLESS_CONSUMER_IGNORE_PATTERNS: '[".DS_Store", "._*", ".stfolder", ".stversions", "Thumbs.db", "desktop.ini"]'  # Ignore system files

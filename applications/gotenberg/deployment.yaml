@@ -1,0 +1,61 @@
+# Gotenberg Deployment for Paperless-ngx Office Document Processing
+# Story: 10.9 - Deploy Office Document Processing (Tika + Gotenberg)
+# Epic: 10 - Document Management System
+#
+# FRs:
+# - FR82: Gotenberg for PDF conversion from Office documents
+#
+# Gotenberg converts Office documents to PDF using Chromium engine
+# for Paperless-ngx document processing.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gotenberg
+  namespace: docs
+  labels:
+    app: gotenberg
+    app.kubernetes.io/name: gotenberg
+    app.kubernetes.io/instance: gotenberg
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gotenberg
+  template:
+    metadata:
+      labels:
+        app: gotenberg
+        app.kubernetes.io/name: gotenberg
+        app.kubernetes.io/instance: gotenberg
+    spec:
+      containers:
+        - name: gotenberg
+          image: gotenberg/gotenberg:8
+          args:
+            - "gotenberg"
+            - "--chromium-disable-javascript=true"  # Security: disable JS execution
+          ports:
+            - containerPort: 3000
+              name: http
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
