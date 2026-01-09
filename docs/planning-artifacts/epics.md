@@ -369,29 +369,57 @@ Tom can upgrade K3s, backup/restore the cluster, and maintain long-term operatio
 Tom has a polished public portfolio that demonstrates capability to hiring managers and recruiters.
 **FRs covered:** FR49, FR50, FR51, FR52, FR53, FR54
 
-### Epic 10: Document Management System (Paperless-ngx) [Phase 2]
+### Epic 10: Document Management System (Paperless-ngx Ecosystem) [Phase 2]
 
-**User Outcome:** Tom can digitize, organize, and search thousands of scanned documents with OCR support for German and English, replacing physical paper filing with a searchable digital archive.
+**User Outcome:** Tom can digitize, organize, and search thousands of scanned documents with OCR support for German and English, AI-powered auto-tagging, Office document processing, PDF editing, and automatic email attachment import—replacing physical paper filing with a comprehensive digital archive.
 
-**FRs covered:** FR55, FR56, FR57, FR58, FR64, FR65, FR66
+**FRs covered:** FR55-58, FR64-66, FR75-93
 - FR55: Deploy Paperless-ngx with Redis backend
 - FR56: Documents persist to NFS storage
 - FR57: Access via HTTPS ingress
 - FR58: Upload, tag, and search documents
 - FR64: OCR with German and English language support
 - FR65: Handle thousands of documents (ongoing workflow)
-- FR66: PostgreSQL backend for metadata (deferred to future enhancement)
+- FR66: PostgreSQL backend for metadata
+- FR75: Single-user operation with folder-based organization
+- FR76: Duplicate document detection on import
+- FR77: NFS mount for consume folders from workstation
+- FR78: Auto-import from consume folders within 30 seconds
+- FR79: CSRF protection for web interface
+- FR80: CORS restricted to authorized origins
+- FR81: Apache Tika for Office document text extraction
+- FR82: Gotenberg for Office-to-PDF conversion
+- FR83: Direct import of Word, Excel, PowerPoint, LibreOffice formats
+- FR84: Stirling-PDF for PDF manipulation
+- FR85: Split, merge, rotate, compress PDFs via web UI
+- FR86: Stirling-PDF ingress with HTTPS
+- FR87: Paperless-AI connects to GPU Ollama (Intel NUC + RTX 3060)
+- FR88: LLM-based auto-tagging via GPU-accelerated inference
+- FR89: Auto-populate correspondents and document types
+- FR90: Monitor private email inbox via IMAP
+- FR91: Monitor Gmail inbox via IMAP
+- FR92: Auto-import email attachments (PDF, Office docs)
+- FR93: Email bridge container for IMAP access
 
-**NFRs covered:** NFR28, NFR29, NFR30
+**NFRs covered:** NFR28-30, NFR39-49
 - NFR28: 95%+ OCR accuracy (German/English)
 - NFR29: Scale to 5,000+ documents
 - NFR30: 3-second full-text search
+- NFR39: NFS polling mode (inotify incompatible)
+- NFR40: 10-second polling interval
+- NFR41: 2 parallel OCR workers
+- NFR42: GPU inference throughput 50+ tokens/sec
+- NFR43: AI classification within 10 seconds per document
 
 **Implementation Notes:**
 - PostgreSQL backend (shared cluster database)
 - Tesseract OCR with German (deu) + English (eng) language packs
 - NFS storage with Synology snapshot protection
-- Community Helm chart deployment
+- gabe565 Helm chart for Paperless-ngx
+- Apache Tika + Gotenberg for Office document processing
+- Stirling-PDF via official Helm chart
+- Paperless-AI connector to GPU Ollama on Intel NUC
+- Email bridge for private email + Gmail direct IMAP
 
 ---
 
@@ -426,22 +454,27 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 
 ### Epic 12: GPU/ML Inference Platform (vLLM + RTX 3060) [Phase 2]
 
-**User Outcome:** Tom can run GPU-accelerated LLM inference with vLLM serving multiple models simultaneously on a hot-pluggable GPU worker, with automatic graceful degradation to Ollama CPU when the GPU worker is offline, enabling fast AI inference for n8n workflows and development tasks.
+**User Outcome:** Tom can run GPU-accelerated LLM inference with vLLM serving multiple models simultaneously on a hot-pluggable GPU worker, with automatic graceful degradation to Ollama CPU when the GPU worker is offline, enabling fast AI inference for n8n workflows, Paperless-ngx document classification, and development tasks.
 
-**FRs covered:** FR38, FR39, FR71, FR72, FR73, FR74
+**FRs covered:** FR38, FR39, FR71-74, FR87-89
 - FR38: Deploy vLLM for production inference
 - FR39: GPU workloads request GPU resources via NVIDIA Operator
 - FR71: GPU worker (Intel NUC + RTX 3060) joins cluster via Tailscale
 - FR72: vLLM serves DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B simultaneously
 - FR73: Graceful degradation to Ollama CPU when GPU offline
 - FR74: Hot-plug GPU worker (add/remove without cluster disruption)
+- FR87: Paperless-AI connects to GPU Ollama (Intel NUC + RTX 3060)
+- FR88: LLM-based auto-tagging via GPU-accelerated inference
+- FR89: Auto-populate correspondents and document types from content
 
-**NFRs covered:** NFR34, NFR35, NFR36, NFR37, NFR38
+**NFRs covered:** NFR34-38, NFR42-43
 - NFR34: 50+ tokens/second throughput (Mistral, Llama)
 - NFR35: Handle 2-3 concurrent inference requests
 - NFR36: GPU worker joins cluster in 2 minutes via Tailscale
 - NFR37: NVIDIA GPU Operator installs drivers automatically
 - NFR38: Multi-model serving (3 models in memory)
+- NFR42: GPU inference throughput 50+ tokens/sec for document classification
+- NFR43: AI classification within 10 seconds per document
 
 **Implementation Notes:**
 - Intel NUC + RTX 3060 eGPU (12GB VRAM)
@@ -451,6 +484,7 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - Context window: 8K-16K tokens per request
 - NVIDIA GPU Operator for automatic driver management
 - Fallback routing: vLLM (GPU) → Ollama (CPU) when GPU worker unavailable
+- Paperless-AI connector for document auto-classification via Ollama
 
 ---
 
@@ -1954,12 +1988,12 @@ So that **I can evaluate the depth of implementation**.
 
 ## Phase 2 Epic Details
 
-### Epic 10: Document Management System (Paperless-ngx)
+### Epic 10: Document Management System (Paperless-ngx Ecosystem)
 
-**User Outcome:** Tom has a self-hosted document management system for scanning, tagging, and searching personal documents with OCR support.
+**User Outcome:** Tom has a comprehensive self-hosted document management system with scanning, tagging, searching, AI-powered classification, Office document processing, PDF editing, and automatic email import.
 
-**FRs Covered:** FR55, FR56, FR57, FR58, FR64, FR65, FR66
-**NFRs Covered:** NFR28, NFR29, NFR30
+**FRs Covered:** FR55-58, FR64-66, FR75-93
+**NFRs Covered:** NFR28-30, NFR39-49
 
 ---
 
@@ -2175,6 +2209,237 @@ spec:
 **When** I check Synology snapshots
 **Then** all uploaded documents are included in hourly snapshots
 **And** I can access previous versions via Synology UI
+
+**Story Points:** 5
+
+---
+
+#### Story 10.7: Configure Single-User Mode with NFS Polling
+
+**As a** platform engineer
+**I want** Paperless-ngx configured for single-user operation with NFS-compatible polling
+**So that** documents dropped into consume folders via NFS mount are automatically imported
+
+**Acceptance Criteria:**
+
+**Given** Paperless-ngx is deployed with NFS storage
+**When** I configure single-user and polling settings
+**Then** Helm values include:
+```yaml
+env:
+  PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"
+  PAPERLESS_CONSUMER_RECURSIVE: "true"
+  PAPERLESS_CONSUMER_DELETE_DUPLICATES: "true"
+  PAPERLESS_CONSUMER_POLLING: "10"
+  PAPERLESS_CONSUMER_POLLING_DELAY: "5"
+  PAPERLESS_CONSUMER_POLLING_RETRY_COUNT: "5"
+```
+**And** this validates FR75 (single-user folder-based organization)
+**And** this validates FR76 (duplicate document detection)
+**And** this validates NFR39 (NFS polling mode required)
+**And** this validates NFR40 (10-second polling interval)
+
+**Given** consume folder is NFS-mounted on workstation
+**When** I verify NFS mount path from `/etc/fstab`
+**Then** the consume PVC is accessible at `/mnt/paperless`
+**And** scanner/desktop can drop files into this directory
+**And** this validates FR77 (NFS mount from workstation)
+
+**Given** NFS polling is configured
+**When** I drop a test PDF into the consume folder
+**Then** Paperless-ngx detects the file within 10 seconds
+**And** document appears in library within 30 seconds of detection
+**And** this validates FR78 (auto-import within 30 seconds)
+
+**Implementation Notes:**
+- NFS does not support inotify, polling is required
+- Polling interval: 10 seconds (PAPERLESS_CONSUMER_POLLING)
+- Polling delay: 5 seconds wait after file change before consuming
+- Retry count: 5 attempts if file is locked during upload
+
+**Story Points:** 3
+
+---
+
+#### Story 10.8: Implement Security Hardening
+
+**As a** platform engineer
+**I want** CSRF and CORS protection enabled for Paperless-ngx
+**So that** the web interface is protected against cross-site attacks
+
+**Acceptance Criteria:**
+
+**Given** Paperless-ngx is deployed with ingress
+**When** I configure security hardening settings
+**Then** Helm values include:
+```yaml
+env:
+  PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.home.jetzinger.com"
+  PAPERLESS_CORS_ALLOWED_HOSTS: "https://paperless.home.jetzinger.com"
+  PAPERLESS_COOKIE_PREFIX: "paperless_ngx"
+  PAPERLESS_ENABLE_HTTP_REMOTE_USER: "false"
+```
+**And** this validates FR79 (CSRF protection enabled)
+**And** this validates FR80 (CORS restricted to authorized origins)
+
+**Given** security settings are applied
+**When** I attempt cross-origin request from unauthorized domain
+**Then** request is rejected with CORS error
+**And** CSRF token validation is enforced on form submissions
+
+**Story Points:** 2
+
+---
+
+#### Story 10.9: Deploy Office Document Processing (Tika + Gotenberg)
+
+**As a** user
+**I want** Paperless-ngx to process Office documents (Word, Excel, PowerPoint)
+**So that** I can import business documents directly without manual PDF conversion
+
+**Acceptance Criteria:**
+
+**Given** cluster has `docs` namespace
+**When** I deploy Apache Tika and Gotenberg
+**Then** the following resources are created:
+- Deployment: `tika` (1 replica, image: `apache/tika:latest`)
+- Service: `tika` (port 9998)
+- Deployment: `gotenberg` (1 replica, image: `gotenberg/gotenberg:8`)
+- Service: `gotenberg` (port 3000)
+
+**Given** Tika and Gotenberg are running
+**When** I configure Paperless-ngx integration
+**Then** Helm values include:
+```yaml
+env:
+  PAPERLESS_TIKA_ENABLED: "true"
+  PAPERLESS_TIKA_ENDPOINT: "http://tika:9998"
+  PAPERLESS_TIKA_GOTENBERG_ENDPOINT: "http://gotenberg:3000"
+```
+**And** this validates FR81 (Apache Tika for text extraction)
+**And** this validates FR82 (Gotenberg for PDF conversion)
+
+**Given** Office processing is configured
+**When** I upload a .docx, .xlsx, or .pptx file
+**Then** Paperless-ngx converts the file to PDF via Gotenberg
+**And** text is extracted via Tika for full-text search
+**And** document appears in library with searchable content
+**And** this validates FR83 (direct Office format import)
+
+**Given** OCR workers are configured
+**When** I check processing performance
+**Then** PAPERLESS_TASK_WORKERS is set to 2
+**And** this validates NFR41 (2 parallel OCR workers)
+
+**Implementation Notes:**
+- Tika: Text and metadata extraction from Office docs
+- Gotenberg: PDF conversion with Chromium engine (Office-to-PDF)
+- Gotenberg flags: `--chromium-disable-javascript=true` for security
+- Both services are internal, no ingress required
+
+**Story Points:** 5
+
+---
+
+#### Story 10.10: Deploy Stirling-PDF
+
+**As a** user
+**I want** Stirling-PDF deployed for PDF manipulation
+**So that** I can split, merge, rotate, and compress PDFs via web interface
+
+**Acceptance Criteria:**
+
+**Given** cluster has `docs` namespace
+**When** I deploy Stirling-PDF via Helm
+**Then** I run:
+```bash
+helm repo add stirling-pdf https://stirling-tools.github.io/Stirling-PDF-chart
+helm install stirling-pdf stirling-pdf/stirling-pdf-chart \
+  --namespace docs \
+  -f applications/stirling-pdf/values-homelab.yaml
+```
+**And** Deployment `stirling-pdf` is created with 1 replica
+**And** Service `stirling-pdf` is created on port 8080
+
+**Given** Stirling-PDF is deployed
+**When** I create Helm values file
+**Then** configuration includes:
+```yaml
+env:
+  SECURITY_ENABLELOGIN: "false"
+  SYSTEM_DEFAULTLOCALE: "de-DE"
+persistence:
+  enabled: false  # Stateless operation
+```
+
+**Given** Stirling-PDF is running
+**When** I create IngressRoute for HTTPS access
+**Then** `stirling.home.jetzinger.com` routes to Stirling-PDF service
+**And** TLS certificate is provisioned via cert-manager
+**And** this validates FR84 (Stirling-PDF deployed)
+**And** this validates FR86 (ingress with HTTPS)
+
+**Given** Stirling-PDF is accessible
+**When** I use the web interface
+**Then** I can split, merge, rotate, and compress PDFs
+**And** this validates FR85 (PDF manipulation capabilities)
+
+**Implementation Notes:**
+- Official Helm chart: `stirling-pdf/stirling-pdf-chart`
+- Stateless operation (no persistent storage needed)
+- German locale (de-DE) matches user preference
+- No authentication (internal Tailscale network only)
+
+**Story Points:** 3
+
+---
+
+#### Story 10.11: Configure Email Integration
+
+**As a** user
+**I want** Paperless-ngx to monitor my email inboxes for document attachments
+**So that** invoices and documents sent via email are automatically imported
+
+**Acceptance Criteria:**
+
+**Given** cluster has `docs` namespace
+**When** I deploy email bridge container for private email provider
+**Then** the following resources are created:
+- StatefulSet: `email-bridge` (1 replica)
+- Service: `email-bridge` (ports: 143 IMAP, 25 SMTP)
+- PVC: for credential storage (1Gi)
+
+**Given** email bridge is running
+**When** I configure bridge credentials
+**Then** I exec into pod and run bridge CLI
+**And** I login with email account
+**And** bridge generates IMAP credentials
+
+**Given** email accounts are configured
+**When** I set up Paperless-ngx mail fetcher via UI
+**Then** Mail Accounts include:
+- Private Email: IMAP server via bridge, bridge credentials
+- Gmail: IMAP server `imap.gmail.com:993`, App Password authentication
+**And** this validates FR90 (monitor private email inbox)
+**And** this validates FR91 (monitor Gmail inbox)
+**And** this validates FR93 (email bridge container)
+
+**Given** mail rules are configured
+**When** I create mail rules for document consumption
+**Then** rules filter by subject/sender for invoices, statements, contracts
+**And** PDF and Office attachments are extracted and imported
+**And** this validates FR92 (auto-import email attachments)
+
+**Given** email integration is active
+**When** I receive an email with PDF attachment
+**Then** attachment appears in Paperless-ngx within mail check interval
+**And** document is tagged based on mail rule configuration
+
+**Implementation Notes:**
+- Email Bridge: Required for private email IMAP access
+- Gmail: Direct IMAP with App Password (OAuth not supported)
+- Mail fetcher runs on configurable schedule (hourly default)
+- Credentials stored in Kubernetes secrets (gitignored)
 
 **Story Points:** 5
 
@@ -2507,10 +2772,10 @@ Host pilates-dev
 
 ### Epic 12: GPU/ML Inference Platform
 
-**User Outcome:** AI/ML workflows can access GPU-accelerated inference via vLLM, with graceful fallback to CPU-based Ollama when GPU unavailable.
+**User Outcome:** AI/ML workflows can access GPU-accelerated inference via vLLM and Ollama, with Paperless-AI document classification and graceful fallback to CPU-based Ollama when GPU unavailable.
 
-**FRs Covered:** FR38, FR39, FR71, FR72, FR73, FR74
-**NFRs Covered:** NFR34, NFR35, NFR36, NFR37, NFR38
+**FRs Covered:** FR38, FR39, FR71-74, FR87-89
+**NFRs Covered:** NFR34-38, NFR42-43
 
 ---
 
@@ -2830,6 +3095,73 @@ helm upgrade gpu-operator nvidia/gpu-operator \
 
 ---
 
+#### Story 12.7: Deploy Paperless-AI with GPU Ollama Integration
+
+**As a** user
+**I want** Paperless-ngx documents auto-classified using GPU-accelerated LLM inference
+**So that** tags, correspondents, and document types are automatically populated from content
+
+**Acceptance Criteria:**
+
+**Given** GPU worker (Intel NUC + RTX 3060) is running Ollama
+**When** I verify Ollama GPU availability
+**Then** `kubectl get pods -n ml -l app=ollama` shows running pod on GPU worker
+**And** `ollama list` shows llama3.2:1b or larger model loaded
+**And** GPU is utilized for inference (NVIDIA SMI shows memory usage)
+
+**Given** Ollama is GPU-accelerated
+**When** I deploy Paperless-AI connector
+**Then** the following resources are created:
+- Deployment: `paperless-ai` (1 replica, image: `douaberigoale/paperless-metadata-ollama-processor`)
+- ConfigMap: `paperless-ai-config` (connection settings)
+- Secret: `paperless-ai-secrets` (Paperless API token)
+
+**Given** Paperless-AI is deployed
+**When** I configure environment variables
+**Then** configuration includes:
+```yaml
+env:
+  PAPERLESS_URL: "http://paperless-ngx.docs.svc.cluster.local:8000"
+  PAPERLESS_API_TOKEN: "<api-token>"
+  OLLAMA_URL: "http://ollama.ml.svc.cluster.local:11434"
+  OLLAMA_MODEL: "llama3.2:1b"
+  PROCESS_PREDEFINED_DOCUMENTS: "true"
+  ADD_AI_PROCESSED_TAG: "true"
+```
+**And** this validates FR87 (Paperless-AI connects to GPU Ollama)
+
+**Given** Paperless-AI is connected
+**When** I upload a new document to Paperless-ngx
+**Then** document content is sent to Ollama for classification
+**And** inference uses GPU acceleration (NFR42: 50+ tokens/sec)
+**And** classification completes within 10 seconds (NFR43)
+**And** this validates FR88 (LLM-based auto-tagging)
+
+**Given** AI classification is working
+**When** I check document metadata after processing
+**Then** tags are auto-populated based on document content
+**And** correspondent is identified from letterhead/sender
+**And** document type is classified (invoice, contract, statement, etc.)
+**And** `ai-processed` tag is added to document
+**And** this validates FR89 (auto-populate correspondents and types)
+
+**Given** processing pipeline is validated
+**When** I monitor GPU metrics during document processing
+**Then** Grafana dashboard shows GPU utilization spikes during inference
+**And** processing throughput meets NFR42 (50+ tokens/second)
+**And** per-document latency meets NFR43 (<10 seconds)
+
+**Implementation Notes:**
+- Paperless-AI: `douaberigoale/paperless-metadata-ollama-processor` Docker image
+- Ollama must be running on GPU worker for acceptable performance
+- Model: llama3.2:1b for balance of speed and accuracy
+- API token generated in Paperless-ngx admin UI
+- Processor polls for new documents or uses webhook
+
+**Story Points:** 5
+
+---
+
 ## Phase 1 Epic Details (Completed)
 
 ### Epic 1: Foundation - K3s Cluster with Remote Access
@@ -2853,16 +3185,16 @@ Tom has a working multi-node K3s cluster he can access from anywhere via Tailsca
 | 9 | Portfolio & Public Showcase | 5 | FR49-54 | NFR24, NFR25, NFR26, NFR27 |
 | **Phase 1 Total** | | **42 stories** | **54 FRs** | **19 NFRs** |
 | | | | | |
-| 10 | Document Management System (Paperless-ngx) | 5 | FR55-58, FR64-66 | NFR28-30 |
+| 10 | Document Management System (Paperless-ngx Ecosystem) | 11 | FR55-58, FR64-66, FR75-86, FR90-93 | NFR28-30, NFR39-41 |
 | 11 | Dev Containers Platform | 6 | FR59-63, FR67-70 | NFR31-33 |
-| 12 | GPU/ML Inference Platform (vLLM + RTX 3060) | 6 | FR38-39, FR71-74 | NFR34-38 |
-| **Phase 2 Total** | | **17 stories** | **20 FRs** | **11 NFRs** |
+| 12 | GPU/ML Inference Platform (vLLM + RTX 3060) | 7 | FR38-39, FR71-74, FR87-89 | NFR34-38, NFR42-43 |
+| **Phase 2 Total** | | **24 stories** | **39 FRs** | **19 NFRs** |
 | | | | | |
-| **Grand Total** | | **59 stories** | **74 FRs** | **30 NFRs** |
+| **Grand Total** | | **66 stories** | **93 FRs** | **38 NFRs** |
 
 **Phase 1 Status:** ✅ Completed (Epics 1-9)
 **Phase 2 Status:** ✅ Ready for Implementation (Epics 10-12 - all stories created)
 
 ---
 
-**Workflow Complete:** All Phase 2 epics and stories have been created with detailed acceptance criteria. Ready to add to sprint-status.yaml and begin implementation.
+**Workflow Complete:** All Phase 2 epics and stories have been created with detailed acceptance criteria, including the expanded Paperless-ngx ecosystem (Office processing, PDF editing, AI classification, email integration). Ready to add to sprint-status.yaml and begin implementation.

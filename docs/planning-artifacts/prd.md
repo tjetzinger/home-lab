@@ -12,7 +12,7 @@ researchCount: 1
 brainstormingCount: 1
 projectDocsCount: 0
 date: '2025-12-27'
-lastUpdated: '2026-01-08'
+lastUpdated: '2026-01-09'
 author: 'Tom'
 project_name: 'home-lab'
 ---
@@ -20,9 +20,13 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-01-08
+**Date:** 2025-12-27 | **Last Updated:** 2026-01-09
 
 **Changelog:**
+- 2026-01-09: Added email inbox integration for private email/Gmail with Bridge container (FR90-93, NFR48-49)
+- 2026-01-09: Added Stirling-PDF and Paperless-AI with GPU Ollama (FR84-89, NFR44-47)
+- 2026-01-09: Added Tika/Gotenberg Office document processing (FR81-83, NFR42-43)
+- 2026-01-09: Added Paperless-ngx configuration and NFS integration requirements (FR75-80, NFR39-41)
 - 2026-01-08: Added Phase 2 requirements - Paperless-ngx (FR64-66, NFR28-30), Dev Containers (FR67-70, NFR31-33), vLLM GPU (FR71-74, NFR34-38)
 - 2026-01-08: Updated FR66 - PostgreSQL backend moved from "deferred" to Epic 10, Story 10.2 (active implementation)
 
@@ -443,6 +447,46 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - FR73: vLLM workloads gracefully degrade to Ollama CPU when GPU worker unavailable
 - FR74: Operator can hot-plug GPU worker (add/remove on demand without cluster disruption)
 
+### Document Management Configuration (Paperless-ngx)
+
+- FR75: Paperless-ngx configured for single-user operation with folder-based organization via consume subdirectories
+- FR76: Duplicate documents automatically detected and rejected on import
+
+### Workstation Integration (Paperless-ngx)
+
+- FR77: Operator can mount Paperless consume folders via NFS from local workstation
+- FR78: Scanner/desktop uploads to consume folders auto-imported within 30 seconds
+
+### Security Hardening (Paperless-ngx)
+
+- FR79: CSRF protection enabled for Paperless-ngx web interface
+- FR80: CORS restricted to authorized origins only
+
+### Office Document Processing (Paperless-ngx)
+
+- FR81: Apache Tika deployed for text/metadata extraction from Office documents
+- FR82: Gotenberg deployed for Office-to-PDF conversion
+- FR83: Paperless-ngx imports Word, Excel, PowerPoint, and LibreOffice formats directly
+
+### PDF Editor Integration (Stirling-PDF)
+
+- FR84: Stirling-PDF deployed via Helm chart for PDF manipulation
+- FR85: User can split, merge, rotate, and compress PDFs via web interface
+- FR86: Stirling-PDF accessible via ingress with HTTPS
+
+### AI-Powered Document Classification (Paperless-AI)
+
+- FR87: Paperless-AI deployed connecting Paperless-ngx to Ollama on GPU worker (Intel NUC + RTX 3060)
+- FR88: Documents auto-tagged using LLM-based classification via GPU-accelerated inference
+- FR89: Correspondents and document types auto-populated from document content
+
+### Email Inbox Integration (Paperless-ngx)
+
+- FR90: Paperless-ngx monitors private email inbox via IMAP for document attachments
+- FR91: Paperless-ngx monitors Gmail inbox via IMAP for document attachments
+- FR92: Email attachments (PDF, Office docs) auto-imported into document library
+- FR93: Email bridge deployed as container providing IMAP access for private email providers
+
 ### Development Proxy
 
 - FR41: Operator can configure Nginx to proxy to local dev servers
@@ -551,4 +595,30 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - NFR36: GPU worker joins cluster and becomes Ready within 2 minutes of boot via Tailscale
 - NFR37: NVIDIA GPU Operator installs and configures GPU drivers automatically (no manual setup)
 - NFR38: vLLM serves multiple models simultaneously (Mistral 7B + Llama 3.1 8B)
+
+### NFS Compatibility (Paperless-ngx)
+
+- NFR39: Consumer polling mode used for NFS mounts (inotify not supported over NFS)
+- NFR40: Consumer polling interval ≤10 seconds for responsive document imports
+
+### Document Processing Performance (Paperless-ngx)
+
+- NFR41: 2 parallel OCR workers for document processing throughput
+- NFR42: Tika service responds within 30 seconds for typical Office documents
+- NFR43: Gotenberg PDF conversion completes within 60 seconds for complex documents
+
+### PDF Editor Performance (Stirling-PDF)
+
+- NFR44: Stirling-PDF web interface loads within 5 seconds
+- NFR45: PDF merge/split operations complete within 30 seconds for documents up to 100 pages
+
+### AI Classification Performance (Paperless-AI)
+
+- NFR46: Document classification completes within 60 seconds using GPU-accelerated Ollama
+- NFR47: Auto-tagging accuracy achieves 80%+ for common document types (invoices, contracts, receipts)
+
+### Email Integration (Paperless-ngx)
+
+- NFR48: Email inboxes checked every 10 minutes for new attachments
+- NFR49: Email credentials stored securely via Kubernetes secrets
 

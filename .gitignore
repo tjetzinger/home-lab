@@ -8,6 +8,12 @@
 # ------------------------------------------------------------------------------
 .obsidian                    # Obsidian notes/vault metadata
 .claude/                     # Claude Code CLI configuration
+
+# ------------------------------------------------------------------------------
+# Privacy - Personal Email Configuration
+# ------------------------------------------------------------------------------
+# Private email bridge configuration - not committed
+/applications/paperless/protonmail-bridge/
 .empirica/                   # Empirica epistemic self-assessment data
 .empirica_reflex_logs/       # Empirica logging output
 

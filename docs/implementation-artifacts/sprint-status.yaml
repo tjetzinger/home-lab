@@ -128,7 +128,7 @@ development_status:
   10-8-implement-security-hardening: done
   10-9-deploy-office-document-processing-tika-gotenberg: done
   10-10-deploy-stirling-pdf: done
-  10-11-configure-email-integration-protonmail-gmail: backlog
+  10-11-configure-email-integration: done
   epic-10-retrospective: optional
 
   # Epic 11: Dev Containers Platform

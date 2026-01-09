@@ -2,7 +2,8 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
-lastModified: '2025-12-29'
+lastModified: '2026-01-09'
+updateReason: 'Added Paperless ecosystem architecture: Tika/Gotenberg (FR81-83), Stirling-PDF (FR84-86), Paperless-AI (FR87-89), Email integration with private email bridge (FR90-93)'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -22,7 +23,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements:** 63 FRs across 12 capability areas
+**Functional Requirements:** 93 FRs across 15 capability areas
 - Cluster Operations (6): K3s lifecycle, node management
 - Workload Management (7): Deployments, Helm, ingress
 - Storage Management (5): NFS, PVCs, dynamic provisioning
@@ -33,10 +34,10 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Development Proxy (3): Nginx to local dev servers
 - Cluster Maintenance (5): Upgrades, backups, Velero
 - Portfolio & Documentation (6): ADRs, GitHub, blog
-- Document Management (4): Paperless-ngx, Redis, OCR
+- Document Management (19): Paperless-ngx, Redis, OCR, Tika, Gotenberg, Stirling-PDF, Paperless-AI, Email integration
 - Dev Containers (5): VS Code SSH, Claude Code, git worktrees
 
-**Non-Functional Requirements:** 27 NFRs
+**Non-Functional Requirements:** 49 NFRs
 - Reliability: 95% uptime, 5-min recovery, automatic pod rescheduling
 - Security: TLS 1.2+, Tailscale-only access, encrypted secrets
 - Performance: 30s Ollama response, 5s dashboard load
@@ -173,9 +174,54 @@ Traditional "starter templates" don't apply. Instead, we evaluate infrastructure
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| LLM Inference | Ollama Helm chart | Official chart, CPU for MVP |
-| GPU Support | Deferred to Phase 2 | Pending NUC acquisition |
+| LLM Inference (CPU) | Ollama Helm chart | Official chart, CPU fallback when GPU unavailable |
+| **LLM Inference (GPU)** | **vLLM on RTX 3060 eGPU** | **FR38-39: Production GPU inference, 4-10x faster than CPU** |
+| **GPU Worker** | **Intel NUC + RTX 3060 12GB eGPU** | **FR71: Hot-pluggable GPU worker via Tailscale** |
+| **GPU Networking** | **Dual-stack: 192.168.0.x (local) + Tailscale (K3s)** | **FR71, FR74: Hot-plug capability, cross-subnet support** |
+| **vLLM Models** | **DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B** | **FR72: Multi-model serving for code, speed, quality** |
+| **Model Serving** | **Single vLLM instance, 3 models loaded** | **Simplicity; all models in memory, instant switching** |
+| **Context Window** | **8K-16K tokens per request** | **Balanced: ~10-11GB model VRAM, ~1-2GB KV cache** |
+| **Graceful Degradation** | **vLLM → Ollama fallback when GPU offline** | **FR73: No downtime when GPU worker unavailable** |
 | Model Storage | NFS PVC | Persist downloaded models |
+| GPU Scheduling | NVIDIA GPU Operator | Automatic driver installation, GPU resource management |
+
+**vLLM Multi-Model Configuration:**
+- **DeepSeek-Coder 6.7B** (~5GB VRAM, 4-bit quantized)
+  - Use case: Code generation, debugging, code review
+  - Performance: ~60 tok/s
+  - Endpoint: `POST /v1/completions {"model": "deepseek-coder", ...}`
+
+- **Mistral 7B** (~5GB VRAM, 4-bit quantized)
+  - Use case: Fast general-purpose inference
+  - Performance: ~70-80 tok/s
+  - Endpoint: `POST /v1/completions {"model": "mistral-7b", ...}`
+
+- **Llama 3.1 8B** (~6GB VRAM, 4-bit quantized)
+  - Use case: Quality reasoning, complex tasks
+  - Performance: ~50-60 tok/s
+  - Endpoint: `POST /v1/completions {"model": "llama-3.1-8b", ...}`
+
+**Total VRAM:** ~16GB allocated (10-11GB models, 1-2GB KV cache, remaining headroom)
+
+**GPU Worker Architecture:**
+```
+Intel NUC (192.168.0.x local network)
+  └─ Tailscale VPN (stable IP for K3s)
+      └─ K3s node join via Tailscale IP
+          └─ vLLM Pod scheduled with GPU resource request
+              └─ NVIDIA GPU Operator manages drivers/runtime
+```
+
+**Hot-Plug Workflow (FR74):**
+1. GPU worker boots → Tailscale connects → K3s detects node
+2. Operator uncordons node: `kubectl uncordon k3s-gpu`
+3. vLLM Pod schedules to GPU node (GPU resource request)
+4. GPU worker shutdown → Node marked NotReady → vLLM workloads reschedule to Ollama (CPU)
+
+**Integration Pattern:**
+- vLLM and Ollama both expose OpenAI-compatible API
+- n8n workflows can route to vLLM (GPU) or Ollama (CPU) based on availability
+- Model selection via API `"model"` parameter (manual or via n8n routing logic)
 
 ### Document Management Architecture (Paperless-ngx)
 
@@ -183,39 +229,173 @@ Traditional "starter templates" don't apply. Instead, we evaluate infrastructure
 |----------|--------|-----------|
 | Deployment | Paperless-ngx Helm chart | Community chart, production-ready |
 | Backend | Redis (bundled) | Required for task queue, simpler than external |
-| Database | SQLite | Sufficient for single-user, simpler ops |
+| Database | **PostgreSQL (existing cluster)** | **NFR29: Scales to 5,000+ docs; leverage existing PostgreSQL deployment** |
 | Document Storage | NFS PVC | Documents persist on Synology, snapshot-protected |
-| OCR | Tesseract (bundled) | Included in Paperless-ngx image |
+| OCR | Tesseract (bundled) with German + English | **FR64: German and English language support for OCR** |
 | Ingress | paperless.home.jetzinger.com | HTTPS via cert-manager |
+| Scaling Target | 5,000+ documents | **NFR29: Performance requirement for document scaling** |
 
 **Integration Pattern:**
 - Redis runs as sidecar or separate pod in `docs` namespace
+- **PostgreSQL connection:** Use existing cluster PostgreSQL service (host: `postgresql.data.svc.cluster.local`)
 - Document consumption folder mounted from NFS
 - Export folder for processed documents on NFS
+- **OCR languages configured:** German (deu) + English (eng) in Tesseract config
+
+**Performance Considerations:**
+- PostgreSQL backend enables efficient metadata queries for 5,000+ documents (vs SQLite)
+- NFS storage tested for document upload/retrieval within NFR30 requirement (3-second search)
+- OCR processing queue managed by Redis for async processing
+
+### Office Document Processing Architecture (Tika + Gotenberg)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Text Extraction | Apache Tika (`apache/tika:latest`) | FR81: Extracts text/metadata from Office docs (Word, Excel, PowerPoint, LibreOffice) |
+| PDF Conversion | Gotenberg (`gotenberg/gotenberg:8.25`) | FR82: Converts Office docs to PDF for OCR processing |
+| Deployment | Separate pods in `docs` namespace | Stateless services, independent scaling |
+| Tika Port | 9998 | Default Tika server port |
+| Gotenberg Port | 3000 | Default Gotenberg port |
+| Gotenberg Flags | `--chromium-disable-javascript=true`, `--chromium-allow-list=file:///tmp/.*` | Security hardening |
+
+**Paperless Integration:**
+```yaml
+env:
+  PAPERLESS_TIKA_ENABLED: "1"
+  PAPERLESS_TIKA_ENDPOINT: "http://tika:9998"
+  PAPERLESS_TIKA_GOTENBERG_ENDPOINT: "http://gotenberg:3000"
+```
+
+**Supported Formats:**
+- Microsoft Office: .docx, .xlsx, .pptx
+- LibreOffice: .odt, .ods, .odp
+- Legacy: .doc, .xls, .ppt
+
+### PDF Editor Architecture (Stirling-PDF)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| PDF Tool | Stirling-PDF Full (`stirlingtools/stirling-pdf:latest`) | FR84-85: Split, merge, rotate, compress, OCR, watermark |
+| Deployment | Helm chart (`stirling-pdf/stirling-pdf-chart`) | Official chart, production-ready |
+| Namespace | `docs` | Co-locate with Paperless ecosystem |
+| Ingress | `stirling.home.jetzinger.com` | FR86: HTTPS via cert-manager |
+| Storage | None (stateless) | PDF processing is ephemeral |
+| Resources | 1 CPU, 2GB RAM | Sufficient for single-user processing |
+
+**Helm Installation:**
+```bash
+helm repo add stirling-pdf https://stirling-tools.github.io/Stirling-PDF-chart
+helm install stirling-pdf stirling-pdf/stirling-pdf-chart -n docs
+```
+
+**Use Case:**
+- Pre-process "messy" scans before Paperless import
+- Split multi-document PDFs into individual files
+- Merge related documents into single PDF
+
+### AI Document Classification Architecture (Paperless-AI)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| AI Connector | `paperless-metadata-ollama-processor` | FR87: Connects Paperless to Ollama for auto-tagging |
+| LLM Backend | Ollama on GPU worker (Intel NUC + RTX 3060) | FR88: GPU-accelerated inference for fast classification |
+| Deployment | Deployment in `docs` namespace | Watches Paperless API for new documents |
+| Model | Mistral 7B or Llama 3.1 8B | Balance of speed and quality for classification |
+
+**Integration Pattern:**
+```
+New Document → Paperless API → Paperless-AI → Ollama (GPU) → Update Tags/Correspondent/Type
+```
+
+**Auto-populated Fields (FR89):**
+- Tags: Document category, year, source
+- Correspondent: Sender/organization extracted from content
+- Document Type: Invoice, contract, receipt, letter, etc.
+
+**Environment Variables:**
+```yaml
+env:
+  PAPERLESS_URL: "http://paperless:8000"
+  PAPERLESS_API_TOKEN: "<from-secret>"
+  OLLAMA_URL: "http://ollama.ml.svc.cluster.local:11434"
+  OLLAMA_MODEL: "mistral:7b"
+```
+
+### Email Integration Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Private Email Access | Email Bridge (containerized) | FR90, FR93: Required for IMAP access to private email providers |
+| Gmail Access | Direct IMAP with App Password | FR91: Native IMAP, no container needed |
+| Bridge Deployment | StatefulSet in `docs` namespace | Persistent storage for credentials/cache |
+| Bridge Storage | 1Gi NFS PVC | Store bridge login state |
+| Polling Interval | 10 minutes | NFR48: Regular inbox checks |
+| Credentials | Kubernetes Secrets | NFR49: Secure storage for email passwords |
+
+**Email Bridge Architecture:**
+```
+Email Bridge (StatefulSet)
+  ├─ Port 143: IMAP
+  ├─ Port 25: SMTP
+  └─ PVC: /root (credentials, config, cache)
+```
+
+**Initial Setup (one-time):**
+```bash
+# Interactive login required first time
+kubectl exec -it email-bridge-0 -n docs -- /bin/sh
+# Run bridge CLI for interactive login
+# Note the generated bridge password for Paperless
+```
+
+**Paperless Mail Configuration:**
+| Account | IMAP Host | Port | Security |
+|---------|-----------|------|----------|
+| Private Email | `email-bridge.docs.svc.cluster.local` | 143 | None |
+| Gmail | `imap.gmail.com` | 993 | SSL/TLS |
+
+**Email Rule Pattern:**
+- Filter: Subject contains "Invoice", "Receipt", "Statement"
+- Action: Import attachment, apply tag based on sender
+- Folder: Move processed emails to "Paperless" folder
 
 ### Dev Containers Architecture
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Container Base | Custom Dockerfile | Tailored for VS Code + Claude Code tooling |
+| Container Base | **Single base image: Node.js, Python, Claude Code CLI, git, kubectl, helm** | **FR67: Consistent tooling across all dev containers** |
 | Access Method | SSH via Nginx proxy | Nginx already handles routing in `dev` namespace |
-| Workspace Storage | Local (emptyDir or node storage) | Fast I/O for git operations, builds |
+| Workspace Storage | **Hybrid: Git repos on NFS PVC (10GB), build artifacts on emptyDir** | **FR69: Persistent workspace data; emptyDir for fast builds** |
+| Resource Limits | **2 CPU cores, 4GB RAM per container** | **FR68: Resource allocation; cluster supports 2-3 containers** |
 | Provisioning | Kubernetes Deployment per container | Simple, declarative, easy to spin up/down |
 | Git Worktree | Enabled in container | Multiple branches simultaneously |
 | Tooling | VS Code Remote SSH + Claude Code | Standard remote dev workflow |
+| NetworkPolicy | **Moderate isolation: Access cluster services, no cross-container communication** | **NFR33: Security isolation; allows testing against PostgreSQL/Ollama** |
 
 **Integration Pattern:**
 - Nginx proxy routes SSH traffic to dev container pods
 - Each dev container is a Deployment with SSH server enabled
 - ConfigMaps store SSH authorized_keys
-- Local storage for workspace (not NFS) for performance
+- **Hybrid storage:**
+  - `/workspace` → NFS PVC (10GB) - Git repos, source code, persistent files
+  - `/tmp`, `/build`, `node_modules` → emptyDir - Fast I/O for builds, caching
 - Git credentials via Kubernetes secrets
+- **NetworkPolicy allows:**
+  - Egress to `data` namespace (PostgreSQL)
+  - Egress to `ml` namespace (Ollama, vLLM)
+  - Egress to `apps` namespace (n8n)
+  - **Blocks:** Cross-container communication within `dev` namespace
+
+**Resource Capacity:**
+- Cluster supports **2-3 dev containers** simultaneously (based on worker node capacity)
+- k3s-worker-01: 8GB RAM → 1-2 containers
+- k3s-worker-02: Similar capacity → 1 container
 
 **Dev Container Lifecycle:**
 ```
 Create: kubectl apply -f dev-container-{name}.yaml
 Connect: VS Code → Remote SSH → nginx-proxy:port → container
-Destroy: kubectl delete -f dev-container-{name}.yaml
+Destroy: kubectl delete -f dev-container-{name}.yaml (workspace PVC persists)
 ```
 
 ### Backup & Recovery Architecture
@@ -387,7 +567,14 @@ home-lab/
 │   ├── paperless/
 │   │   ├── values-homelab.yaml        # Paperless-ngx Helm config
 │   │   ├── ingress.yaml               # paperless.home.jetzinger.com
-│   │   └── pvc.yaml                   # Document storage PVC
+│   │   ├── pvc.yaml                   # Document storage PVC
+│   │   ├── tika-deployment.yaml       # Apache Tika for Office docs
+│   │   ├── gotenberg-deployment.yaml  # PDF conversion service
+│   │   ├── email-bridge/              # Private email IMAP bridge (StatefulSet)
+│   │   └── paperless-ai-deployment.yaml # AI auto-tagging service
+│   ├── stirling-pdf/
+│   │   ├── values-homelab.yaml        # Stirling-PDF Helm config
+│   │   └── ingress.yaml               # stirling.home.jetzinger.com
 │   └── dev-containers/
 │       ├── base-image/
 │       │   └── Dockerfile             # Dev container base image
@@ -433,7 +620,7 @@ home-lab/
 | AI/ML Workloads (FR36-40) | `applications/ollama/`, `n8n/` | values, ingress |
 | Development Proxy (FR41-43) | `applications/nginx/` | deployment, configmap |
 | Portfolio & Documentation (FR49-54) | `docs/` | ADRs, runbooks |
-| Document Management (FR55-58) | `applications/paperless/` | values, ingress, pvc |
+| Document Management (FR55-93) | `applications/paperless/`, `applications/stirling-pdf/` | values, ingress, pvc, tika, gotenberg, bridge, paperless-ai |
 | Dev Containers (FR59-63) | `applications/dev-containers/` | Dockerfile, template, ssh config |
 
 ### Namespace Boundaries
@@ -495,14 +682,20 @@ Synology: /volume1/k8s-data/
 
 ### Requirements Coverage ✅
 
-**Functional Requirements:** 63/63 covered
-**Non-Functional Requirements:** 27/27 covered
+**Functional Requirements:** 93/93 covered
+**Non-Functional Requirements:** 49/49 covered
 
 All requirements have explicit architectural support documented in Core Architectural Decisions and Project Structure sections.
 
-**New Requirements (2025-12-29 Update):**
-- FR55-58: Document Management (Paperless-ngx) — covered by Document Management Architecture
+**Requirements Updates:**
+- FR55-66: Document Management (Paperless-ngx core) — covered by Document Management Architecture
 - FR59-63: Dev Containers — covered by Dev Containers Architecture
+- FR71-74: vLLM GPU — covered by AI/ML Architecture
+- FR75-80: Paperless configuration & NFS integration — covered by Document Management Architecture
+- FR81-83: Tika/Gotenberg Office docs — covered by Office Document Processing Architecture
+- FR84-86: Stirling-PDF — covered by PDF Editor Architecture
+- FR87-89: Paperless-AI with GPU Ollama — covered by AI Document Classification Architecture
+- FR90-93: Email integration (private email/Gmail) — covered by Email Integration Architecture
 
 ### Implementation Readiness ✅
 
@@ -567,10 +760,10 @@ This architecture is ready for implementation because:
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 10 core architectural decisions made (added Paperless-ngx, Dev Containers)
+- 14 core architectural decisions made (added Tika/Gotenberg, Stirling-PDF, Paperless-AI, Email Integration)
 - 6 implementation pattern categories defined
-- 8 namespace boundaries established (added `docs`)
-- 63 functional + 27 non-functional requirements supported
+- 8 namespace boundaries established
+- 93 functional + 49 non-functional requirements supported
 
 **AI Agent Implementation Guide**
 - Technology stack with Helm chart references
