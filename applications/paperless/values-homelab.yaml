@@ -20,7 +20,7 @@ image:
 env:
   TZ: Europe/Berlin  # German timezone
   PAPERLESS_URL: "https://paperless.home.jetzinger.com"  # Public-facing URL (Story 10.4)
-  PAPERLESS_SECRET_KEY: "placeholder-overridden-by-secrets-file"  # Real secret in secrets/paperless-secrets.yaml (gitignored)
+  PAPERLESS_SECRET_KEY: "placeholder-secret-key"  # Override with --set during deployment
   PAPERLESS_REDIS: "redis://redis:6379"  # Redis connection for standalone deployment
 
   # PostgreSQL database configuration (Story 10.2)
@@ -29,11 +29,43 @@ env:
   PAPERLESS_DBNAME: paperless
   PAPERLESS_DBUSER: paperless_user
   PAPERLESS_DBPORT: "5432"
-  # PAPERLESS_DBPASS is in secrets/paperless-secrets.yaml (gitignored)
+  PAPERLESS_DBPASS: "placeholder-db-password"  # Override with --set during deployment
 
   # OCR configuration (Story 10.3)
   PAPERLESS_OCR_LANGUAGE: "deu+eng"  # German + English OCR support
   PAPERLESS_OCR_MODE: "skip"  # Skip OCR if document already has text layer
+
+  # Multi-user configuration (3 users: thomas, willi, shared)
+  PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"  # Auto-tag docs by consume subfolder (thomas, willi, shared)
+  PAPERLESS_CONSUMER_RECURSIVE: "true"  # Watch subdirectories in /consume
+  PAPERLESS_CONSUMER_DELETE_DUPLICATES: "true"  # Prevent duplicate document imports
+
+  # Document organization
+  PAPERLESS_FILENAME_FORMAT: "{created_year}/{correspondent}/{title}"  # Organized file structure
+  PAPERLESS_FILENAME_FORMAT_REMOVE_NONE: "true"  # Clean filenames
+
+  # Performance optimization
+  PAPERLESS_TASK_WORKERS: "2"  # Parallel OCR workers (adjust based on CPU cores)
+  PAPERLESS_ENABLE_COMPRESSION: "true"  # Compress archived PDFs to save storage
+
+  # Search optimization
+  PAPERLESS_ENABLE_NLTKRE: "true"  # Natural language search support
+
+  # Security hardening
+  PAPERLESS_COOKIE_PREFIX: "paperless_ngx"  # Prevent cookie conflicts
+  PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.home.jetzinger.com"  # CSRF protection
+  PAPERLESS_CORS_ALLOWED_HOSTS: "https://paperless.home.jetzinger.com"  # CORS security
+  PAPERLESS_LOGOUT_REDIRECT_URL: "/"  # Redirect to homepage after logout
+  PAPERLESS_ENABLE_HTTP_REMOTE_USER: "false"  # Disable reverse proxy auth (using built-in auth)
+
+  # Data management and consumer settings
+  PAPERLESS_CONSUMER_IGNORE_PATTERNS: '[".DS_Store", "._*", ".stfolder", ".stversions", "Thumbs.db", "desktop.ini"]'  # Ignore system files
+  PAPERLESS_CONSUMER_POLLING: "10"  # Poll every 10 seconds (required for NFS - inotify doesn't work)
+  PAPERLESS_CONSUMER_POLLING_DELAY: "5"  # Wait 5 seconds after file change before consuming
+  PAPERLESS_CONSUMER_POLLING_RETRY_COUNT: "5"  # Retry 5 times if file is locked
+
+  # User experience
+  PAPERLESS_NUMBER_OF_SUGGESTED_DATES: "3"  # Show top 3 date suggestions when uploading
 
 # Service configuration
 service:
