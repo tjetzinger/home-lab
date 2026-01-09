@@ -125,7 +125,7 @@ development_status:
   10-5-configure-ingress-with-https: done
   10-6-validate-document-management-workflow: done
   10-7-configure-single-user-mode-with-nfs-polling: done
-  10-8-implement-security-hardening: backlog
+  10-8-implement-security-hardening: done
   10-9-deploy-office-document-processing-tika-gotenberg: backlog
   10-10-deploy-stirling-pdf: backlog
   10-11-configure-email-integration-protonmail-gmail: backlog

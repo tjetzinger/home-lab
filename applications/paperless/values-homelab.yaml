@@ -1,5 +1,5 @@
 # Paperless-ngx Helm values for home-lab
-# Stories: 10.1-10.7 - Document Management System
+# Stories: 10.1-10.8 - Document Management System
 # Epic: 10 - Document Management System
 #
 # FRs:
@@ -10,6 +10,8 @@
 # - FR76: Duplicate document detection (Story 10.7)
 # - FR77: NFS mount from workstation (Story 10.7)
 # - FR78: Auto-import within 30 seconds (Story 10.7)
+# - FR79: CSRF protection enabled (Story 10.8)
+# - FR80: CORS restricted to authorized origins (Story 10.8)
 #
 # NFRs:
 # - NFR39: NFS polling mode required (inotify incompatible)
