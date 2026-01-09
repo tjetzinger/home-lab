@@ -1,0 +1,25 @@
+# SSH ConfigMap Template for Dev Containers
+# Usage: Create a copy with actual SSH public key for each dev container deployment
+#
+# Example:
+#   kubectl create configmap dev-container-belego-ssh \
+#     --from-file=authorized_keys=~/.ssh/id_ed25519.pub \
+#     -n dev
+#
+# Or customize this template with your public key(s)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dev-container-INSTANCE-ssh
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: dev-container
+    app.kubernetes.io/instance: dev-container-INSTANCE
+    app.kubernetes.io/component: development
+    app.kubernetes.io/part-of: home-lab
+data:
+  # Replace with actual SSH public key(s)
+  # Multiple keys can be added, one per line
+  authorized_keys: |
+    # ssh-ed25519 AAAA... user@host
+    # ssh-rsa AAAA... user@host

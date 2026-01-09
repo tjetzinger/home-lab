@@ -132,8 +132,8 @@ development_status:
   epic-10-retrospective: optional
 
   # Epic 11: Dev Containers Platform
-  epic-11: backlog
-  11-1-create-dev-container-base-image: backlog
+  epic-11: in-progress
+  11-1-create-dev-container-base-image: done
   11-2-deploy-dev-containers-for-belego-and-pilates: backlog
   11-3-configure-persistent-storage-for-workspaces: backlog
   11-4-configure-nginx-ssh-proxy-with-custom-domains: backlog
