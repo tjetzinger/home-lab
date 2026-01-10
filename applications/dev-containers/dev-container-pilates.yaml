@@ -57,6 +57,14 @@ spec:
           # Image should be available locally on nodes or in a registry
           image: dev-container-base:latest
           imagePullPolicy: IfNotPresent
+          # Fix SSH key ownership (ConfigMap mounts as root) then start sshd
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              cp /tmp/ssh-keys/authorized_keys /home/dev/.ssh/authorized_keys
+              chown dev:dev /home/dev/.ssh/authorized_keys
+              chmod 600 /home/dev/.ssh/authorized_keys
+              exec /usr/sbin/sshd -D
           ports:
             - name: ssh
               containerPort: 22
@@ -73,10 +81,9 @@ spec:
             # Persistent workspace for git repos
             - name: workspace
               mountPath: /home/dev/workspace
-            # SSH authorized_keys
+            # SSH authorized_keys (mounted to temp, copied with correct ownership at startup)
             - name: ssh-keys
-              mountPath: /home/dev/.ssh/authorized_keys
-              subPath: authorized_keys
+              mountPath: /tmp/ssh-keys
               readOnly: true
             # Build artifacts on fast ephemeral storage (FR69)
             - name: build-cache

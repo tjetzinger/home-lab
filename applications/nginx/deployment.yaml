@@ -3,11 +3,15 @@
 #
 # Story: 7.1 - Deploy Nginx Reverse Proxy
 # Story: 7.3 - Enable Hot-Reload Configuration
+# Story: 11.4 - Configure Nginx SSH Proxy with Custom Domains
 # FR: FR41 - Configure Nginx to proxy to local dev servers
 # FR: FR43 - Add/remove proxy targets without cluster restart
+# FR: FR59 - Nginx proxy routes to dev containers
+# FR: FR61 - Connect VS Code via Nginx proxy
 #
 # Purpose: Reverse proxy for accessing local development servers through cluster ingress
 # Configuration: ConfigMap-based with automatic hot-reload detection (Story 7.3)
+# SSH Proxy: TCP stream proxying to dev containers on ports 2222, 2223 (Story 11.4)
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -47,6 +51,12 @@ spec:
         ports:
         - containerPort: 80
           name: http
+          protocol: TCP
+        - containerPort: 2222
+          name: ssh-belego
+          protocol: TCP
+        - containerPort: 2223
+          name: ssh-pilates
           protocol: TCP
         volumeMounts:
         - name: config

@@ -1,0 +1,146 @@
+# IngressRoutes for Dev Container Custom Domains
+# Namespace: dev
+#
+# Story: 11.4 - Configure Nginx SSH Proxy with Custom Domains
+# FR: FR59 - Nginx proxy routes to dev containers
+# FR: FR61 - Connect VS Code via Nginx proxy
+#
+# Purpose: Custom domain routing for dev container HTTP access
+# Domains: dev.belego.app, dev.*.pilates4.golf
+---
+# Certificate for dev.belego.app
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: dev-belego-tls
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: dev-belego-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - dev.belego.app
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# Certificate for Pilates dev domains
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: dev-pilates-tls
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: dev-pilates-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - dev.pilates4.golf
+    - dev.app.pilates4.golf
+    - dev.admin.pilates4.golf
+    - dev.blog.pilates4.golf
+    - dev.join.pilates4.golf
+    - dev.www.pilates4.golf
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# IngressRoute for dev.belego.app
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dev-belego-ingress
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`dev.belego.app`)
+      kind: Rule
+      services:
+        - name: nginx-proxy
+          port: 80
+  tls:
+    secretName: dev-belego-tls
+---
+# IngressRoute for Pilates dev domains
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dev-pilates-ingress
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`dev.pilates4.golf`) || Host(`dev.app.pilates4.golf`) || Host(`dev.admin.pilates4.golf`) || Host(`dev.blog.pilates4.golf`) || Host(`dev.join.pilates4.golf`) || Host(`dev.www.pilates4.golf`)
+      kind: Rule
+      services:
+        - name: nginx-proxy
+          port: 80
+  tls:
+    secretName: dev-pilates-tls
+---
+# HTTP to HTTPS redirect for dev.belego.app
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dev-belego-ingress-redirect
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy-redirect
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`dev.belego.app`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: kube-system
+      services:
+        - name: nginx-proxy
+          port: 80
+---
+# HTTP to HTTPS redirect for Pilates dev domains
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dev-pilates-ingress-redirect
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/instance: nginx-proxy-redirect
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`dev.pilates4.golf`) || Host(`dev.app.pilates4.golf`) || Host(`dev.admin.pilates4.golf`) || Host(`dev.blog.pilates4.golf`) || Host(`dev.join.pilates4.golf`) || Host(`dev.www.pilates4.golf`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: kube-system
+      services:
+        - name: nginx-proxy
+          port: 80

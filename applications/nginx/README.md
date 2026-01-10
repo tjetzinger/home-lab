@@ -532,6 +532,7 @@ To add a new dev server to the proxy with automatic hot-reload:
 - ✅ **Story 7.1:** Deploy Nginx Reverse Proxy - Initial deployment with ConfigMap-based config
 - ✅ **Story 7.2:** Configure Ingress for Dev Proxy Access - HTTPS ingress with TLS
 - ✅ **Story 7.3:** Enable Hot-Reload Configuration - Automatic config reload without pod restart
+- ✅ **Story 11.4:** Configure Nginx SSH Proxy with Custom Domains - TCP stream proxy for SSH access
 
 ### Technical Achievements
 - Zero-downtime configuration updates
@@ -540,14 +541,92 @@ To add a new dev server to the proxy with automatic hot-reload:
 - Automatic detection and reload within 30 seconds
 - Manual reload script for immediate updates
 
+## SSH Proxy for Dev Containers
+
+**Story:** 11.4 - Configure Nginx SSH Proxy with Custom Domains
+**Feature:** FR59 - Nginx proxy routes to dev containers, FR61 - Connect VS Code via Nginx proxy
+
+### Overview
+
+Nginx provides TCP stream proxying for SSH access to dev containers. This enables VS Code Remote SSH to connect to dev containers running in the cluster.
+
+### SSH Access
+
+| Container | Port | LoadBalancer IP |
+|-----------|------|-----------------|
+| Belego    | 2222 | 192.168.2.101   |
+| Pilates   | 2223 | 192.168.2.101   |
+
+### Connection Commands
+
+```bash
+# SSH to Belego dev container
+ssh -p 2222 dev@192.168.2.101
+
+# SSH to Pilates dev container
+ssh -p 2223 dev@192.168.2.101
+```
+
+### VS Code SSH Config
+
+Add to `~/.ssh/config`:
+
+```
+Host dev-belego
+    HostName 192.168.2.101
+    Port 2222
+    User dev
+
+Host dev-pilates
+    HostName 192.168.2.101
+    Port 2223
+    User dev
+```
+
+Then connect via VS Code Remote-SSH extension using `dev-belego` or `dev-pilates`.
+
+### Components
+
+| Component | Name | Purpose |
+|-----------|------|---------|
+| ConfigMap | `nginx-proxy-config` | Stream module config with TCP upstreams |
+| Service | `nginx-proxy` | ClusterIP with ports 80, 2222, 2223 |
+| Service | `nginx-proxy-ssh` | LoadBalancer for external SSH (192.168.2.101) |
+| IngressRoute | `dev-belego-ingress` | HTTPS for dev.belego.app |
+| IngressRoute | `dev-pilates-ingress` | HTTPS for Pilates domains |
+
+### HTTP Access via Custom Domains
+
+| Domain | Purpose |
+|--------|---------|
+| dev.belego.app | Belego HTTP development |
+| dev.pilates4.golf | Pilates HTTP development |
+| dev.app.pilates4.golf | Pilates app subdomain |
+| dev.admin.pilates4.golf | Pilates admin subdomain |
+| dev.blog.pilates4.golf | Pilates blog subdomain |
+| dev.join.pilates4.golf | Pilates join subdomain |
+| dev.www.pilates4.golf | Pilates www subdomain |
+
+### DNS Configuration (NextDNS)
+
+Custom domains are resolved via NextDNS rewrites:
+- `*.belego.app` → 192.168.2.100 (Traefik for HTTP)
+- `*.pilates4.golf` → 192.168.2.100 (Traefik for HTTP)
+
+SSH uses separate LoadBalancer IP: 192.168.2.101
+
 ## References
 
 - **Story 7.1:** Deploy Nginx Reverse Proxy
 - **Story 7.2:** Configure Ingress for Dev Proxy Access
 - **Story 7.3:** Enable Hot-Reload Configuration (completed)
+- **Story 11.4:** Configure Nginx SSH Proxy with Custom Domains
 - **Epic 7:** Development Proxy
+- **Epic 11:** Dev Containers Platform
 - **Story 3.5:** Create First HTTPS Ingress Route (test deployment pattern)
 - **FR43:** Add/remove proxy targets without cluster restart
+- **FR59:** Nginx proxy routes to dev containers
+- **FR61:** Connect VS Code via Nginx proxy
 - **NFR1:** 95% uptime requirement
 
 ## Test Deployment

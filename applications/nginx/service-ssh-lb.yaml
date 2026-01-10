@@ -1,33 +1,28 @@
-# Nginx Reverse Proxy Service
+# Nginx SSH Proxy LoadBalancer Service
 # Namespace: dev
 #
-# Story: 7.1 - Deploy Nginx Reverse Proxy
 # Story: 11.4 - Configure Nginx SSH Proxy with Custom Domains
-# FR: FR41 - Configure Nginx to proxy to local dev servers
 # FR: FR59 - Nginx proxy routes to dev containers
 # FR: FR61 - Connect VS Code via Nginx proxy
 #
-# Purpose: ClusterIP service for internal cluster access to nginx proxy
-# Includes SSH ports for dev container access (Story 11.4)
+# Purpose: External LoadBalancer for SSH access to dev containers via nginx proxy
+# Ports: 2222 (Belego), 2223 (Pilates)
+# Note: Uses MetalLB to get external IP
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-proxy
+  name: nginx-proxy-ssh
   namespace: dev
   labels:
     app.kubernetes.io/name: nginx
-    app.kubernetes.io/instance: nginx-proxy
-    app.kubernetes.io/component: reverse-proxy
+    app.kubernetes.io/instance: nginx-proxy-ssh
+    app.kubernetes.io/component: ssh-proxy
     app.kubernetes.io/part-of: home-lab
     app.kubernetes.io/managed-by: kubectl
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
-  - port: 80
-    targetPort: http
-    protocol: TCP
-    name: http
   - port: 2222
     targetPort: 2222
     protocol: TCP

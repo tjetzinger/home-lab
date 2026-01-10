@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     sudo \
     git \
     vim \
+    tmux \
     curl \
     wget \
     ca-certificates \

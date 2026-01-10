@@ -54,15 +54,40 @@ sed -i 's/INSTANCE/belego/g' dev-container-belego.yaml
 kubectl apply -f dev-container-belego.yaml
 ```
 
-### 3. Configure SSH Access
+### 3. SSH Access
 
-SSH access is provided through the nginx proxy in the dev namespace (Story 11.4).
+SSH access is provided through the nginx proxy LoadBalancer (Story 11.4).
 
-For direct testing, use port-forward:
+| Container | Port | IP |
+|-----------|------|----|
+| Belego | 2222 | 192.168.2.101 |
+| Pilates | 2223 | 192.168.2.101 |
+
+**Connect via SSH:**
+```bash
+# Belego
+ssh -p 2222 dev@192.168.2.101
+
+# Pilates
+ssh -p 2223 dev@192.168.2.101
+```
+
+**VS Code SSH Config (~/.ssh/config):**
+```
+Host dev-belego
+    HostName 192.168.2.101
+    Port 2222
+    User dev
+
+Host dev-pilates
+    HostName 192.168.2.101
+    Port 2223
+    User dev
+```
+
+**Port-forward (for testing):**
 ```bash
 kubectl port-forward svc/dev-container-belego-svc 2222:22 -n dev
-
-# Connect via SSH
 ssh -p 2222 dev@localhost
 ```
 
