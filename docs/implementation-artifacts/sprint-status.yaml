@@ -137,7 +137,7 @@ development_status:
   11-2-deploy-dev-containers-for-belego-and-pilates: done
   11-3-configure-persistent-storage-for-workspaces: done
   11-4-configure-nginx-ssh-proxy-with-custom-domains: done
-  11-5-configure-networkpolicy-for-container-isolation: backlog
+  11-5-configure-networkpolicy-for-container-isolation: done
   11-6-validate-vs-code-remote-ssh-configuration: backlog
   epic-11-retrospective: optional
 

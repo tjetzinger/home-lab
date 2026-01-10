@@ -1,0 +1,93 @@
+# NetworkPolicy for Dev Container Isolation
+#
+# Story: 11.5 - Configure NetworkPolicy for Container Isolation
+# FR: FR70 - Dev containers isolated via NetworkPolicy (accessible only via nginx proxy)
+# NFR: NFR33 - NetworkPolicy isolation (no cross-container communication)
+#
+# Purpose: Isolate dev containers from each other while allowing access to cluster services
+#
+# Ingress Rules:
+#   - Allow SSH (port 22) from nginx-proxy pods only
+#   - Deny all other ingress (including from other dev containers)
+#
+# Egress Rules:
+#   - Allow DNS resolution (kube-system, port 53)
+#   - Allow PostgreSQL access (data namespace, port 5432)
+#   - Allow Ollama access (ml namespace, port 11434)
+#   - Allow n8n access (apps namespace, port 5678)
+#   - Deny all other egress by default
+#
+# Prerequisites:
+#   - Namespace labels: kubectl label namespace <ns> name=<ns>
+#   - Applied to: data, ml, apps, kube-system
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dev-container-isolation
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: networkpolicy
+    app.kubernetes.io/instance: dev-container-isolation
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  # Apply to all dev container pods
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dev-container
+  policyTypes:
+  - Ingress
+  - Egress
+
+  # INGRESS RULES
+  ingress:
+  # Allow SSH from nginx-proxy pods only (within dev namespace)
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: nginx
+    ports:
+    - protocol: TCP
+      port: 22
+
+  # EGRESS RULES
+  egress:
+  # Allow DNS resolution (kube-system namespace, port 53 UDP/TCP)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+  # Allow PostgreSQL access (data namespace, port 5432)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: data
+    ports:
+    - protocol: TCP
+      port: 5432
+
+  # Allow Ollama access (ml namespace, port 11434)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: ml
+    ports:
+    - protocol: TCP
+      port: 11434
+
+  # Allow n8n access (apps namespace, port 5678)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: apps
+    ports:
+    - protocol: TCP
+      port: 5678

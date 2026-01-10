@@ -124,6 +124,7 @@ applications/dev-containers/
 ├── dev-container-belego-ssh.yaml     # Belego SSH ConfigMap
 ├── dev-container-pilates.yaml        # Pilates container deployment
 ├── dev-container-pilates-ssh.yaml    # Pilates SSH ConfigMap
+├── networkpolicy.yaml                # Container isolation policy
 └── README.md                         # This file
 ```
 
@@ -139,7 +140,41 @@ applications/dev-containers/
 - **Namespace**: `dev` (shared with nginx proxy)
 - **Storage**: Hybrid model - NFS PVC for workspace, emptyDir for builds
 - **Security**: SSH key-based auth only, no password authentication
-- **Network**: NetworkPolicy isolation configured in Story 11.5
+- **Network**: NetworkPolicy isolation (Story 11.5)
+
+## NetworkPolicy Isolation
+
+Dev containers are isolated via Kubernetes NetworkPolicy (`dev-container-isolation`):
+
+**Ingress (Allowed):**
+- SSH (port 22) from nginx-proxy pods only
+
+**Egress (Allowed):**
+- DNS resolution (kube-system, port 53)
+- PostgreSQL (data namespace, port 5432)
+- Ollama (ml namespace, port 11434)
+- n8n (apps namespace, port 5678)
+
+**Blocked:**
+- Inter-container communication (Belego ↔ Pilates)
+- External internet access
+- All other cluster services not explicitly allowed
+
+**Verification:**
+```bash
+# Check NetworkPolicy
+kubectl get networkpolicy -n dev
+kubectl describe networkpolicy dev-container-isolation -n dev
+
+# Test from dev container
+kubectl exec deployment/dev-container-belego -n dev -- python3 -c "
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(5)
+s.connect(('postgres-postgresql.data.svc.cluster.local', 5432))
+print('PostgreSQL: SUCCESS')
+"
+```
 
 ## Related Stories
 
