@@ -50,8 +50,8 @@ And eGPU auto-connects on boot
 **DRAFT TASKS** - Generated from requirements analysis. Will be validated and refined against actual codebase when dev-story runs.
 
 - [ ] Task 1: Install Ubuntu 22.04 on Intel NUC (AC: #1)
-  - [ ] 1.1 Create bootable USB with Ubuntu 22.04 LTS
-  - [ ] 1.2 Install Ubuntu with minimal installation
+  - [ ] 1.1 Create bootable USB with Ubuntu 22.04 LTS Desktop
+  - [ ] 1.2 Install Ubuntu Desktop (Xorg session - required for gaming in Story 13)
   - [ ] 1.3 Configure static IP 192.168.2.25 via netplan
   - [ ] 1.4 Set hostname to `k3s-gpu-worker`
   - [ ] 1.5 Configure SSH with key-based auth (disable password auth)
@@ -100,7 +100,8 @@ _This section will be populated by dev-story when gap analysis runs._
 - Intel NUC (Gen 11+ with Thunderbolt 4)
 - RTX 3060 in eGPU enclosure (Thunderbolt 3/4)
 - Minimum 16GB RAM recommended
-- Ubuntu 22.04 LTS (not 24.04 - driver compatibility)
+- Ubuntu 22.04 LTS Desktop (not 24.04 - driver compatibility)
+- **Display Server: Xorg** (not Wayland - better Steam/Proton/NVIDIA compatibility for Story 13)
 
 ### Network Planning
 - Local IP: 192.168.2.25
@@ -134,6 +135,12 @@ Then run `sudo update-grub && sudo reboot`
 **nvidia-drm.modeset=1:**
 - Required for PRIME support (already in architecture)
 - Add to `/etc/modprobe.d/nvidia-drm.conf`: `options nvidia-drm modeset=1`
+
+**Xorg Configuration (for gaming in Story 13):**
+- Ubuntu 22.04 defaults to Wayland - select "Ubuntu on Xorg" at login screen (gear icon)
+- Or set default: edit `/etc/gdm3/custom.conf` and set `WaylandEnable=false`
+- Xorg provides better Steam/Proton/NVIDIA compatibility than Wayland
+- eGPU config in Story 13: `/etc/X11/xorg.conf.d/80-egpu.conf` with `AllowExternalGpus`
 
 ### Project Structure Notes
 - No Kubernetes manifests in this story (hardware setup only)
