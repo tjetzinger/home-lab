@@ -94,8 +94,8 @@ _This section will be populated by dev-story when gap analysis runs._
 - This is Story 12.1 in Epic 12 (GPU/ML Inference Platform)
 - Intel NUC + RTX 3060 eGPU will become K3s GPU worker node
 - Physical network: 192.168.0.0/24 (Intel NUC location)
-- Tailscale IP: 192.168.2.25 (assigned in Story 12.2)
-- Will join K3s cluster via Tailscale overlay network
+- Tailscale IP: 100.x.x.x (auto-assigned by Tailscale in Story 12.2)
+- K3s cluster network: 192.168.2.0/24 (accessed via Tailscale subnet router)
 
 ### Hardware Requirements
 - Intel NUC (Gen 11+ with Thunderbolt 4)
@@ -106,9 +106,10 @@ _This section will be populated by dev-story when gap analysis runs._
 
 ### Network Planning
 - Physical LAN IP: 192.168.0.25 (Intel NUC local network)
-- Tailscale IP: 192.168.2.25 (overlay network, Story 12.2)
-- K3s master (Tailscale): 192.168.2.20
-- K3s communication uses Tailscale mesh, not physical LAN
+- Tailscale IP: 100.x.x.x (auto-assigned from CGNAT range, Story 12.2)
+- K3s master: 192.168.2.20 (accessed via Tailscale subnet router)
+- K3s cluster subnet: 192.168.2.0/24 (advertised by subnet router on existing node)
+- Story 12.2 configures: Tailscale install, accept-routes, K3s agent join via --node-ip
 
 ### Critical Research Findings (Exa 2026-01-11)
 
