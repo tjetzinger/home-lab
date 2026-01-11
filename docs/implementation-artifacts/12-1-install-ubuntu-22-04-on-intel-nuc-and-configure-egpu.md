@@ -36,7 +36,7 @@ sudo reboot
 ```
 And after reboot, `nvidia-smi` shows RTX 3060 with 12GB VRAM
 And driver version is 535+ (CUDA 12.2+ compatible)
-And persistence mode is enabled: `nvidia-smi -pm 1`
+And nvidia-persistenced service is enabled: `sudo systemctl enable --now nvidia-persistenced`
 
 **AC4: System Hardening**
 Given drivers are installed
