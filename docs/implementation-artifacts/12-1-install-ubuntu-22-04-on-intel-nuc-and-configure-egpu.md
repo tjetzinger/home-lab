@@ -14,7 +14,7 @@ so that the hardware is ready to join the K3s cluster with GPU capabilities.
 Given I have Intel NUC hardware and RTX 3060 eGPU
 When I install Ubuntu 22.04 LTS
 Then the OS is installed with:
-- Static IP: 192.168.2.25
+- Static IP: 192.168.0.25 (local network)
 - Hostname: `k3s-gpu-worker`
 - SSH access configured with key-based authentication
 - System updates applied: `sudo apt update && sudo apt upgrade -y`
@@ -52,7 +52,7 @@ And eGPU auto-connects on boot
 - [ ] Task 1: Install Ubuntu 22.04 on Intel NUC (AC: #1)
   - [ ] 1.1 Create bootable USB with Ubuntu 22.04 LTS Desktop
   - [ ] 1.2 Install Ubuntu Desktop (Xorg session - required for gaming in Story 13)
-  - [ ] 1.3 Configure static IP 192.168.2.25 via netplan
+  - [ ] 1.3 Configure static IP 192.168.0.25 via netplan (local network)
   - [ ] 1.4 Set hostname to `k3s-gpu-worker`
   - [ ] 1.5 Configure SSH with key-based auth (disable password auth)
   - [ ] 1.6 Run `sudo apt update && sudo apt upgrade -y`
@@ -93,8 +93,9 @@ _This section will be populated by dev-story when gap analysis runs._
 ### Architecture Context
 - This is Story 12.1 in Epic 12 (GPU/ML Inference Platform)
 - Intel NUC + RTX 3060 eGPU will become K3s GPU worker node
-- Target IP: 192.168.2.25 (local network)
-- Will also join Tailscale mesh (Story 12.2)
+- Physical network: 192.168.0.0/24 (Intel NUC location)
+- Tailscale IP: 192.168.2.25 (assigned in Story 12.2)
+- Will join K3s cluster via Tailscale overlay network
 
 ### Hardware Requirements
 - Intel NUC (Gen 11+ with Thunderbolt 4)
@@ -104,9 +105,10 @@ _This section will be populated by dev-story when gap analysis runs._
 - **Display Server: Xorg** (not Wayland - better Steam/Proton/NVIDIA compatibility for Story 13)
 
 ### Network Planning
-- Local IP: 192.168.2.25
-- K3s master: 192.168.2.20
-- Will use Tailscale overlay for K3s (Story 12.2)
+- Physical LAN IP: 192.168.0.25 (Intel NUC local network)
+- Tailscale IP: 192.168.2.25 (overlay network, Story 12.2)
+- K3s master (Tailscale): 192.168.2.20
+- K3s communication uses Tailscale mesh, not physical LAN
 
 ### Critical Research Findings (Exa 2026-01-11)
 
