@@ -110,12 +110,14 @@ _This section will be populated by dev-story when gap analysis runs._
 - K3s master: 192.168.2.20 (accessed via Tailscale subnet router)
 - K3s cluster subnet: 192.168.2.0/24
 
-**Story 12.2 Prerequisites (no Tailscale on K3s cluster yet):**
-1. Install Tailscale on K3s master (192.168.2.20)
-2. Configure K3s master as subnet router: `--advertise-routes=192.168.2.0/24`
-3. Approve route in Tailscale admin console
-4. Install Tailscale on Intel NUC with `--accept-routes`
-5. Join Intel NUC to K3s via `k3s agent --server https://192.168.2.20:6443 --node-ip <tailscale-ip>`
+**Story 12.2 Setup (Synology NAS as subnet router):**
+1. Configure Synology NAS Tailscale as subnet router: `--advertise-routes=192.168.2.0/24`
+2. Approve route in Tailscale admin console
+3. Install Tailscale on Intel NUC with `--accept-routes`
+4. Intel NUC can now reach K3s master (192.168.2.20) via Tailscale mesh
+5. Join Intel NUC to K3s: `k3s agent --server https://192.168.2.20:6443 --node-ip <tailscale-100.x.x.x>`
+
+**Note:** K3s master/workers do NOT need Tailscale - Synology NAS acts as gateway.
 
 ### Critical Research Findings (Exa 2026-01-11)
 
