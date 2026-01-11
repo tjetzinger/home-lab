@@ -1,0 +1,39 @@
+# BMM Workflow Status - home-lab
+# Generated: 2026-01-11
+# This file tracks overall BMAD methodology progress
+# For implementation details, see: docs/implementation-artifacts/sprint-status.yaml
+
+project: home-lab
+project_type: infrastructure
+project_level: method
+field_type: greenfield
+workflow_path: method-greenfield
+
+# Workflow Status
+# - File paths indicate completed workflows
+# - 'required'/'optional'/'recommended' indicate pending
+# - 'skipped' indicates intentionally skipped
+# - 'n/a' indicates not applicable
+
+workflow_status:
+  # Phase 0: Discovery (Optional)
+  brainstorm-project: docs/analysis/brainstorming-session-2025-12-27.md
+  research: docs/planning-artifacts/research/domain-k8s-platform-career-positioning-research-2025-12-27.md
+  product-brief: docs/planning-artifacts/product-brief-home-lab-2025-12-27.md
+
+  # Phase 1: Planning
+  prd: docs/planning-artifacts/prd.md
+  create-ux-design: n/a  # Infrastructure project - no UI
+
+  # Phase 2: Solutioning
+  create-architecture: docs/planning-artifacts/architecture.md
+  create-epics-and-stories: docs/planning-artifacts/epics.md
+  test-design: skipped  # Optional - not performed
+  validate-architecture: skipped  # Optional - not performed
+  implementation-readiness: docs/planning-artifacts/implementation-readiness-report-2025-12-29.md
+
+  # Phase 3: Implementation
+  sprint-planning: docs/implementation-artifacts/sprint-status.yaml
+
+# Current Phase: Implementation (Phase 3)
+# All planning workflows complete. Development tracked via sprint-status.yaml
