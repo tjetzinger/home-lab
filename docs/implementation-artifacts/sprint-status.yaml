@@ -1,4 +1,4 @@
-# generated: 2026-01-09
+# generated: 2026-01-11
 # project: home-lab
 # tracking_system: file-system
 # story_location: docs/implementation-artifacts
@@ -32,7 +32,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-01-09
+generated: 2026-01-11
 project: home-lab
 tracking_system: file-system
 story_location: docs/implementation-artifacts
@@ -151,3 +151,11 @@ development_status:
   12-6-gpu-metrics-and-performance-validation: backlog
   12-7-deploy-paperless-ai-with-gpu-ollama-integration: backlog
   epic-12-retrospective: optional
+
+  # Epic 13: Steam Gaming Platform (Dual-Use GPU)
+  epic-13: backlog
+  13-1-install-steam-and-proton-on-intel-nuc: backlog
+  13-2-configure-mode-switching-script: backlog
+  13-3-integrate-n8n-fallback-routing: backlog
+  13-4-validate-gaming-performance: backlog
+  epic-13-retrospective: optional

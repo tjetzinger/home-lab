@@ -2,8 +2,8 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
-lastModified: '2026-01-09'
-updateReason: 'Added Paperless ecosystem architecture: Tika/Gotenberg (FR81-83), Stirling-PDF (FR84-86), Paperless-AI (FR87-89), Email integration with private email bridge (FR90-93)'
+lastModified: '2026-01-11'
+updateReason: 'Added Dual-Use GPU Architecture for Steam Gaming Platform (FR94-99, NFR50-54): Mode switching, graceful degradation, n8n fallback routing'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -23,21 +23,22 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements:** 93 FRs across 15 capability areas
+**Functional Requirements:** 99 FRs across 16 capability areas
 - Cluster Operations (6): K3s lifecycle, node management
 - Workload Management (7): Deployments, Helm, ingress
 - Storage Management (5): NFS, PVCs, dynamic provisioning
 - Networking & Ingress (5): Traefik, MetalLB, DNS, TLS
 - Observability (7): Prometheus, Grafana, Alertmanager
 - Data Services (5): PostgreSQL StatefulSet
-- AI/ML Workloads (5): Ollama, vLLM, GPU scheduling
+- AI/ML Workloads (6): Ollama, vLLM, GPU scheduling, graceful degradation
 - Development Proxy (3): Nginx to local dev servers
 - Cluster Maintenance (5): Upgrades, backups, Velero
 - Portfolio & Documentation (6): ADRs, GitHub, blog
 - Document Management (19): Paperless-ngx, Redis, OCR, Tika, Gotenberg, Stirling-PDF, Paperless-AI, Email integration
 - Dev Containers (5): VS Code SSH, Claude Code, git worktrees
+- Gaming Platform (5): Steam, Proton, mode switching, fallback routing
 
-**Non-Functional Requirements:** 49 NFRs
+**Non-Functional Requirements:** 54 NFRs
 - Reliability: 95% uptime, 5-min recovery, automatic pod rescheduling
 - Security: TLS 1.2+, Tailscale-only access, encrypted secrets
 - Performance: 30s Ollama response, 5s dashboard load
@@ -222,6 +223,89 @@ Intel NUC (192.168.0.x local network)
 - vLLM and Ollama both expose OpenAI-compatible API
 - n8n workflows can route to vLLM (GPU) or Ollama (CPU) based on availability
 - Model selection via API `"model"` parameter (manual or via n8n routing logic)
+
+### Dual-Use GPU Architecture (ML + Gaming)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **GPU Sharing Model** | **Mode Switching (not parallel)** | **RTX 3060 12GB VRAM insufficient for gaming (6-8GB) + vLLM (10-11GB) simultaneously** |
+| **Host Gaming** | **Steam + Proton on Ubuntu 22.04** | **FR95-96: Native host performance, Windows game compatibility via Proton** |
+| **Mode Switching** | **Manual script with kubectl** | **FR97: Operator-controlled, explicit state transitions** |
+| **GPU Detection** | **vLLM health check + n8n routing** | **FR94, NFR50: Detect GPU unavailability within 10 seconds** |
+| **Fallback Strategy** | **Ollama CPU inference** | **NFR54: Maintain <5s inference latency during Gaming Mode** |
+
+**Why NOT Parallel Operation:**
+- RTX 3060: 12GB VRAM total
+- vLLM 3-model config: 10-11GB VRAM
+- Modern games: 6-8GB VRAM
+- **Total exceeds 12GB** - parallel operation causes OOM crashes
+- MIG (hardware isolation) not available on consumer GPUs
+- Time-slicing lacks memory isolation - causes instability
+
+**Operational Modes:**
+
+| Mode | GPU Owner | vLLM Status | Inference Path | Use Case |
+|------|-----------|-------------|----------------|----------|
+| **ML Mode** | K8s (vLLM) | Running (1 replica) | GPU-accelerated | Default, AI/ML workloads |
+| **Gaming Mode** | Host (Steam) | Scaled to 0 | Ollama CPU fallback | Gaming sessions |
+
+**Mode Switching Architecture:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                Intel NUC (Ubuntu 22.04)                     │
+├─────────────────────────────────────────────────────────────┤
+│  Host OS Layer:                                             │
+│  ├── Steam + Proton (native, FR95-96)                       │
+│  ├── NVIDIA Driver 535+ (shared with K8s)                   │
+│  ├── nvidia-drm.modeset=1 (PRIME support for eGPU)          │
+│  └── Mode switching script: /usr/local/bin/gpu-mode         │
+├─────────────────────────────────────────────────────────────┤
+│  K8s Worker Layer:                                          │
+│  ├── K3s agent (joins via Tailscale)                        │
+│  ├── NVIDIA GPU Operator + Device Plugin                    │
+│  └── vLLM pods (scaled based on mode)                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Mode Switching Script (FR97-99):**
+```bash
+#!/bin/bash
+# /usr/local/bin/gpu-mode
+
+case "$1" in
+  gaming)
+    # Scale down vLLM, release VRAM for Steam
+    kubectl scale deployment/vllm --replicas=0 -n ml
+    echo "Gaming Mode: vLLM scaled to 0, GPU available for Steam"
+    ;;
+  ml)
+    # Restore vLLM for ML workloads
+    kubectl scale deployment/vllm --replicas=1 -n ml
+    echo "ML Mode: vLLM restored, GPU dedicated to inference"
+    ;;
+  status)
+    kubectl get deployment/vllm -n ml -o jsonpath='{.spec.replicas}'
+    ;;
+esac
+```
+
+**n8n Fallback Routing (FR94, NFR54):**
+```javascript
+// n8n workflow: Check GPU availability before inference
+const vllmHealth = await $http.get('http://vllm.ml.svc:8000/health');
+if (vllmHealth.status !== 200) {
+  // Fallback to Ollama CPU
+  return { endpoint: 'http://ollama.ml.svc:11434', mode: 'cpu' };
+}
+return { endpoint: 'http://vllm.ml.svc:8000', mode: 'gpu' };
+```
+
+**NFR Compliance:**
+- NFR50: vLLM health check fails within 10s when GPU unavailable
+- NFR51: Gaming Mode activation <30s (kubectl scale + VRAM release)
+- NFR52: Full 12GB VRAM available for 60+ FPS gaming at 1080p
+- NFR53: ML Mode restoration <2min (pod startup + model load)
+- NFR54: Ollama CPU maintains <5s inference latency
 
 ### Document Management Architecture (Paperless-ngx)
 
@@ -682,8 +766,8 @@ Synology: /volume1/k8s-data/
 
 ### Requirements Coverage ✅
 
-**Functional Requirements:** 93/93 covered
-**Non-Functional Requirements:** 49/49 covered
+**Functional Requirements:** 99/99 covered
+**Non-Functional Requirements:** 54/54 covered
 
 All requirements have explicit architectural support documented in Core Architectural Decisions and Project Structure sections.
 
@@ -696,6 +780,9 @@ All requirements have explicit architectural support documented in Core Architec
 - FR84-86: Stirling-PDF — covered by PDF Editor Architecture
 - FR87-89: Paperless-AI with GPU Ollama — covered by AI Document Classification Architecture
 - FR90-93: Email integration (private email/Gmail) — covered by Email Integration Architecture
+- FR94: vLLM graceful degradation (host GPU usage) — covered by Dual-Use GPU Architecture
+- FR95-99: Steam Gaming Platform — covered by Dual-Use GPU Architecture
+- NFR50-54: Gaming Platform performance requirements — covered by Dual-Use GPU Architecture
 
 ### Implementation Readiness ✅
 
@@ -760,10 +847,10 @@ This architecture is ready for implementation because:
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 14 core architectural decisions made (added Tika/Gotenberg, Stirling-PDF, Paperless-AI, Email Integration)
+- 15 core architectural decisions made (added Dual-Use GPU Architecture for Steam Gaming Platform)
 - 6 implementation pattern categories defined
 - 8 namespace boundaries established
-- 93 functional + 49 non-functional requirements supported
+- 99 functional + 54 non-functional requirements supported
 
 **AI Agent Implementation Guide**
 - Technology stack with Helm chart references

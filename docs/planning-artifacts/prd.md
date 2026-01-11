@@ -12,7 +12,7 @@ researchCount: 1
 brainstormingCount: 1
 projectDocsCount: 0
 date: '2025-12-27'
-lastUpdated: '2026-01-09'
+lastUpdated: '2026-01-11'
 author: 'Tom'
 project_name: 'home-lab'
 ---
@@ -20,9 +20,10 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-01-09
+**Date:** 2025-12-27 | **Last Updated:** 2026-01-11
 
 **Changelog:**
+- 2026-01-11: Added Steam Gaming Platform with mode switching for shared GPU usage (FR94-99, NFR50-54)
 - 2026-01-09: Added email inbox integration for private email/Gmail with Bridge container (FR90-93, NFR48-49)
 - 2026-01-09: Added Stirling-PDF and Paperless-AI with GPU Ollama (FR84-89, NFR44-47)
 - 2026-01-09: Added Tika/Gotenberg Office document processing (FR81-83, NFR42-43)
@@ -65,6 +66,7 @@ The project applies 10+ years of automotive distributed systems experience—OTA
 - Observability: Prometheus, Grafana
 - AI/ML: Ollama, vLLM, n8n
 - GPU: NVIDIA RTX 3060 via eGPU (future)
+- Gaming: Steam + Proton on Intel NUC host OS (shared GPU with K8s)
 - Document Management: Paperless-ngx
 - Development: Dev Containers via Nginx proxy (VS Code + Claude Code)
 
@@ -446,6 +448,7 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - FR72: vLLM serves Mistral 7B and Llama 3.1 8B models simultaneously
 - FR73: vLLM workloads gracefully degrade to Ollama CPU when GPU worker unavailable
 - FR74: Operator can hot-plug GPU worker (add/remove on demand without cluster disruption)
+- FR94: vLLM gracefully degrades when GPU is unavailable due to host workloads (Steam gaming)
 
 ### Document Management Configuration (Paperless-ngx)
 
@@ -486,6 +489,14 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - FR91: Paperless-ngx monitors Gmail inbox via IMAP for document attachments
 - FR92: Email attachments (PDF, Office docs) auto-imported into document library
 - FR93: Email bridge deployed as container providing IMAP access for private email providers
+
+### Gaming Platform (Steam)
+
+- FR95: Intel NUC runs Steam on host Ubuntu OS (not containerized)
+- FR96: Steam uses Proton for Windows game compatibility
+- FR97: Operator can switch between Gaming Mode and ML Mode via script
+- FR98: Gaming Mode scales vLLM pods to 0 and enables Ollama CPU fallback
+- FR99: ML Mode restores vLLM pods when Steam/gaming exits
 
 ### Development Proxy
 
@@ -595,6 +606,7 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - NFR36: GPU worker joins cluster and becomes Ready within 2 minutes of boot via Tailscale
 - NFR37: NVIDIA GPU Operator installs and configures GPU drivers automatically (no manual setup)
 - NFR38: vLLM serves multiple models simultaneously (Mistral 7B + Llama 3.1 8B)
+- NFR50: vLLM detects GPU unavailability (host workload) within 10 seconds
 
 ### NFS Compatibility (Paperless-ngx)
 
@@ -621,4 +633,11 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 
 - NFR48: Email inboxes checked every 10 minutes for new attachments
 - NFR49: Email credentials stored securely via Kubernetes secrets
+
+### Gaming Platform (Steam)
+
+- NFR51: Gaming Mode activation completes within 30 seconds (pod scale-down + VRAM release)
+- NFR52: ML Mode restoration completes within 2 minutes (pod scale-up + model load)
+- NFR53: Steam games achieve 60+ FPS at 1080p with exclusive GPU access
+- NFR54: Graceful degradation to Ollama CPU maintains <5 second inference latency
 

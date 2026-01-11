@@ -2,7 +2,7 @@
 stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
 completedAt: '2026-01-08'
-lastModified: '2026-01-08'
+lastModified: '2026-01-11'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,8 +10,8 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'Phase 2 complete: Epic 10 (Paperless-ngx - 5 stories), Epic 11 (Dev Containers - 6 stories), Epic 12 (GPU/ML - 6 stories)'
-currentStep: 'Workflow Complete - All Phase 2 epics and stories created'
+updateReason: 'Phase 3: Epic 12 updated with FR94/NFR50 (graceful degradation), Epic 13 added (Steam Gaming Platform - 4 stories)'
+currentStep: 'Workflow Complete - Phase 3 epic added'
 ---
 
 # home-lab - Epic Breakdown
@@ -71,7 +71,7 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR34: Operator can restore PostgreSQL from backup
 - FR35: Applications can connect to PostgreSQL within cluster
 
-**AI/ML Workloads (9 FRs)**
+**AI/ML Workloads (10 FRs)**
 - FR36: Operator can deploy Ollama for LLM inference
 - FR37: Applications can query Ollama API for completions
 - FR38: Operator can deploy vLLM for production inference
@@ -81,6 +81,14 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR72: vLLM serves DeepSeek-Coder 6.7B, Mistral 7B, and Llama 3.1 8B models simultaneously
 - FR73: vLLM workloads gracefully degrade to Ollama CPU when GPU worker unavailable
 - FR74: Operator can hot-plug GPU worker (add/remove on demand without cluster disruption)
+- FR94: vLLM gracefully degrades when GPU is unavailable due to host workloads (Steam gaming)
+
+**Gaming Platform (5 FRs)**
+- FR95: Intel NUC runs Steam on host Ubuntu OS (not containerized)
+- FR96: Steam uses Proton for Windows game compatibility
+- FR97: Operator can switch between Gaming Mode and ML Mode via script
+- FR98: Gaming Mode scales vLLM pods to 0 and enables Ollama CPU fallback
+- FR99: ML Mode restores vLLM pods when Steam/gaming exits
 
 **Development Proxy (3 FRs)**
 - FR41: Operator can configure Nginx to proxy to local dev servers
@@ -171,12 +179,19 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR32: Persistent volumes retain workspace data across container restarts
 - NFR33: Dev containers isolated via NetworkPolicy (no cross-container communication)
 
-**GPU/ML Infrastructure (5 NFRs)**
+**GPU/ML Infrastructure (6 NFRs)**
 - NFR34: vLLM achieves 50+ tokens/second for Mistral 7B and Llama 3.1 8B on RTX 3060
 - NFR35: vLLM handles 2-3 concurrent inference requests without significant performance degradation
 - NFR36: GPU worker joins cluster and becomes Ready within 2 minutes of boot via Tailscale
 - NFR37: NVIDIA GPU Operator installs and configures GPU drivers automatically (no manual setup)
 - NFR38: vLLM serves multiple models simultaneously (DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B)
+- NFR50: vLLM detects GPU unavailability (host workload) within 10 seconds
+
+**Gaming Platform (4 NFRs)**
+- NFR51: Gaming Mode activation completes within 30 seconds (pod scale-down + VRAM release)
+- NFR52: ML Mode restoration completes within 2 minutes (pod scale-up + model load)
+- NFR53: Steam games achieve 60+ FPS at 1080p with exclusive GPU access
+- NFR54: Graceful degradation to Ollama CPU maintains <5 second inference latency
 
 ### Additional Requirements
 
@@ -323,13 +338,21 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR72 | Epic 12 | vLLM serves 3 models simultaneously (DeepSeek-Coder, Mistral, Llama) |
 | FR73 | Epic 12 | vLLM workloads degrade gracefully to Ollama CPU when GPU offline |
 | FR74 | Epic 12 | Operator can hot-plug GPU worker without cluster disruption |
+| FR94 | Epic 12 | vLLM gracefully degrades when GPU unavailable due to host workloads |
+| FR95 | Epic 13 | Intel NUC runs Steam on host Ubuntu OS |
+| FR96 | Epic 13 | Steam uses Proton for Windows game compatibility |
+| FR97 | Epic 13 | Operator can switch between Gaming Mode and ML Mode via script |
+| FR98 | Epic 13 | Gaming Mode scales vLLM pods to 0 and enables CPU fallback |
+| FR99 | Epic 13 | ML Mode restores vLLM pods when gaming exits |
 
-**Coverage Summary:** 74 FRs total
+**Coverage Summary:** 99 FRs total, 54 NFRs total
 - **Phase 1 (Epic 1-9):** 54 FRs completed
-- **Phase 2 (Epic 10-12):** 20 FRs to be implemented
-  - Epic 10 (Paperless-ngx): FR55-58, FR64-66
+- **Phase 2 (Epic 10-12):** 39 FRs (20 original + 19 additions)
+  - Epic 10 (Paperless-ngx): FR55-58, FR64-66, FR75-93
   - Epic 11 (Dev Containers): FR59-63, FR67-70
-  - Epic 12 (GPU/ML): FR38-39, FR71-74
+  - Epic 12 (GPU/ML): FR38-39, FR71-74, FR94
+- **Phase 3 (Epic 13):** 5 FRs
+  - Epic 13 (Steam Gaming): FR95-99
 
 ## Epic List
 
@@ -454,9 +477,9 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 
 ### Epic 12: GPU/ML Inference Platform (vLLM + RTX 3060) [Phase 2]
 
-**User Outcome:** Tom can run GPU-accelerated LLM inference with vLLM serving multiple models simultaneously on a hot-pluggable GPU worker, with automatic graceful degradation to Ollama CPU when the GPU worker is offline, enabling fast AI inference for n8n workflows, Paperless-ngx document classification, and development tasks.
+**User Outcome:** Tom can run GPU-accelerated LLM inference with vLLM serving multiple models simultaneously on a hot-pluggable GPU worker, with automatic graceful degradation to Ollama CPU when the GPU worker is offline or host is using the GPU for gaming, enabling fast AI inference for n8n workflows, Paperless-ngx document classification, and development tasks.
 
-**FRs covered:** FR38, FR39, FR71-74, FR87-89
+**FRs covered:** FR38, FR39, FR71-74, FR87-89, FR94
 - FR38: Deploy vLLM for production inference
 - FR39: GPU workloads request GPU resources via NVIDIA Operator
 - FR71: GPU worker (Intel NUC + RTX 3060) joins cluster via Tailscale
@@ -466,8 +489,9 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - FR87: Paperless-AI connects to GPU Ollama (Intel NUC + RTX 3060)
 - FR88: LLM-based auto-tagging via GPU-accelerated inference
 - FR89: Auto-populate correspondents and document types from content
+- FR94: vLLM gracefully degrades when GPU unavailable due to host workloads (Steam gaming)
 
-**NFRs covered:** NFR34-38, NFR42-43
+**NFRs covered:** NFR34-38, NFR42-43, NFR50
 - NFR34: 50+ tokens/second throughput (Mistral, Llama)
 - NFR35: Handle 2-3 concurrent inference requests
 - NFR36: GPU worker joins cluster in 2 minutes via Tailscale
@@ -475,6 +499,7 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - NFR38: Multi-model serving (3 models in memory)
 - NFR42: GPU inference throughput 50+ tokens/sec for document classification
 - NFR43: AI classification within 10 seconds per document
+- NFR50: vLLM detects GPU unavailability within 10 seconds
 
 **Implementation Notes:**
 - Intel NUC + RTX 3060 eGPU (12GB VRAM)
@@ -485,6 +510,35 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - NVIDIA GPU Operator for automatic driver management
 - Fallback routing: vLLM (GPU) → Ollama (CPU) when GPU worker unavailable
 - Paperless-AI connector for document auto-classification via Ollama
+- Dual-use GPU: Shared between K8s ML workloads and host Steam gaming
+
+---
+
+### Epic 13: Steam Gaming Platform (Dual-Use GPU) [Phase 3]
+
+**User Outcome:** Tom can use the Intel NUC + RTX 3060 for both Steam gaming (Windows games via Proton) AND ML inference (vLLM), switching between modes with a simple script that gracefully scales down K8s workloads when gaming and restores them afterward.
+
+**FRs covered:** FR95-99
+- FR95: Intel NUC runs Steam on host Ubuntu OS (not containerized)
+- FR96: Steam uses Proton for Windows game compatibility
+- FR97: Operator can switch between Gaming Mode and ML Mode via script
+- FR98: Gaming Mode scales vLLM pods to 0 and enables Ollama CPU fallback
+- FR99: ML Mode restores vLLM pods when Steam/gaming exits
+
+**NFRs covered:** NFR51-54
+- NFR51: Gaming Mode activation completes within 30 seconds (pod scale-down + VRAM release)
+- NFR52: ML Mode restoration completes within 2 minutes (pod scale-up + model load)
+- NFR53: Steam games achieve 60+ FPS at 1080p with exclusive GPU access
+- NFR54: Graceful degradation to Ollama CPU maintains <5 second inference latency
+
+**Implementation Notes:**
+- Steam runs on host Ubuntu OS (graphics workloads don't containerize well)
+- Mode switching via `/usr/local/bin/gpu-mode gaming|ml` script
+- RTX 3060 12GB VRAM cannot run gaming (6-8GB) + vLLM (10-11GB) simultaneously
+- n8n workflows detect GPU unavailability and route to Ollama CPU fallback
+- Gaming Mode: `kubectl scale deployment/vllm --replicas=0 -n ml`
+- ML Mode: `kubectl scale deployment/vllm --replicas=1 -n ml`
+- NVIDIA driver configured with `nvidia-drm.modeset=1` for PRIME support
 
 ---
 
@@ -2772,10 +2826,10 @@ Host pilates-dev
 
 ### Epic 12: GPU/ML Inference Platform
 
-**User Outcome:** AI/ML workflows can access GPU-accelerated inference via vLLM and Ollama, with Paperless-AI document classification and graceful fallback to CPU-based Ollama when GPU unavailable.
+**User Outcome:** AI/ML workflows can access GPU-accelerated inference via vLLM and Ollama, with Paperless-AI document classification and graceful fallback to CPU-based Ollama when GPU unavailable or host is using GPU for gaming.
 
-**FRs Covered:** FR38, FR39, FR71-74, FR87-89
-**NFRs Covered:** NFR34-38, NFR42-43
+**FRs Covered:** FR38, FR39, FR71-74, FR87-89, FR94
+**NFRs Covered:** NFR34-38, NFR42-43, NFR50
 
 ---
 
@@ -3159,6 +3213,192 @@ env:
 - Processor polls for new documents or uses webhook
 
 **Story Points:** 5
+
+---
+
+### Epic 13: Steam Gaming Platform (Dual-Use GPU)
+
+**User Outcome:** Tom can use the Intel NUC + RTX 3060 for both Steam gaming (Windows games via Proton) AND ML inference (vLLM), switching between modes with a simple script that gracefully scales down K8s workloads when gaming and restores them afterward.
+
+**FRs Covered:** FR95-99
+**NFRs Covered:** NFR51-54
+
+---
+
+#### Story 13.1: Install Steam and Proton on Intel NUC
+
+**As a** gamer
+**I want** Steam installed on the Intel NUC host with Proton enabled
+**So that** I can play Windows games using the RTX 3060 eGPU
+
+**Acceptance Criteria:**
+
+**Given** Intel NUC is running Ubuntu 22.04 with RTX 3060 eGPU configured
+**When** I install Steam from the official repository
+**Then** `sudo apt install steam` completes successfully
+**And** Steam client launches and authenticates
+**And** this validates FR95 (Steam on host Ubuntu OS)
+
+**Given** Steam is installed
+**When** I enable Steam Play for all titles
+**Then** Settings → Steam Play → "Enable Steam Play for all other titles" is checked
+**And** Proton version is set (Proton Experimental or Proton 9.0+)
+**And** this validates FR96 (Proton for Windows game compatibility)
+
+**Given** Proton is enabled
+**When** I download and launch a Windows game
+**Then** game launches using Proton compatibility layer
+**And** game renders on RTX 3060 eGPU
+**And** `nvidia-smi` shows game process using GPU memory
+
+**Given** Steam gaming is working
+**When** I configure `nvidia-drm.modeset=1` for PRIME support
+**Then** `/etc/modprobe.d/nvidia-drm.conf` contains `options nvidia-drm modeset=1`
+**And** after reboot, GPU is available for both Steam and K8s workloads
+
+**Implementation Notes:**
+- Steam runs on host OS (not containerized) - graphics workloads need direct GPU access
+- Proton uses WINE + DXVK for DirectX translation
+- `nvidia-drm.modeset=1` required for proper eGPU support
+- Test with a known Proton-compatible game (e.g., Hades, Stardew Valley)
+
+**Story Points:** 3
+
+---
+
+#### Story 13.2: Configure Mode Switching Script
+
+**As a** platform operator
+**I want** a script to switch between Gaming Mode and ML Mode
+**So that** I can easily transition the GPU between gaming and K8s ML workloads
+
+**Acceptance Criteria:**
+
+**Given** Intel NUC has both Steam and K3s agent installed
+**When** I create `/usr/local/bin/gpu-mode` script
+**Then** script accepts `gaming` or `ml` argument
+**And** script is executable: `chmod +x /usr/local/bin/gpu-mode`
+**And** this validates FR97 (mode switching script)
+
+**Given** script is created
+**When** I run `gpu-mode gaming`
+**Then** script executes: `kubectl scale deployment/vllm --replicas=0 -n ml`
+**And** vLLM pods terminate and release GPU memory
+**And** script outputs: "Gaming Mode: vLLM scaled to 0, GPU available for Steam"
+**And** completion time is <30 seconds (NFR51)
+**And** this validates FR98 (Gaming Mode)
+
+**Given** Gaming Mode is active
+**When** I run `gpu-mode ml`
+**Then** script executes: `kubectl scale deployment/vllm --replicas=1 -n ml`
+**And** vLLM pod starts and loads models
+**And** script outputs: "ML Mode: vLLM restored, GPU dedicated to inference"
+**And** completion time is <2 minutes (NFR52)
+**And** this validates FR99 (ML Mode restoration)
+
+**Given** mode switching works
+**When** I verify GPU availability after switching
+**Then** `nvidia-smi` shows expected GPU usage:
+- Gaming Mode: GPU available (0% VRAM from K8s)
+- ML Mode: vLLM using ~10-11GB VRAM
+
+**Implementation Notes:**
+```bash
+#!/bin/bash
+# /usr/local/bin/gpu-mode
+case "$1" in
+  gaming)
+    kubectl scale deployment/vllm --replicas=0 -n ml
+    echo "Gaming Mode: vLLM scaled to 0, GPU available for Steam"
+    ;;
+  ml)
+    kubectl scale deployment/vllm --replicas=1 -n ml
+    echo "ML Mode: vLLM restored, GPU dedicated to inference"
+    ;;
+  *)
+    echo "Usage: gpu-mode [gaming|ml]"
+    exit 1
+    ;;
+esac
+```
+
+**Story Points:** 5
+
+---
+
+#### Story 13.3: Integrate n8n Fallback Routing
+
+**As a** platform operator
+**I want** n8n workflows to automatically route to Ollama CPU when GPU is unavailable
+**So that** AI inference continues working (with degraded performance) during gaming
+
+**Acceptance Criteria:**
+
+**Given** n8n workflows use vLLM for inference
+**When** I configure fallback detection
+**Then** workflows check vLLM availability before sending requests
+**And** timeout is set to 10 seconds (NFR50)
+
+**Given** fallback detection is configured
+**When** vLLM is unavailable (Gaming Mode)
+**Then** workflows automatically route to Ollama CPU endpoint
+**And** inference latency is <5 seconds (NFR54)
+**And** user receives results (with potentially lower quality)
+
+**Given** fallback routing works
+**When** I monitor n8n during mode transitions
+**Then** no workflow failures occur during Gaming Mode
+**And** Grafana alerts show "GPU unavailable - using CPU fallback"
+
+**Implementation Notes:**
+- n8n workflow nodes: HTTP Request with error handling
+- Primary: `http://vllm.ml.svc.cluster.local:8000/v1/completions`
+- Fallback: `http://ollama.ml.svc.cluster.local:11434/api/generate`
+- Health check endpoint for vLLM availability
+
+**Story Points:** 3
+
+---
+
+#### Story 13.4: Validate Gaming Performance
+
+**As a** gamer
+**I want** Steam games to achieve 60+ FPS at 1080p
+**So that** the gaming experience is smooth with exclusive GPU access
+
+**Acceptance Criteria:**
+
+**Given** Gaming Mode is active (vLLM scaled to 0)
+**When** I launch a graphics-intensive game
+**Then** game renders at 60+ FPS at 1080p (NFR53)
+**And** `nvidia-smi` shows full GPU availability
+**And** no VRAM conflicts with K8s workloads
+
+**Given** gaming is in progress
+**When** I monitor system resources
+**Then** GPU temperature stays within safe limits (<85°C)
+**And** game runs smoothly without stuttering
+**And** no K8s pods are competing for GPU resources
+
+**Given** gaming session ends
+**When** I switch back to ML Mode
+**Then** `gpu-mode ml` restores vLLM within 2 minutes (NFR52)
+**And** vLLM health check passes
+**And** n8n workflows resume using GPU inference
+
+**Given** performance is validated
+**When** I document tested games
+**Then** README includes list of validated games with settings:
+- Game name, Proton version, resolution, FPS achieved
+- Any required tweaks or compatibility notes
+
+**Implementation Notes:**
+- Test with a mix of game types (indie, AAA)
+- Benchmark games: Hades, Civilization VI, or similar
+- Document any Proton GE requirements for specific titles
+- GPU: RTX 3060 12GB should handle most 1080p gaming comfortably
+
+**Story Points:** 2
 
 ---
 
