@@ -108,8 +108,14 @@ _This section will be populated by dev-story when gap analysis runs._
 - Physical LAN IP: 192.168.0.25 (Intel NUC local network)
 - Tailscale IP: 100.x.x.x (auto-assigned from CGNAT range, Story 12.2)
 - K3s master: 192.168.2.20 (accessed via Tailscale subnet router)
-- K3s cluster subnet: 192.168.2.0/24 (advertised by subnet router on existing node)
-- Story 12.2 configures: Tailscale install, accept-routes, K3s agent join via --node-ip
+- K3s cluster subnet: 192.168.2.0/24
+
+**Story 12.2 Prerequisites (no Tailscale on K3s cluster yet):**
+1. Install Tailscale on K3s master (192.168.2.20)
+2. Configure K3s master as subnet router: `--advertise-routes=192.168.2.0/24`
+3. Approve route in Tailscale admin console
+4. Install Tailscale on Intel NUC with `--accept-routes`
+5. Join Intel NUC to K3s via `k3s agent --server https://192.168.2.20:6443 --node-ip <tailscale-ip>`
 
 ### Critical Research Findings (Exa 2026-01-11)
 
