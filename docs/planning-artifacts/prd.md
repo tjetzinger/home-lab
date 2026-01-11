@@ -23,6 +23,7 @@ project_name: 'home-lab'
 **Date:** 2025-12-27 | **Last Updated:** 2026-01-11
 
 **Changelog:**
+- 2026-01-11: Added Multi-Subnet GPU Worker Networking - Solution A with Tailscale mesh (FR100-103, NFR55-57)
 - 2026-01-11: Added Steam Gaming Platform with mode switching for shared GPU usage (FR94-99, NFR50-54)
 - 2026-01-09: Added email inbox integration for private email/Gmail with Bridge container (FR90-93, NFR48-49)
 - 2026-01-09: Added Stirling-PDF and Paperless-AI with GPU Ollama (FR84-89, NFR44-47)
@@ -214,7 +215,7 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 | k3s-master | Control plane | 192.168.2.20 | 2 vCPU, 4GB RAM, 32GB disk |
 | k3s-worker-01 | General compute | 192.168.2.21 | 4 vCPU, 8GB RAM, 50GB disk |
 | k3s-worker-02 | General compute | 192.168.2.22 | 4 vCPU, 8GB RAM, 50GB disk |
-| k3s-nuc (future) | GPU/ML workloads | 192.168.2.30 | Intel NUC + RTX 3060 eGPU |
+| k3s-gpu-worker | GPU/ML workloads | 192.168.0.25 (Tailscale: 100.x.x.d) | Intel NUC + RTX 3060 eGPU (different subnet) |
 
 **Outside Cluster (by design):**
 - Raspberry Pi (192.168.2.162): VPN rescue hatch—if cluster dies, remote access survives
@@ -228,9 +229,22 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 | Ingress | Traefik (K3s default) | Built-in, dashboard, automatic HTTPS |
 | Load Balancer | MetalLB | Required for bare-metal LoadBalancer services |
 | LB IP Pool | 192.168.2.100-120 | Reserved range on home subnet |
-| Remote Access | Tailscale subnet routers | NAS + Pi as exit nodes |
+| Remote Access | Tailscale mesh (Solution A) | All K3s nodes run Tailscale for cross-subnet GPU worker |
 | DNS | NextDNS with Rewrites | *.home.jetzinger.com → cluster ingress |
 | TLS | cert-manager + Let's Encrypt | Automatic HTTPS for all services |
+
+**Multi-Subnet Networking (Solution A):**
+
+Intel NUC GPU worker is on 192.168.0.0/24, K3s cluster on 192.168.2.0/24. To enable pod networking across subnets:
+
+| Node | Physical IP | Tailscale IP | Role |
+|------|-------------|--------------|------|
+| k3s-master | 192.168.2.20 | 100.x.x.a | Control plane |
+| k3s-worker-01 | 192.168.2.21 | 100.x.x.b | General compute |
+| k3s-worker-02 | 192.168.2.22 | 100.x.x.c | General compute |
+| Intel NUC | 192.168.0.25 | 100.x.x.d | GPU worker |
+
+K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 ### Storage Architecture
 
@@ -444,7 +458,7 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - FR38: Operator can deploy vLLM for production inference
 - FR39: GPU workloads can request GPU resources via NVIDIA Operator
 - FR40: Operator can deploy n8n for workflow automation
-- FR71: GPU worker (Intel NUC + RTX 3060 eGPU) joins cluster via Tailscale overlay network
+- FR71: GPU worker (Intel NUC + RTX 3060 eGPU) joins cluster via Tailscale mesh (Solution A: all nodes run Tailscale)
 - FR72: vLLM serves Mistral 7B and Llama 3.1 8B models simultaneously
 - FR73: vLLM workloads gracefully degrade to Ollama CPU when GPU worker unavailable
 - FR74: Operator can hot-plug GPU worker (add/remove on demand without cluster disruption)
@@ -497,6 +511,13 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - FR97: Operator can switch between Gaming Mode and ML Mode via script
 - FR98: Gaming Mode scales vLLM pods to 0 and enables Ollama CPU fallback
 - FR99: ML Mode restores vLLM pods when Steam/gaming exits
+
+### Multi-Subnet GPU Worker Networking (Solution A)
+
+- FR100: All K3s nodes (master, workers, GPU worker) run Tailscale for full mesh connectivity
+- FR101: K3s configured with `--flannel-iface tailscale0` to route pod network over Tailscale mesh
+- FR102: K3s nodes advertise Tailscale IPs via `--node-external-ip` for cross-subnet communication
+- FR103: NO_PROXY environment includes Tailscale CGNAT range (100.64.0.0/10) on all nodes
 
 ### Development Proxy
 
@@ -640,4 +661,10 @@ Sarah forwards Tom's profile to her team with a note: "Interview this one. He ac
 - NFR52: ML Mode restoration completes within 2 minutes (pod scale-up + model load)
 - NFR53: Steam games achieve 60+ FPS at 1080p with exclusive GPU access
 - NFR54: Graceful degradation to Ollama CPU maintains <5 second inference latency
+
+### Multi-Subnet GPU Worker Networking (Solution A)
+
+- NFR55: Tailscale mesh establishes full connectivity within 60 seconds of node boot
+- NFR56: Pod-to-pod communication works across different physical subnets (192.168.0.x ↔ 192.168.2.x) via Tailscale
+- NFR57: MTU configured at 1280 bytes to prevent VXLAN packet fragmentation over Tailscale
 

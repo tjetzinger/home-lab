@@ -10,7 +10,7 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'Phase 3: Epic 12 updated with FR94/NFR50 (graceful degradation), Epic 13 added (Steam Gaming Platform - 4 stories)'
+updateReason: 'Epic 12 updated with Solution A networking (FR100-103, NFR55-57): Tailscale mesh on all K3s nodes for cross-subnet GPU worker'
 currentStep: 'Workflow Complete - Phase 3 epic added'
 ---
 
@@ -71,7 +71,7 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR34: Operator can restore PostgreSQL from backup
 - FR35: Applications can connect to PostgreSQL within cluster
 
-**AI/ML Workloads (10 FRs)**
+**AI/ML Workloads (14 FRs)**
 - FR36: Operator can deploy Ollama for LLM inference
 - FR37: Applications can query Ollama API for completions
 - FR38: Operator can deploy vLLM for production inference
@@ -82,6 +82,10 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR73: vLLM workloads gracefully degrade to Ollama CPU when GPU worker unavailable
 - FR74: Operator can hot-plug GPU worker (add/remove on demand without cluster disruption)
 - FR94: vLLM gracefully degrades when GPU is unavailable due to host workloads (Steam gaming)
+- FR100: All K3s nodes (master, workers, GPU worker) run Tailscale for full mesh connectivity
+- FR101: K3s configured with `--flannel-iface tailscale0` to route pod network over Tailscale
+- FR102: K3s nodes advertise Tailscale IPs via `--node-external-ip` for cross-subnet communication
+- FR103: NO_PROXY environment includes Tailscale CGNAT range (100.64.0.0/10) for kubectl logs
 
 **Gaming Platform (5 FRs)**
 - FR95: Intel NUC runs Steam on host Ubuntu OS (not containerized)
@@ -179,13 +183,16 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR32: Persistent volumes retain workspace data across container restarts
 - NFR33: Dev containers isolated via NetworkPolicy (no cross-container communication)
 
-**GPU/ML Infrastructure (6 NFRs)**
+**GPU/ML Infrastructure (9 NFRs)**
 - NFR34: vLLM achieves 50+ tokens/second for Mistral 7B and Llama 3.1 8B on RTX 3060
 - NFR35: vLLM handles 2-3 concurrent inference requests without significant performance degradation
 - NFR36: GPU worker joins cluster and becomes Ready within 2 minutes of boot via Tailscale
 - NFR37: NVIDIA GPU Operator installs and configures GPU drivers automatically (no manual setup)
 - NFR38: vLLM serves multiple models simultaneously (DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B)
 - NFR50: vLLM detects GPU unavailability (host workload) within 10 seconds
+- NFR55: Tailscale mesh establishes full connectivity between all K3s nodes within 60 seconds of node boot
+- NFR56: Pod-to-pod communication works across subnets (192.168.2.x ↔ 192.168.0.x) via Tailscale overlay
+- NFR57: MTU configured at 1280 bytes to prevent VXLAN fragmentation over Tailscale tunnel
 
 **Gaming Platform (4 NFRs)**
 - NFR51: Gaming Mode activation completes within 30 seconds (pod scale-down + VRAM release)
@@ -242,7 +249,10 @@ This document provides the complete epic and story breakdown for home-lab, decom
 
 **GPU/ML Infrastructure (vLLM + RTX 3060):**
 - GPU Worker: Intel NUC + RTX 3060 12GB eGPU
-- GPU Networking: Dual-stack (local 192.168.0.x + Tailscale for K3s)
+- GPU Networking: Solution A - Manual Tailscale on all K3s nodes for full mesh connectivity
+- K3s Configuration: `--flannel-iface tailscale0` + `--node-external-ip <tailscale-ip>`
+- MTU: 1280 bytes (prevents VXLAN fragmentation over Tailscale)
+- NO_PROXY: Must include `100.64.0.0/10` for kubectl logs/exec to work
 - Models: DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B (4-bit quantized)
 - Model Serving: Single vLLM instance, 3 models loaded in memory
 - Context Window: 8K-16K tokens per request
@@ -252,11 +262,12 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - GPU Scheduling: NVIDIA GPU Operator for automatic driver installation
 
 **Node Topology:**
-| Node | Role | IP |
-|------|------|-----|
-| k3s-master | Control plane | 192.168.2.20 |
-| k3s-worker-01 | General compute | 192.168.2.21 |
-| k3s-worker-02 | General compute | 192.168.2.22 |
+| Node | Role | Physical IP | Tailscale IP |
+|------|------|-------------|--------------|
+| k3s-master | Control plane | 192.168.2.20 | 100.x.x.a |
+| k3s-worker-01 | General compute | 192.168.2.21 | 100.x.x.b |
+| k3s-worker-02 | General compute | 192.168.2.22 | 100.x.x.c |
+| k3s-gpu-worker | GPU (Intel NUC) | 192.168.0.25 | 100.x.x.d |
 
 **MetalLB IP Pool:** 192.168.2.100-120
 
@@ -344,13 +355,17 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR97 | Epic 13 | Operator can switch between Gaming Mode and ML Mode via script |
 | FR98 | Epic 13 | Gaming Mode scales vLLM pods to 0 and enables CPU fallback |
 | FR99 | Epic 13 | ML Mode restores vLLM pods when gaming exits |
+| FR100 | Epic 12 | All K3s nodes run Tailscale for full mesh connectivity |
+| FR101 | Epic 12 | K3s configured with --flannel-iface tailscale0 |
+| FR102 | Epic 12 | K3s nodes advertise Tailscale IPs via --node-external-ip |
+| FR103 | Epic 12 | NO_PROXY includes Tailscale CGNAT range (100.64.0.0/10) |
 
-**Coverage Summary:** 99 FRs total, 54 NFRs total
+**Coverage Summary:** 103 FRs total, 57 NFRs total
 - **Phase 1 (Epic 1-9):** 54 FRs completed
-- **Phase 2 (Epic 10-12):** 39 FRs (20 original + 19 additions)
+- **Phase 2 (Epic 10-12):** 43 FRs (20 original + 23 additions)
   - Epic 10 (Paperless-ngx): FR55-58, FR64-66, FR75-93
   - Epic 11 (Dev Containers): FR59-63, FR67-70
-  - Epic 12 (GPU/ML): FR38-39, FR71-74, FR94
+  - Epic 12 (GPU/ML): FR38-39, FR71-74, FR94, FR100-103
 - **Phase 3 (Epic 13):** 5 FRs
   - Epic 13 (Steam Gaming): FR95-99
 
@@ -479,10 +494,10 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 
 **User Outcome:** Tom can run GPU-accelerated LLM inference with vLLM serving multiple models simultaneously on a hot-pluggable GPU worker, with automatic graceful degradation to Ollama CPU when the GPU worker is offline or host is using the GPU for gaming, enabling fast AI inference for n8n workflows, Paperless-ngx document classification, and development tasks.
 
-**FRs covered:** FR38, FR39, FR71-74, FR87-89, FR94
+**FRs covered:** FR38, FR39, FR71-74, FR87-89, FR94, FR100-103
 - FR38: Deploy vLLM for production inference
 - FR39: GPU workloads request GPU resources via NVIDIA Operator
-- FR71: GPU worker (Intel NUC + RTX 3060) joins cluster via Tailscale
+- FR71: GPU worker (Intel NUC + RTX 3060) joins cluster via Tailscale mesh (Solution A)
 - FR72: vLLM serves DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B simultaneously
 - FR73: Graceful degradation to Ollama CPU when GPU offline
 - FR74: Hot-plug GPU worker (add/remove without cluster disruption)
@@ -490,8 +505,12 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - FR88: LLM-based auto-tagging via GPU-accelerated inference
 - FR89: Auto-populate correspondents and document types from content
 - FR94: vLLM gracefully degrades when GPU unavailable due to host workloads (Steam gaming)
+- FR100: All K3s nodes run Tailscale for full mesh connectivity
+- FR101: K3s configured with `--flannel-iface tailscale0` for pod networking
+- FR102: K3s nodes advertise Tailscale IPs via `--node-external-ip`
+- FR103: NO_PROXY includes Tailscale CGNAT range (100.64.0.0/10)
 
-**NFRs covered:** NFR34-38, NFR42-43, NFR50
+**NFRs covered:** NFR34-38, NFR42-43, NFR50, NFR55-57
 - NFR34: 50+ tokens/second throughput (Mistral, Llama)
 - NFR35: Handle 2-3 concurrent inference requests
 - NFR36: GPU worker joins cluster in 2 minutes via Tailscale
@@ -500,10 +519,15 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - NFR42: GPU inference throughput 50+ tokens/sec for document classification
 - NFR43: AI classification within 10 seconds per document
 - NFR50: vLLM detects GPU unavailability within 10 seconds
+- NFR55: Tailscale mesh establishes connectivity within 60 seconds
+- NFR56: Pod-to-pod communication across subnets (192.168.0.x ↔ 192.168.2.x)
+- NFR57: MTU 1280 bytes for VXLAN over Tailscale
 
 **Implementation Notes:**
-- Intel NUC + RTX 3060 eGPU (12GB VRAM)
-- Dual-stack networking: Local 192.168.0.x + Tailscale overlay for K3s
+- Intel NUC + RTX 3060 eGPU (12GB VRAM) on 192.168.0.25
+- **Solution A Networking:** Tailscale mesh on ALL K3s nodes (master, workers, GPU worker)
+- K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
+- Cross-subnet: 192.168.0.x (Intel NUC) ↔ 192.168.2.x (K3s cluster) via Tailscale
 - 3 models (4-bit quantized): DeepSeek-Coder 6.7B, Mistral 7B, Llama 3.1 8B
 - VRAM allocation: ~10-11GB models, ~1-2GB KV cache
 - Context window: 8K-16K tokens per request
@@ -2828,8 +2852,8 @@ Host pilates-dev
 
 **User Outcome:** AI/ML workflows can access GPU-accelerated inference via vLLM and Ollama, with Paperless-AI document classification and graceful fallback to CPU-based Ollama when GPU unavailable or host is using GPU for gaming.
 
-**FRs Covered:** FR38, FR39, FR71-74, FR87-89, FR94
-**NFRs Covered:** NFR34-38, NFR42-43, NFR50
+**FRs Covered:** FR38, FR39, FR71-74, FR87-89, FR94, FR100-103
+**NFRs Covered:** NFR34-38, NFR42-43, NFR50, NFR55-57
 
 ---
 
@@ -2844,7 +2868,7 @@ Host pilates-dev
 **Given** I have Intel NUC hardware and RTX 3060 eGPU
 **When** I install Ubuntu 22.04 LTS
 **Then** the OS is installed with:
-- Static IP: 192.168.2.25
+- Static IP: 192.168.0.25 (Intel NUC local network)
 - Hostname: `k3s-gpu-worker`
 - SSH access configured with key-based authentication
 - System updates applied: `sudo apt update && sudo apt upgrade -y`
@@ -2864,7 +2888,7 @@ sudo reboot
 ```
 **And** after reboot, `nvidia-smi` shows RTX 3060 with 12GB VRAM
 **And** driver version is 535+ (CUDA 12.2+ compatible)
-**And** persistence mode is enabled: `nvidia-smi -pm 1`
+**And** nvidia-persistenced daemon is enabled: `sudo systemctl enable --now nvidia-persistenced`
 
 **Given** drivers are installed
 **When** I configure system hardening
@@ -2876,50 +2900,88 @@ sudo reboot
 
 ---
 
-#### Story 12.2: Deploy Intel NUC as K3s Worker with Tailscale
+#### Story 12.2: Configure Tailscale Mesh on All K3s Nodes (Solution A)
 
 **As a** platform engineer
-**I want** the Intel NUC joined to the K3s cluster via Tailscale mesh
-**So that** GPU workloads can be scheduled remotely without LAN dependency
+**I want** Tailscale installed on all K3s nodes with flannel configured over the mesh
+**So that** the Intel NUC GPU worker can join the cluster from a different subnet (192.168.0.x → 192.168.2.x)
 
 **Acceptance Criteria:**
 
-**Given** NUC has Ubuntu installed
-**When** I install Tailscale
-**Then** I run:
+**AC1: Install Tailscale on Existing K3s Nodes**
+**Given** K3s cluster is running (master, worker-01, worker-02)
+**When** I install Tailscale on each node
+**Then** I run on each node:
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 ```
-**And** NUC is added to home-lab Tailscale network
-**And** Tailscale IP is obtained (e.g., 100.x.x.25)
+**And** each node gets a Tailscale IP (100.x.x.a, 100.x.x.b, 100.x.x.c)
+**And** all nodes appear in Tailscale admin console
+**And** this validates FR100 (all K3s nodes run Tailscale)
 
-**Given** Tailscale is running
-**When** I install K3s agent
+**AC2: Configure K3s Master with Tailscale**
+**Given** Tailscale is running on k3s-master
+**When** I update K3s server config
+**Then** I add to `/etc/rancher/k3s/config.yaml`:
+```yaml
+flannel-iface: tailscale0
+node-external-ip: <tailscale-100.x.x.a>
+tls-san:
+  - <tailscale-100.x.x.a>
+  - 192.168.2.20
+```
+**And** I add to `/etc/environment`:
+```bash
+NO_PROXY=127.0.0.0/8,10.0.0.0/8,100.64.0.0/10,172.16.0.0/12,192.168.0.0/16,.local,localhost
+```
+**And** I restart K3s: `sudo systemctl restart k3s`
+**And** this validates FR101, FR102, FR103
+
+**AC3: Configure K3s Workers with Tailscale**
+**Given** Tailscale is running on k3s-worker-01 and k3s-worker-02
+**When** I update K3s agent config on each worker
+**Then** I add to `/etc/rancher/k3s/config.yaml`:
+```yaml
+flannel-iface: tailscale0
+node-external-ip: <tailscale-100.x.x.b>  # Each worker's Tailscale IP
+```
+**And** I add NO_PROXY to `/etc/environment` (same as master)
+**And** I restart K3s agent: `sudo systemctl restart k3s-agent`
+**And** rolling restart: one node at a time, verify Ready before next
+
+**AC4: Verify Cluster Connectivity**
+**Given** all nodes restarted with Tailscale config
+**When** I verify cluster status
+**Then** `kubectl get nodes -o wide` shows all nodes with Tailscale IPs (100.x.x.*)
+**And** pods can communicate across nodes (test with busybox ping)
+**And** this validates NFR55, NFR56
+
+**AC5: Join Intel NUC GPU Worker**
+**Given** Intel NUC has Tailscale running (from Story 12.1)
+**When** I install K3s agent on Intel NUC
 **Then** I run:
 ```bash
 TAILSCALE_IP=$(tailscale ip -4)
-curl -sfL https://get.k3s.io | K3S_URL=https://100.x.x.20:6443 \
-  K3S_TOKEN=<cluster-token> \
-  INSTALL_K3S_EXEC="agent --node-ip=$TAILSCALE_IP" sh -
+curl -sfL https://get.k3s.io | K3S_URL=https://<master-tailscale-ip>:6443 \
+  K3S_TOKEN=<cluster-token> sh -s - agent \
+  --flannel-iface tailscale0 \
+  --node-external-ip=$TAILSCALE_IP
 ```
-**And** node joins successfully: `kubectl get nodes` shows `k3s-gpu-worker`
+**And** node joins: `kubectl get nodes` shows `k3s-gpu-worker` as Ready
+**And** this validates FR71 (GPU worker joins via Tailscale mesh)
 
-**Given** node is joined
+**AC6: Apply GPU Labels and Taints**
+**Given** k3s-gpu-worker has joined
 **When** I apply labels and taints
 **Then** I run:
 ```bash
 kubectl label nodes k3s-gpu-worker gpu=nvidia
 kubectl taint nodes k3s-gpu-worker nvidia.com/gpu=present:NoSchedule
 ```
+**And** `kubectl describe node k3s-gpu-worker` shows labels and taints applied
 
-**Given** labels are applied
-**When** I verify node status
-**Then** `kubectl get nodes` shows `k3s-gpu-worker` as Ready
-**And** `kubectl describe node k3s-gpu-worker` shows CPU/memory resources
-**And** this validates FR71 (GPU worker joins cluster via Tailscale)
-
-**Story Points:** 5
+**Story Points:** 8
 
 ---
 

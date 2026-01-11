@@ -84,7 +84,35 @@ And eGPU auto-connects on boot
 
 ## Gap Analysis
 
-_This section will be populated by dev-story when gap analysis runs._
+**Last Run:** 2026-01-11
+**Accuracy Score:** 100% (24/24 tasks)
+
+### Codebase Scan Results
+
+**Existing Assets:**
+- K3s install scripts at `infrastructure/k3s/` (reference pattern)
+- Story file well-documented with research findings
+
+**Missing (Expected - Story Not Started):**
+- `scripts/gpu-worker/` directory (to be created during implementation)
+- GPU worker installation scripts
+- Netplan config templates
+
+### Task Validation
+
+| Category | Count | Status |
+|----------|-------|--------|
+| Accurate | 24 | ✅ All tasks correctly unchecked |
+| False Positives | 0 | ✅ None |
+| False Negatives | 0 | ✅ None |
+
+### Assessment
+
+This is a **hardware setup story** - tasks are performed on physical Intel NUC hardware, not code changes in this repository. Story is well-prepared with:
+- Comprehensive acceptance criteria
+- Critical research findings (cold-plug, nvidia-persistenced)
+- Solution A networking context documented
+- Ready for implementation
 
 ---
 
@@ -107,17 +135,17 @@ _This section will be populated by dev-story when gap analysis runs._
 ### Network Planning
 - Physical LAN IP: 192.168.0.25 (Intel NUC local network)
 - Tailscale IP: 100.x.x.x (auto-assigned from CGNAT range, Story 12.2)
-- K3s master: 192.168.2.20 (accessed via Tailscale subnet router)
+- K3s master: 192.168.2.20 (Physical) / 100.x.x.a (Tailscale)
 - K3s cluster subnet: 192.168.2.0/24
 
-**Story 12.2 Setup (Synology NAS as subnet router):**
-1. Configure Synology NAS Tailscale as subnet router: `--advertise-routes=192.168.2.0/24`
-2. Approve route in Tailscale admin console
-3. Install Tailscale on Intel NUC with `--accept-routes`
-4. Intel NUC can now reach K3s master (192.168.2.20) via Tailscale mesh
-5. Join Intel NUC to K3s: `k3s agent --server https://192.168.2.20:6443 --node-ip <tailscale-100.x.x.x>`
+**Story 12.2 Setup (Solution A - Tailscale on all K3s nodes):**
+1. Install Tailscale on all existing K3s nodes (master, worker-01, worker-02)
+2. Configure K3s with `--flannel-iface tailscale0` and `--node-external-ip <tailscale-ip>`
+3. Add NO_PROXY=100.64.0.0/10 to /etc/environment on all nodes
+4. Install Tailscale on Intel NUC
+5. Join Intel NUC to K3s: `curl -sfL https://get.k3s.io | K3S_URL=https://<master-tailscale-ip>:6443 K3S_TOKEN=<token> sh -s - agent --flannel-iface tailscale0 --node-external-ip=$TAILSCALE_IP`
 
-**Note:** K3s master/workers do NOT need Tailscale - Synology NAS acts as gateway.
+**Note:** All K3s nodes run Tailscale for full mesh connectivity. This is Solution A per architecture.md.
 
 ### Critical Research Findings (Exa 2026-01-11)
 
@@ -160,7 +188,9 @@ Then run `sudo update-grub && sudo reboot`
 ### References
 - [Source: docs/planning-artifacts/epics.md#Epic-12-GPU/ML-Inference-Platform]
 - [Source: docs/planning-artifacts/architecture.md#Dual-Use-GPU-Architecture]
+- [Source: docs/planning-artifacts/architecture.md#Multi-Subnet-GPU-Worker-Network-Architecture]
 - [Source: docs/planning-artifacts/prd.md#Gaming-Platform]
+- [Source: docs/planning-artifacts/prd.md#Multi-Subnet-Networking]
 - [Source: wiki.archlinux.org/title/External_GPU]
 - [Source: docs.nvidia.com/deploy/driver-persistence]
 - [Source: egpu.io/forums/thunderbolt-linux-setup]
@@ -178,3 +208,11 @@ _To be filled as tasks complete_
 
 ### File List
 _To be filled with modified/created files_
+
+---
+
+## Change Log
+
+| Date | Action | Notes |
+|------|--------|-------|
+| 2026-01-11 | Gap analysis performed | Tasks validated against codebase - 100% accuracy, story ready for implementation |

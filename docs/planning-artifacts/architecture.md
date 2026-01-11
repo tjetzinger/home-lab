@@ -3,7 +3,7 @@ stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
 lastModified: '2026-01-11'
-updateReason: 'Added Dual-Use GPU Architecture for Steam Gaming Platform (FR94-99, NFR50-54): Mode switching, graceful degradation, n8n fallback routing'
+updateReason: 'Added Multi-Subnet GPU Worker Network Architecture (Solution A): Tailscale mesh for Intel NUC cross-subnet connectivity'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -306,6 +306,109 @@ return { endpoint: 'http://vllm.ml.svc:8000', mode: 'gpu' };
 - NFR52: Full 12GB VRAM available for 60+ FPS gaming at 1080p
 - NFR53: ML Mode restoration <2min (pod startup + model load)
 - NFR54: Ollama CPU maintains <5s inference latency
+
+### Multi-Subnet GPU Worker Network Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Networking Solution** | **Solution A: Manual Tailscale on all K3s nodes** | **Stable, community-tested; avoids experimental --vpn-auth; compatible with embedded etcd (single server)** |
+| **VPN Mesh** | **Tailscale (100.64.0.0/10 CGNAT)** | **Zero-config NAT traversal, WireGuard-based, already on Synology NAS** |
+| **Flannel Interface** | **`--flannel-iface tailscale0`** | **Routes pod network (flannel VXLAN) over Tailscale mesh** |
+| **Node IP Advertisement** | **`--node-external-ip $(tailscale ip -4)`** | **Nodes advertise Tailscale IPs for cross-subnet communication** |
+| **MTU Configuration** | **1280 bytes** | **Prevents packet fragmentation with VXLAN over Tailscale** |
+
+**Why Solution A (Not Native --vpn-auth):**
+- K3s `--vpn-auth` is **experimental** and explicitly warns "embedded etcd not supported"
+- Your cluster uses **embedded etcd** (migrated from SQLite via ADR-010)
+- Single-server topology satisfies etcd constraint: "all server nodes must be reachable via private IPs"
+- Solution A is community-tested with documented workarounds
+
+**Network Topology:**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Tailscale Mesh (100.64.0.0/10)                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐          │
+│  │ k3s-master      │    │ k3s-worker-01   │    │ k3s-worker-02   │          │
+│  │ 192.168.2.20    │    │ 192.168.2.21    │    │ 192.168.2.22    │          │
+│  │ 100.x.x.a       │◄──►│ 100.x.x.b       │◄──►│ 100.x.x.c       │          │
+│  │ (tailscale0)    │    │ (tailscale0)    │    │ (tailscale0)    │          │
+│  └────────┬────────┘    └────────┬────────┘    └────────┬────────┘          │
+│           │                      │                      │                   │
+│           └──────────────────────┼──────────────────────┘                   │
+│                                  │                                          │
+│                    ┌─────────────┴─────────────┐                            │
+│                    │                           │                            │
+│  ┌─────────────────▼───┐              ┌────────▼────────┐                   │
+│  │ Intel NUC (GPU)     │              │ Synology NAS    │                   │
+│  │ 192.168.0.25        │              │ 192.168.2.x     │                   │
+│  │ 100.x.x.d           │              │ 100.x.x.e       │                   │
+│  │ (tailscale0)        │              │ (subnet router) │                   │
+│  │ + RTX 3060 eGPU     │              │                 │                   │
+│  └─────────────────────┘              └─────────────────┘                   │
+│                                                                             │
+│  Network 192.168.0.0/24              Network 192.168.2.0/24                 │
+│  (Intel NUC location)                (K3s cluster + NAS)                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**K3s Configuration Changes:**
+
+*On k3s-master (192.168.2.20):*
+```bash
+# /etc/rancher/k3s/config.yaml
+flannel-iface: tailscale0
+node-external-ip: <tailscale-100.x.x.a>
+tls-san:
+  - <tailscale-100.x.x.a>
+  - 192.168.2.20
+```
+
+*On existing workers (k3s-worker-01, k3s-worker-02):*
+```bash
+# /etc/rancher/k3s/config.yaml
+flannel-iface: tailscale0
+node-external-ip: <tailscale-100.x.x.b>  # Each worker's Tailscale IP
+```
+
+*On Intel NUC (new GPU worker):*
+```bash
+# /etc/rancher/k3s/config.yaml
+flannel-iface: tailscale0
+node-external-ip: <tailscale-100.x.x.d>
+```
+
+**Environment Configuration (all nodes):**
+```bash
+# /etc/environment or systemd override
+NO_PROXY=127.0.0.0/8,10.0.0.0/8,100.64.0.0/10,172.16.0.0/12,192.168.0.0/16,.local,localhost
+```
+
+**Implementation Sequence (Story 12.2):**
+1. Install Tailscale on k3s-master, k3s-worker-01, k3s-worker-02
+2. Note each node's Tailscale IP (`tailscale ip -4`)
+3. Update K3s config on each node with `flannel-iface` and `node-external-ip`
+4. Add `100.64.0.0/10` to NO_PROXY environment
+5. Rolling restart: one node at a time to maintain cluster availability
+6. Verify flannel connectivity: `kubectl get nodes -o wide` shows Tailscale IPs
+7. Install Tailscale on Intel NUC (Story 12.1 completes first)
+8. Join Intel NUC to cluster: `k3s agent --server https://<master-tailscale-ip>:6443`
+
+**Operational Considerations:**
+
+| Consideration | Mitigation |
+|---------------|------------|
+| Tailscale restart breaks flannel routes | Restart K3s service after Tailscale restart |
+| MTU fragmentation over VXLAN | Configure MTU 1280 on tailscale0 interface |
+| `kubectl logs` timeout | Ensure NO_PROXY includes `100.64.0.0/10` |
+| Node IP changes on Tailscale reconnect | Tailscale IPs are stable (CGNAT allocation persists) |
+
+**Rollback Plan:**
+If Solution A causes issues, revert by:
+1. Remove `flannel-iface` and `node-external-ip` from K3s configs
+2. Restart K3s on all nodes
+3. Intel NUC remains isolated (cannot join cluster from different subnet)
 
 ### Document Management Architecture (Paperless-ngx)
 
@@ -783,6 +886,7 @@ All requirements have explicit architectural support documented in Core Architec
 - FR94: vLLM graceful degradation (host GPU usage) — covered by Dual-Use GPU Architecture
 - FR95-99: Steam Gaming Platform — covered by Dual-Use GPU Architecture
 - NFR50-54: Gaming Platform performance requirements — covered by Dual-Use GPU Architecture
+- FR71, FR74: GPU Worker networking (cross-subnet, hot-plug) — covered by Multi-Subnet GPU Worker Network Architecture
 
 ### Implementation Readiness ✅
 
@@ -803,7 +907,7 @@ This architecture is ready for implementation because:
 - [x] Cross-cutting concerns mapped (Tailscale, TLS, observability)
 
 **✅ Architectural Decisions**
-- [x] Critical decisions documented (10 core decisions)
+- [x] Critical decisions documented (16 core decisions)
 - [x] Technology stack fully specified (Helm charts identified)
 - [x] Integration patterns defined (namespace, network, storage)
 - [x] Implementation sequence established
@@ -847,7 +951,7 @@ This architecture is ready for implementation because:
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 15 core architectural decisions made (added Dual-Use GPU Architecture for Steam Gaming Platform)
+- 16 core architectural decisions made (added Multi-Subnet GPU Worker Network Architecture)
 - 6 implementation pattern categories defined
 - 8 namespace boundaries established
 - 99 functional + 54 non-functional requirements supported

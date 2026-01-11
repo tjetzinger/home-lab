@@ -408,15 +408,21 @@ Used Claude Code with BMAD methodology for systematic implementation. Every stor
 
 ### Documentation
 
+- **Portfolio Summary (Resume Companion):** [docs/PORTFOLIO.md](docs/PORTFOLIO.md) - High-level project summary, skills demonstrated, technologies used
 - **Visual Tour (Screenshots & Diagrams):** [docs/VISUAL_TOUR.md](docs/VISUAL_TOUR.md) - Grafana dashboards and architecture diagrams
-- **Architecture Decision Records:** [docs/adrs/](docs/adrs/)
-- **Operational Runbooks:** [docs/runbooks/](docs/runbooks/)
-- **Implementation Stories:** [docs/implementation-artifacts/](docs/implementation-artifacts/)
-- **PRD and Planning:** [docs/planning-artifacts/](docs/planning-artifacts/)
+- **Architecture Decision Records:** [docs/adrs/](docs/adrs/) - Technical choices with trade-off analysis
+- **Operational Runbooks:** [docs/runbooks/](docs/runbooks/) - P1 scenario procedures
+- **Implementation Stories:** [docs/implementation-artifacts/](docs/implementation-artifacts/) - Story-by-story build documentation
+- **PRD and Planning:** [docs/planning-artifacts/](docs/planning-artifacts/) - Requirements and architecture
+- **Component READMEs:**
+  - Infrastructure: [K3s](infrastructure/k3s/README.md) | [NFS](infrastructure/nfs/README.md) | [MetalLB](infrastructure/metallb/README.md) | [Traefik](infrastructure/traefik/README.md) | [cert-manager](infrastructure/cert-manager/README.md)
+  - Applications: [PostgreSQL](applications/postgres/README.md) | [Ollama](applications/ollama/README.md) | [n8n](applications/n8n/README.md) | [Nginx](applications/nginx/README.md)
+  - Monitoring: [Prometheus](monitoring/prometheus/README.md) | [Grafana](monitoring/grafana/README.md) | [Loki](monitoring/loki/README.md)
 
 ### External Resources
 
-- **Blog Posts:** (Coming soon - technical deep-dives on key learnings)
+- **Blog Posts:** [docs/blog-posts/](docs/blog-posts/) - Technical write-ups and career narrative
+  - [From Automotive Software to Kubernetes: Building a Production-Grade K3s Home Lab](docs/blog-posts/01-from-automotive-to-kubernetes.md)
 - **LinkedIn:** [linkedin.com/in/tjetzinger](https://www.linkedin.com/in/tjetzinger/)
 
 ### Key Technologies
