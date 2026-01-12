@@ -1,0 +1,25 @@
+# vLLM PodDisruptionBudget for home-lab
+# Namespace: ml
+#
+# Story: 12.5 - Configure Hot-Plug and Graceful Degradation
+# FR: FR74 - Hot-plug GPU worker without cluster disruption
+# AC: #1 - Create PodDisruptionBudget for vLLM
+#
+# Purpose: Allow controlled node draining for GPU maintenance
+# minAvailable: 0 permits full eviction during drain operations
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vllm-pdb
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: vllm-pdb
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: vllm-server

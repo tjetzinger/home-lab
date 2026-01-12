@@ -1,0 +1,71 @@
+# vLLM Fallback Configuration for home-lab
+# Namespace: ml
+#
+# Story: 12.5 - Configure Hot-Plug and Graceful Degradation
+# FR: FR73 - Graceful degradation to Ollama CPU when GPU offline
+# FR: FR94 - vLLM gracefully degrades when GPU unavailable
+# AC: #2 - Configure n8n Fallback Routing
+#
+# Purpose: Provides endpoint configuration for n8n workflows to implement
+# GPU-to-CPU fallback routing when vLLM becomes unavailable
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-fallback-config
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: llm-fallback
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+data:
+  # Primary endpoint (GPU-accelerated vLLM)
+  VLLM_ENDPOINT: "http://vllm-api.ml.svc.cluster.local:8000"
+  VLLM_HEALTH_ENDPOINT: "http://vllm-api.ml.svc.cluster.local:8000/health"
+  VLLM_COMPLETIONS_ENDPOINT: "http://vllm-api.ml.svc.cluster.local:8000/v1/completions"
+  VLLM_CHAT_ENDPOINT: "http://vllm-api.ml.svc.cluster.local:8000/v1/chat/completions"
+
+  # Fallback endpoint (CPU-only Ollama)
+  OLLAMA_ENDPOINT: "http://ollama.ml.svc.cluster.local:11434"
+  OLLAMA_GENERATE_ENDPOINT: "http://ollama.ml.svc.cluster.local:11434/api/generate"
+  OLLAMA_CHAT_ENDPOINT: "http://ollama.ml.svc.cluster.local:11434/api/chat"
+
+  # Health check configuration
+  HEALTH_CHECK_TIMEOUT_MS: "5000"
+  HEALTH_CHECK_INTERVAL_MS: "10000"
+
+  # n8n Fallback Routing Pattern (JavaScript)
+  # Copy this pattern into n8n HTTP Request nodes with error handling
+  FALLBACK_ROUTING_PATTERN: |
+    // n8n Fallback Routing Pattern for GPU/CPU LLM inference
+    // Use in Code node before HTTP Request node
+
+    // Check vLLM health (GPU)
+    const healthCheck = async () => {
+      try {
+        const response = await $http.get('http://vllm-api.ml.svc.cluster.local:8000/health', {
+          timeout: 5000
+        });
+        return response.status === 200;
+      } catch (error) {
+        return false;
+      }
+    };
+
+    const vllmAvailable = await healthCheck();
+
+    if (vllmAvailable) {
+      // Use GPU-accelerated vLLM
+      return {
+        endpoint: 'http://vllm-api.ml.svc.cluster.local:8000/v1/completions',
+        mode: 'gpu',
+        model: 'TheBloke/deepseek-coder-6.7B-instruct-AWQ'
+      };
+    } else {
+      // Fallback to CPU Ollama
+      return {
+        endpoint: 'http://ollama.ml.svc.cluster.local:11434/api/generate',
+        mode: 'cpu',
+        model: 'llama3.2:1b'
+      };
+    }
