@@ -1,0 +1,27 @@
+# vLLM Model Cache PVC for home-lab
+# Namespace: ml
+#
+# Story: 12.4 - Deploy vLLM with 3-Model Configuration
+# FR: FR38 - Deploy vLLM for production inference
+# AC: #3 - Configure NFS Persistence for Model Cache
+#
+# Purpose: Persistent storage for HuggingFace model cache
+# Models persist across pod restarts, reducing startup time
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vllm-model-cache
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: vllm-server
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: model-cache
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 50Gi  # Space for multiple models (DeepSeek 6.7B ~5GB, future models)

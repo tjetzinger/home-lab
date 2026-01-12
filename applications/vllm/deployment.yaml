@@ -1,0 +1,110 @@
+# vLLM Deployment for home-lab
+# Namespace: ml
+#
+# Story: 12.4 - Deploy vLLM with 3-Model Configuration
+# FR: FR38 - Deploy vLLM for production inference
+# FR: FR72 - vLLM serves models via OpenAI-compatible API
+# AC: #1 - Deploy vLLM in ml Namespace
+#
+# GPU Worker: Intel NUC + RTX 3060 eGPU (12GB VRAM)
+# Model: TheBloke/deepseek-coder-6.7B-instruct-AWQ (4-bit quantized, ~4GB VRAM)
+# Note: AWQ quantization enables 6.7B model on 12GB GPU
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: vllm-server
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server
+  strategy:
+    type: Recreate  # GPU workloads need exclusive access
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+        app.kubernetes.io/name: vllm
+        app.kubernetes.io/instance: vllm-server
+        app.kubernetes.io/part-of: home-lab
+        app.kubernetes.io/component: llm-inference
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        nvidia.com/gpu: "true"
+      tolerations:
+        - key: gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.5.5
+          args:
+            - --model
+            - TheBloke/deepseek-coder-6.7B-instruct-AWQ
+            - --quantization
+            - awq_marlin
+            - --gpu-memory-utilization
+            - "0.90"
+            - --max-model-len
+            - "8192"
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8000"
+            - --enforce-eager
+            - --trust-remote-code
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "1"
+              memory: 8Gi
+              nvidia.com/gpu: 1
+            limits:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+            - name: shm
+              mountPath: /dev/shm
+          env:
+            - name: HUGGING_FACE_HUB_TOKEN
+              value: ""  # Optional: Set via secret if using gated models
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 300  # MoE model loading takes longer
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 180
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: model-cache
+          hostPath:
+            path: /var/lib/vllm/huggingface
+            type: DirectoryOrCreate
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi

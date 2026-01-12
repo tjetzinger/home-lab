@@ -1,0 +1,79 @@
+# vLLM IngressRoute for home-lab
+# Namespace: ml
+#
+# Story: 12.4 - Deploy vLLM with 3-Model Configuration
+# FR: FR38 - Deploy vLLM for production inference
+# AC: #2 - Create Service and IngressRoute
+# NFR: NFR7 - All ingress traffic uses TLS 1.2+ with valid certificates
+#
+# Access: https://vllm.home.jetzinger.com
+# Security: HTTPS-only via Let's Encrypt, Tailscale VPN for remote access
+---
+# Certificate for vllm.home.jetzinger.com
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: vllm-tls
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: vllm-server
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+spec:
+  secretName: vllm-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - vllm.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# HTTPS IngressRoute for vLLM API
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vllm-https
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: vllm-server
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`vllm.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: vllm-api
+          port: 8000
+  tls:
+    secretName: vllm-tls
+---
+# HTTP to HTTPS redirect for vLLM
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vllm-redirect
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: vllm-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`vllm.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: ml
+      services:
+        - name: vllm-api
+          port: 8000
