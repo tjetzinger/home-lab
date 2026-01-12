@@ -1,6 +1,6 @@
 # Story 12.1: Install Ubuntu 22.04 on Intel NUC and Configure eGPU
 
-Status: ready-for-dev
+Status: in-progress
 
 ## Story
 
@@ -50,7 +50,7 @@ And eGPU auto-connects on boot
 **DRAFT TASKS** - Generated from requirements analysis. Will be validated and refined against actual codebase when dev-story runs.
 
 - [ ] Task 1: Install Ubuntu 22.04 on Intel NUC (AC: #1)
-  - [ ] 1.1 Create bootable USB with Ubuntu 22.04 LTS Desktop
+  - [x] 1.1 Create bootable USB with Ubuntu 22.04 LTS Desktop
   - [ ] 1.2 Install Ubuntu Desktop (Xorg session - required for gaming in Story 13)
   - [ ] 1.3 Configure static IP 192.168.0.25 via netplan (local network)
   - [ ] 1.4 Set hostname to `k3s-gpu-worker`
@@ -198,13 +198,13 @@ Then run `sudo update-grub && sudo reboot`
 ## Dev Agent Record
 
 ### Agent Model Used
-_To be filled during dev-story execution_
+Claude Opus 4.5 (claude-opus-4-5-20251101) - Guided hardware setup mode
 
 ### Debug Log References
 _To be filled during implementation_
 
 ### Completion Notes List
-_To be filled as tasks complete_
+- **1.1 Create bootable USB** (2026-01-12): Downloaded ubuntu-22.04.5-desktop-amd64.iso (4.44GB), wrote to /dev/sdc (SanDisk 57.3GB) using dd
 
 ### File List
 _To be filled with modified/created files_
@@ -216,3 +216,4 @@ _To be filled with modified/created files_
 | Date | Action | Notes |
 |------|--------|-------|
 | 2026-01-11 | Gap analysis performed | Tasks validated against codebase - 100% accuracy, story ready for implementation |
+| 2026-01-12 | Task 1.1 completed | Created bootable USB with Ubuntu 22.04.5 LTS Desktop |
