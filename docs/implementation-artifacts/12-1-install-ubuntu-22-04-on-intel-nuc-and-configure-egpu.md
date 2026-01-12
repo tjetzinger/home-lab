@@ -1,6 +1,6 @@
 # Story 12.1: Install Ubuntu 22.04 on Intel NUC and Configure eGPU
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -49,38 +49,38 @@ And eGPU auto-connects on boot
 
 **DRAFT TASKS** - Generated from requirements analysis. Will be validated and refined against actual codebase when dev-story runs.
 
-- [ ] Task 1: Install Ubuntu 22.04 on Intel NUC (AC: #1)
+- [x] Task 1: Install Ubuntu 22.04 on Intel NUC (AC: #1)
   - [x] 1.1 Create bootable USB with Ubuntu 22.04 LTS Desktop
-  - [ ] 1.2 Install Ubuntu Desktop (Xorg session - required for gaming in Story 13)
-  - [ ] 1.3 Configure static IP 192.168.0.25 via netplan (local network)
-  - [ ] 1.4 Set hostname to `k3s-gpu-worker`
-  - [ ] 1.5 Configure SSH with key-based auth (disable password auth)
-  - [ ] 1.6 Run `sudo apt update && sudo apt upgrade -y`
+  - [x] 1.2 Install Ubuntu Desktop (Xorg session - required for gaming in Story 13)
+  - [x] 1.3 Configure static IP 192.168.0.25 via nmcli (local network)
+  - [x] 1.4 Set hostname to `k3s-gpu-worker`
+  - [x] 1.5 Configure SSH with key-based auth (disable password auth)
+  - [x] 1.6 Run `sudo apt update && sudo apt upgrade -y`
 
-- [ ] Task 2: Configure eGPU via Thunderbolt (AC: #2)
-  - [ ] 2.1 Connect RTX 3060 eGPU enclosure via Thunderbolt
-  - [ ] 2.2 Install bolt utilities: `sudo apt install bolt`
-  - [ ] 2.3 List devices: `boltctl list`
-  - [ ] 2.4 Authorize eGPU device: `boltctl authorize <uuid>`
-  - [ ] 2.5 Verify NVIDIA detection: `lspci | grep NVIDIA`
+- [x] Task 2: Configure eGPU via Thunderbolt (AC: #2)
+  - [x] 2.1 Connect RTX 3060 eGPU enclosure via Thunderbolt
+  - [x] 2.2 Install bolt utilities: `sudo apt install bolt`
+  - [x] 2.3 List devices: `boltctl list`
+  - [x] 2.4 Authorize eGPU device: `boltctl authorize <uuid>`
+  - [x] 2.5 Verify NVIDIA detection: `lspci | grep NVIDIA`
 
-- [ ] Task 3: Install NVIDIA Drivers (AC: #3)
-  - [ ] 3.1 Configure kernel parameters for PCIe hot-plug support in /etc/default/grub
-  - [ ] 3.2 Configure thunderbolt module to load before nvidia_drm
-  - [ ] 3.3 Install driver package: `sudo apt install nvidia-driver-535`
-  - [ ] 3.4 Configure nvidia-drm.modeset=1 in /etc/modprobe.d/nvidia-drm.conf
-  - [ ] 3.5 Reboot system
-  - [ ] 3.6 Verify `nvidia-smi` shows RTX 3060 with 12GB VRAM
-  - [ ] 3.7 Verify driver version is 535+
-  - [ ] 3.8 Enable nvidia-persistenced daemon: `sudo systemctl enable --now nvidia-persistenced`
+- [x] Task 3: Install NVIDIA Drivers (AC: #3)
+  - [x] 3.1 ~~Configure kernel parameters for PCIe hot-plug support~~ (SKIPPED - broke ethernet, not needed)
+  - [x] 3.2 Configure thunderbolt module to load before nvidia_drm
+  - [x] 3.3 Install driver package: `sudo apt install nvidia-driver-535`
+  - [x] 3.4 Configure nvidia-drm.modeset=1 in /etc/modprobe.d/nvidia-drm.conf
+  - [x] 3.5 Reboot system
+  - [x] 3.6 Verify `nvidia-smi` shows RTX 3060 with 12GB VRAM
+  - [x] 3.7 Verify driver version is 535+
+  - [x] 3.8 Enable nvidia-persistenced daemon: `sudo systemctl enable --now nvidia-persistenced`
 
-- [ ] Task 4: Configure System Hardening (AC: #4)
-  - [ ] 4.1 Enable UFW: `sudo ufw enable`
-  - [ ] 4.2 Allow SSH: `sudo ufw allow ssh`
-  - [ ] 4.3 Allow K3s ports: 6443, 10250, 10251
-  - [ ] 4.4 Configure unattended-upgrades
-  - [ ] 4.5 Configure eGPU auto-authorize on boot via boltctl
-  - [ ] 4.6 Document cold-plug requirement (eGPU must be connected before boot)
+- [x] Task 4: Configure System Hardening (AC: #4)
+  - [x] 4.1 Enable UFW: `sudo ufw enable`
+  - [x] 4.2 Allow SSH: `sudo ufw allow ssh`
+  - [x] 4.3 Allow K3s ports: 6443, 10250, 10251, 8472/udp, 51820/udp, 41641/udp
+  - [x] 4.4 Configure unattended-upgrades
+  - [x] 4.5 Configure eGPU auto-authorize on boot via boltctl (iommu policy)
+  - [x] 4.6 Document cold-plug requirement (eGPU must be connected before boot)
 
 ## Gap Analysis
 
@@ -160,11 +160,12 @@ This is a **hardware setup story** - tasks are performed on physical Intel NUC h
 - Cannot safely remove eGPU while system running
 
 **Required Kernel Parameters:**
-Add to `/etc/default/grub` GRUB_CMDLINE_LINUX_DEFAULT:
+~~Add to `/etc/default/grub` GRUB_CMDLINE_LINUX_DEFAULT:~~
 ```
 pcie_ports=native pci=assign-busses,hpbussize=0x33,realloc,hpmmiosize=128M,hpmmioprefsize=16G
 ```
-Then run `sudo update-grub && sudo reboot`
+**WARNING: DO NOT USE** - These parameters break Intel NUC's built-in ethernet (enp88s0 disappears).
+The eGPU works fine without any kernel parameters on Intel NUC 11+.
 
 **Driver Load Order:**
 - thunderbolt module MUST load before nvidia_drm
@@ -204,7 +205,16 @@ Claude Opus 4.5 (claude-opus-4-5-20251101) - Guided hardware setup mode
 _To be filled during implementation_
 
 ### Completion Notes List
-- **1.1 Create bootable USB** (2026-01-12): Downloaded ubuntu-22.04.5-desktop-amd64.iso (4.44GB), wrote to /dev/sdc (SanDisk 57.3GB) using dd
+- **1.1 Create bootable USB** (2026-01-12): Downloaded ubuntu-22.04.5-desktop-amd64.iso (4.44GB), wrote to /dev/sdc using dd
+- **1.2 Install Ubuntu** (2026-01-12): Minimal installation, no LVM, Xorg session
+- **1.3 Static IP** (2026-01-12): Configured via nmcli (NetworkManager), 192.168.0.25/24, gw 192.168.0.1
+- **1.4 Hostname** (2026-01-12): Set during install to k3s-gpu-worker
+- **1.5 SSH** (2026-01-12): Password auth disabled in /etc/ssh/sshd_config
+- **1.6 Updates** (2026-01-12): 258 packages upgraded
+- **2.1-2.5 eGPU** (2026-01-12): Razer Core X detected, RTX 3060 (GA106 LHR) visible at 2f:00.0
+- **3.1 Kernel params** (2026-01-12): SKIPPED - pcie_ports=native broke Intel NUC ethernet (enp88s0 disappeared), reverted
+- **3.2-3.8 NVIDIA** (2026-01-12): Driver 535.274.02, CUDA 12.2, 12GB VRAM, nvidia-persistenced enabled
+- **4.1-4.6 Hardening** (2026-01-12): UFW enabled with K3s/Tailscale ports, unattended-upgrades, eGPU iommu policy
 
 ### File List
 _To be filled with modified/created files_
@@ -217,3 +227,4 @@ _To be filled with modified/created files_
 |------|--------|-------|
 | 2026-01-11 | Gap analysis performed | Tasks validated against codebase - 100% accuracy, story ready for implementation |
 | 2026-01-12 | Task 1.1 completed | Created bootable USB with Ubuntu 22.04.5 LTS Desktop |
+| 2026-01-12 | Story completed | All tasks done. Note: PCIe kernel params broke ethernet - not needed for eGPU on Intel NUC |
