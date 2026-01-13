@@ -159,6 +159,6 @@ development_status:
   epic-13: in-progress
   13-1-install-steam-and-proton-on-intel-nuc: done
   13-2-configure-mode-switching-script: done
-  13-3-integrate-n8n-fallback-routing: backlog
+  13-3-integrate-n8n-fallback-routing: done
   13-4-validate-gaming-performance: backlog
   epic-13-retrospective: optional

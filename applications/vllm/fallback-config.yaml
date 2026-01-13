@@ -55,17 +55,17 @@ data:
     const vllmAvailable = await healthCheck();
 
     if (vllmAvailable) {
-      // Use GPU-accelerated vLLM
+      // Use GPU-accelerated vLLM (OpenAI-compatible API)
       return {
-        endpoint: 'http://vllm-api.ml.svc.cluster.local:8000/v1/completions',
+        endpoint: 'http://vllm-api.ml.svc.cluster.local:8000/v1/chat/completions',
         mode: 'gpu',
-        model: 'TheBloke/deepseek-coder-6.7B-instruct-AWQ'
+        model: 'Qwen/Qwen2.5-7B-Instruct-AWQ'
       };
     } else {
-      // Fallback to CPU Ollama
+      // Fallback to CPU Ollama (Ollama API format)
       return {
-        endpoint: 'http://ollama.ml.svc.cluster.local:11434/api/generate',
+        endpoint: 'http://ollama.ml.svc.cluster.local:11434/api/chat',
         mode: 'cpu',
-        model: 'llama3.2:1b'
+        model: 'qwen2.5:3b'  // Use qwen2.5:3b for better quality fallback
       };
     }

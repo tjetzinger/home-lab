@@ -61,3 +61,23 @@ spec:
             runbook_url: "https://github.com/yourusername/home-lab/blob/main/docs/runbooks/nfs-recovery.md"
             impact: "New PVC requests will fail. Stateful workloads cannot scale or restart successfully."
             action: "Check NFS provisioner pod status, logs, and Synology NFS export accessibility. Verify network connectivity to Synology."
+
+        # vLLM GPU Inference Unavailable Alert (P2 - Informational)
+        # Story: 13.3 - Integrate n8n Fallback Routing
+        # FR: FR98 - Gaming Mode enables CPU fallback
+        # AC: #4 - Degraded Mode Alerting
+        - alert: VLLMGPUUnavailable
+          expr: |
+            kube_deployment_status_replicas_available{deployment="vllm-server", namespace="ml"} == 0
+          for: 30s  # Wait 30s to avoid alerting during normal mode transitions
+          labels:
+            severity: warning
+            component: ml-inference
+            service: vllm
+            priority: P2
+          annotations:
+            summary: "GPU unavailable - using CPU fallback"
+            description: "vLLM GPU inference is unavailable. AI workflows are using Ollama CPU fallback with degraded performance."
+            runbook_url: "https://github.com/tjetzinger/home-lab/blob/main/docs/runbooks/egpu-hotplug.md"
+            impact: "AI inference latency increased. Using CPU-only Ollama with smaller models."
+            action: "If gaming, this is expected. Otherwise run 'gpu-mode ml' on k3s-gpu-worker to restore GPU inference."
