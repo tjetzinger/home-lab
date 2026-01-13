@@ -1,4 +1,4 @@
-# generated: 2026-01-11
+# generated: 2026-01-13
 # project: home-lab
 # tracking_system: file-system
 # story_location: docs/implementation-artifacts
@@ -32,7 +32,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-01-11
+generated: 2026-01-13
 project: home-lab
 tracking_system: file-system
 story_location: docs/implementation-artifacts
@@ -112,7 +112,7 @@ development_status:
   9-1-structure-public-github-repository: done
   9-2-create-architecture-decision-records: done
   9-3-capture-and-document-grafana-screenshots: done
-  9-4-write-and-publish-first-technical-blog-post: in-progress
+  9-4-write-and-publish-first-technical-blog-post: ready-for-dev
   9-5-document-all-deployed-services: done
   epic-9-retrospective: optional
 
@@ -141,7 +141,7 @@ development_status:
   11-6-validate-vs-code-remote-ssh-configuration: skipped
   epic-11-retrospective: optional
 
-  # Epic 12: GPU/ML Inference Platform (vLLM + RTX 3060)
+  # Epic 12: GPU/ML Inference Platform (Ollama + Qwen 2.5 14B)
   epic-12: in-progress
   12-1-install-ubuntu-22-04-on-intel-nuc-and-configure-egpu: done
   12-2-configure-tailscale-mesh-on-all-k3s-nodes: done
@@ -149,7 +149,9 @@ development_status:
   12-4-deploy-vllm-with-3-model-configuration: done
   12-5-configure-hot-plug-and-graceful-degradation: done
   12-6-gpu-metrics-and-performance-validation: done
-  12-7-deploy-paperless-ai-with-gpu-ollama-integration: backlog
+  12-7-deploy-paperless-ai-with-gpu-ollama-integration: done
+  12-8-upgrade-ollama-model-to-qwen-2-5-14b: backlog
+  12-9-migrate-to-clusterzx-paperless-ai: backlog
   epic-12-retrospective: optional
 
   # Epic 13: Steam Gaming Platform (Dual-Use GPU)

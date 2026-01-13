@@ -12,7 +12,7 @@ researchCount: 1
 brainstormingCount: 1
 projectDocsCount: 0
 date: '2025-12-27'
-lastUpdated: '2026-01-11'
+lastUpdated: '2026-01-13'
 author: 'Tom'
 project_name: 'home-lab'
 ---
@@ -20,16 +20,18 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-01-11
+**Date:** 2025-12-27 | **Last Updated:** 2026-01-13
 
 **Changelog:**
+- 2026-01-13: Removed Story 12.10 (GPU Ollama) - Ollama stays on CPU worker for fallback availability. Removed FR109-110, updated NFR61-62 for CPU performance
+- 2026-01-13: Unified LLM Architecture - Single Qwen 2.5 14B model replaces vLLM multi-model. Updated FR38, FR72-73, FR94, FR98-99, FR104 and NFR34-38, NFR50, NFR58 for unified model
 - 2026-01-11: Added Multi-Subnet GPU Worker Networking - Solution A with Tailscale mesh (FR100-103, NFR55-57)
 - 2026-01-11: Added Steam Gaming Platform with mode switching for shared GPU usage (FR94-99, NFR50-54)
 - 2026-01-09: Added email inbox integration for private email/Gmail with Bridge container (FR90-93, NFR48-49)
 - 2026-01-09: Added Stirling-PDF and Paperless-AI with GPU Ollama (FR84-89, NFR44-47)
 - 2026-01-09: Added Tika/Gotenberg Office document processing (FR81-83, NFR42-43)
 - 2026-01-09: Added Paperless-ngx configuration and NFS integration requirements (FR75-80, NFR39-41)
-- 2026-01-08: Added Phase 2 requirements - Paperless-ngx (FR64-66, NFR28-30), Dev Containers (FR67-70, NFR31-33), vLLM GPU (FR71-74, NFR34-38)
+- 2026-01-08: Added Phase 2 requirements - Paperless-ngx (FR64-66, NFR28-30), Dev Containers (FR67-70, NFR31-33), GPU ML (FR71-74, NFR34-38)
 - 2026-01-08: Updated FR66 - PostgreSQL backend moved from "deferred" to Epic 10, Story 10.2 (active implementation)
 
 ## Executive Summary
@@ -65,7 +67,7 @@ The project applies 10+ years of automotive distributed systems experience—OTA
 - Storage: NFS via Synology DS920+
 - Networking: Traefik ingress, MetalLB, Tailscale
 - Observability: Prometheus, Grafana
-- AI/ML: Ollama, vLLM, n8n
+- AI/ML: Ollama (Qwen 2.5 14B unified model), n8n
 - GPU: NVIDIA RTX 3060 via eGPU (future)
 - Gaming: Steam + Proton on Intel NUC host OS (shared GPU with K8s)
 - Document Management: Paperless-ngx
@@ -96,7 +98,7 @@ The project applies 10+ years of automotive distributed systems experience—OTA
 |--------|--------|-------------|
 | Cluster uptime | 95%+ | Prometheus alerts |
 | All planned services | Deployed and healthy | `kubectl get pods` |
-| GPU workloads | Ollama/vLLM responding | API health checks |
+| GPU workloads | Ollama (Qwen 2.5 14B) responding | API health checks |
 | Storage reliability | No data loss | NFS mount status |
 | Component explanation | 100% of infrastructure | Self-assessment |
 
@@ -125,7 +127,7 @@ The project applies 10+ years of automotive distributed systems experience—OTA
 
 **Growth Phase:**
 - GPU worker with NVIDIA Operator
-- vLLM production inference
+- GPU-accelerated Ollama (Qwen 2.5 14B)
 - Rancher cluster management
 - n8n workflow automation
 - GitOps (ArgoCD/Flux)
@@ -265,7 +267,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 | `monitoring` | Prometheus, Grafana, Alertmanager | Moderate |
 | `data` | PostgreSQL, future databases | High memory |
 | `apps` | General applications, n8n | Moderate |
-| `ml` | Ollama, vLLM, GPU workloads | GPU-enabled, high resources |
+| `ml` | Ollama (Qwen 2.5 14B), GPU workloads | GPU-enabled, high resources |
 | `docs` | Paperless-ngx, Redis | Moderate |
 | `dev` | Nginx reverse proxy, dev containers, git worktrees | High |
 
@@ -301,7 +303,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 | Hardware | Intel NUC11TNKi5 + RTX 3060 eGPU (12GB VRAM) |
 | Operator | NVIDIA GPU Operator |
 | Scheduling | Dedicated `ml` namespace with GPU resource requests |
-| Primary Workloads | Ollama (inference), vLLM (production serving) |
+| Primary Workloads | Ollama (Qwen 2.5 14B unified inference) |
 | Resource Strategy | GPU exclusive to ML namespace |
 
 ### Backup & Recovery
@@ -372,7 +374,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 - Intel NUC with RTX 3060 eGPU as GPU worker
 - NVIDIA GPU Operator for GPU scheduling
-- vLLM for production-grade inference
+- GPU-accelerated Ollama inference
 - Rancher for cluster management UI
 - n8n for workflow automation
 - GitOps implementation (ArgoCD or Flux)
@@ -455,14 +457,14 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 - FR36: Operator can deploy Ollama for LLM inference
 - FR37: Applications can query Ollama API for completions
-- FR38: Operator can deploy vLLM for production inference
+- FR38: Operator can deploy Ollama with Qwen 2.5 14B for unified GPU inference
 - FR39: GPU workloads can request GPU resources via NVIDIA Operator
 - FR40: Operator can deploy n8n for workflow automation
 - FR71: GPU worker (Intel NUC + RTX 3060 eGPU) joins cluster via Tailscale mesh (Solution A: all nodes run Tailscale)
-- FR72: vLLM serves Mistral 7B and Llama 3.1 8B models simultaneously
-- FR73: vLLM workloads gracefully degrade to Ollama CPU when GPU worker unavailable
+- FR72: Ollama serves Qwen 2.5 14B as unified model for all inference tasks (code, classification, general)
+- FR73: GPU Ollama gracefully degrades to CPU Ollama when GPU worker unavailable
 - FR74: Operator can hot-plug GPU worker (add/remove on demand without cluster disruption)
-- FR94: vLLM gracefully degrades when GPU is unavailable due to host workloads (Steam gaming)
+- FR94: Ollama gracefully degrades to CPU when GPU is unavailable due to host workloads (Steam gaming)
 
 ### Document Management Configuration (Paperless-ngx)
 
@@ -496,6 +498,11 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - FR87: Paperless-AI deployed connecting Paperless-ngx to Ollama on GPU worker (Intel NUC + RTX 3060)
 - FR88: Documents auto-tagged using LLM-based classification via GPU-accelerated inference
 - FR89: Correspondents and document types auto-populated from document content
+- FR104: Ollama configured with Qwen 2.5 14B model for reliable JSON-structured document metadata extraction (Story 12.8)
+- FR105: Paperless-AI model configurable via ConfigMap without code changes (Story 12.8)
+- FR106: clusterzx/paperless-ai deployed with web-based configuration UI replacing basic processor (Story 12.9)
+- FR107: RAG-based document chat enables natural language queries across document archive (Story 12.9)
+- FR108: Document classification rules configurable via web interface without YAML editing (Story 12.9)
 
 ### Email Inbox Integration (Paperless-ngx)
 
@@ -509,8 +516,8 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - FR95: Intel NUC runs Steam on host Ubuntu OS (not containerized)
 - FR96: Steam uses Proton for Windows game compatibility
 - FR97: Operator can switch between Gaming Mode and ML Mode via script
-- FR98: Gaming Mode scales vLLM pods to 0 and enables Ollama CPU fallback
-- FR99: ML Mode restores vLLM pods when Steam/gaming exits
+- FR98: Gaming Mode scales Ollama pods to 0 and enables CPU fallback
+- FR99: ML Mode restores GPU Ollama pods when Steam/gaming exits
 
 ### Multi-Subnet GPU Worker Networking (Solution A)
 
@@ -622,12 +629,12 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 ### GPU/ML Infrastructure
 
-- NFR34: vLLM achieves 50+ tokens/second for Mistral 7B and Llama 3.1 8B on RTX 3060
-- NFR35: vLLM handles 2-3 concurrent inference requests without significant performance degradation
+- NFR34: Ollama achieves 35-40 tokens/second for Qwen 2.5 14B on RTX 3060
+- NFR35: Ollama handles 2-3 concurrent inference requests without significant performance degradation
 - NFR36: GPU worker joins cluster and becomes Ready within 2 minutes of boot via Tailscale
 - NFR37: NVIDIA GPU Operator installs and configures GPU drivers automatically (no manual setup)
-- NFR38: vLLM serves multiple models simultaneously (Mistral 7B + Llama 3.1 8B)
-- NFR50: vLLM detects GPU unavailability (host workload) within 10 seconds
+- NFR38: Ollama serves Qwen 2.5 14B as unified model for all tasks (code, classification, general)
+- NFR50: Ollama detects GPU unavailability (host workload) within 10 seconds
 
 ### NFS Compatibility (Paperless-ngx)
 
@@ -649,6 +656,11 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 - NFR46: Document classification completes within 60 seconds using GPU-accelerated Ollama
 - NFR47: Auto-tagging accuracy achieves 80%+ for common document types (invoices, contracts, receipts)
+- NFR58: Qwen 2.5 14B produces valid JSON output for 95%+ of document classification requests (Story 12.8)
+- NFR59: RAG document search returns relevant context within 5 seconds (Story 12.9)
+- NFR60: Web UI configuration changes take effect without pod restart (Story 12.9)
+- NFR61: CPU Ollama with Qwen 2.5 14B achieves acceptable inference speed for document classification (Story 12.8)
+- NFR62: Document classification latency <60 seconds with CPU Ollama (acceptable for batch processing) (Story 12.8)
 
 ### Email Integration (Paperless-ngx)
 
