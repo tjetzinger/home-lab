@@ -3,7 +3,7 @@ stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
 lastModified: '2026-01-13'
-updateReason: 'Unified LLM Architecture: Single Qwen 2.5 14B model for all tasks. Ollama on CPU worker (k3s-worker-02) for reliable fallback when GPU unavailable. Removed Story 12.10 (GPU Ollama migration). FR104-108, NFR58-62 (CPU performance).'
+updateReason: 'Story 12.10: vLLM GPU Integration for Paperless-AI. vLLM serves qwen2.5:14b on GPU as primary backend. Paperless-AI uses AI_PROVIDER=custom with OpenAI-compatible vLLM endpoint. Ollama downgraded to slim models (llama3.2:1b, qwen2.5:3b) for experiments only. k3s-worker-02 RAM reduced 32GB→8GB. FR109-112, NFR63-64.'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -23,7 +23,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements:** 108 FRs across 16 capability areas
+**Functional Requirements:** 112 FRs across 16 capability areas
 - Cluster Operations (6): K3s lifecycle, node management
 - Workload Management (7): Deployments, Helm, ingress
 - Storage Management (5): NFS, PVCs, dynamic provisioning
@@ -39,7 +39,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Gaming Platform (5): Steam, Proton, mode switching, fallback routing
 - Multi-Subnet Networking (4): Tailscale mesh, Flannel over VPN
 
-**Non-Functional Requirements:** 62 NFRs
+**Non-Functional Requirements:** 64 NFRs
 - Reliability: 95% uptime, 5-min recovery, automatic pod rescheduling
 - Security: TLS 1.2+, Tailscale-only access, encrypted secrets
 - Performance: 30s Ollama response, 5s dashboard load
@@ -176,41 +176,41 @@ Traditional "starter templates" don't apply. Instead, we evaluate infrastructure
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Unified LLM** | **Ollama + Qwen 2.5 14B** | **Single model for all tasks: code, classification, general inference. 75% larger = significantly smarter** |
+| **Primary GPU LLM** | **vLLM + Qwen 2.5 14B** | **FR109: OpenAI-compatible API, optimized GPU inference, serves Paperless-AI** |
 | **GPU Worker** | **Intel NUC + RTX 3060 12GB eGPU** | **FR71: Hot-pluggable GPU worker via Tailscale** |
 | **GPU Networking** | **Dual-stack: 192.168.0.x (local) + Tailscale (K3s)** | **FR71, FR74: Hot-plug capability, cross-subnet support** |
 | **VRAM Usage** | **~8-9GB (Qwen 2.5 14B quantized)** | **Leaves 3-4GB headroom for KV cache; gaming requires mode switch** |
-| **Graceful Degradation** | **GPU Ollama → CPU Ollama fallback** | **FR73: No downtime when GPU worker unavailable** |
+| **Graceful Degradation** | **vLLM GPU → OpenAI API fallback (Epic 13)** | **FR73: Cloud fallback when GPU unavailable, routed via n8n** |
+| **Ollama Role** | **Experimental only (slim models)** | **FR111: llama3.2:1b + qwen2.5:3b on k3s-worker-02 (8GB RAM)** |
 | Model Storage | NFS PVC | Persist downloaded models |
 | GPU Scheduling | NVIDIA GPU Operator | Automatic driver installation, GPU resource management |
 
-**Unified Model Strategy (Quality-Optimized):**
+**GPU Inference Strategy (Story 12.10):**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Single Model: Qwen 2.5 14B (4-bit quantized)              │
+│  vLLM on GPU (k3s-gpu-worker): Qwen 2.5 14B                │
 │  VRAM: ~8-9GB on RTX 3060 (12GB total)                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Use Cases (all served by one model):                       │
-│  ├── Code generation & review (rivals GPT-4 on benchmarks) │
-│  ├── Document classification (Paperless-AI)                 │
-│  ├── General inference (n8n workflows)                      │
+│  Primary Use Cases (GPU-accelerated):                       │
+│  ├── Document classification (Paperless-AI via /v1/chat)   │
+│  ├── Code generation & review (GPT-4 level quality)        │
+│  ├── General inference (n8n workflows - future)            │
 │  └── Complex reasoning tasks                                │
 ├─────────────────────────────────────────────────────────────┤
-│  Why Qwen 2.5 14B over Llama 3.1 8B:                       │
-│  ├── 75% larger model = noticeably smarter                 │
-│  ├── Top-tier code generation quality                       │
-│  ├── Excellent JSON/structured output                       │
-│  ├── Strong multilingual support (German docs)             │
-│  └── Active development, frequent improvements              │
+│  Why vLLM over Ollama for GPU:                             │
+│  ├── OpenAI-compatible API (works with AI_PROVIDER=custom) │
+│  ├── Optimized GPU inference (PagedAttention)              │
+│  ├── Better batching and throughput                        │
+│  └── Standard /v1/completions endpoint                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Trade-offs:                                                │
-│  ├── Slower: ~35-40 tok/s vs ~50-60 tok/s                  │
-│  └── Gaming requires mode switch (no hybrid mode)          │
+│  Fallback Strategy (Epic 13):                              │
+│  ├── Primary: vLLM GPU (~5s latency)                       │
+│  └── Fallback: OpenAI gpt-4o-mini via n8n routing          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Qwen 2.5 14B Performance:**
+**Qwen 2.5 14B Performance on vLLM:**
 - **Speed:** ~35-40 tok/s on RTX 3060
 - **Code quality:** ★★★★★ (rivals GPT-4 on HumanEval)
 - **JSON output:** ★★★★★ (reliable structured output)
@@ -222,7 +222,7 @@ Traditional "starter templates" don't apply. Instead, we evaluate infrastructure
 Intel NUC (192.168.0.x local network)
   └─ Tailscale VPN (stable IP for K3s)
       └─ K3s node join via Tailscale IP
-          └─ Ollama Pod scheduled with GPU resource request
+          └─ vLLM Pod scheduled with GPU resource request
               └─ NVIDIA GPU Operator manages drivers/runtime
                   └─ Qwen 2.5 14B loaded (~8-9GB VRAM)
 ```
@@ -230,13 +230,23 @@ Intel NUC (192.168.0.x local network)
 **Hot-Plug Workflow (FR74):**
 1. GPU worker boots → Tailscale connects → K3s detects node
 2. Operator uncordons node: `kubectl uncordon k3s-gpu-worker`
-3. Ollama Pod schedules to GPU node (GPU resource request)
-4. GPU worker shutdown → Node marked NotReady → Ollama continues on CPU worker (degraded)
+3. vLLM Pod schedules to GPU node (GPU resource request)
+4. GPU worker shutdown → Node marked NotReady → Fallback to OpenAI (Epic 13)
 
-**Integration Pattern:**
-- Ollama exposes OpenAI-compatible API at `http://ollama.ml.svc.cluster.local:11434`
-- All consumers (n8n, Paperless-AI, dev tools) use same endpoint
+**Ollama (Experimental - k3s-worker-02):**
+```
+k3s-worker-02 (8GB RAM - reduced from 32GB)
+  └─ Ollama Pod (CPU inference only)
+      └─ Slim models for experimentation:
+          ├── llama3.2:1b (~1GB, fast chat)
+          └── qwen2.5:3b (~2GB, light inference)
+```
+
+**Integration Patterns:**
+- vLLM exposes OpenAI-compatible API at `http://vllm.ml.svc.cluster.local:8000/v1`
+- Paperless-AI uses `AI_PROVIDER=custom` with vLLM endpoint
 - Model parameter: `"model": "qwen2.5:14b"`
+- Ollama available at `http://ollama.ml.svc.cluster.local:11434` for experiments
 
 ### Dual-Use GPU Architecture (ML + Gaming)
 
@@ -245,13 +255,13 @@ Intel NUC (192.168.0.x local network)
 | **GPU Sharing Model** | **Exclusive Mode Switching** | **Qwen 2.5 14B uses ~8-9GB, gaming needs 6-10GB - no coexistence possible** |
 | **Host Gaming** | **Steam + Proton on Ubuntu 22.04** | **FR95-96: Native host performance, Windows game compatibility via Proton** |
 | **Mode Switching** | **Manual script with kubectl** | **FR97: Operator-controlled, explicit state transitions** |
-| **GPU Detection** | **Ollama health check + n8n routing** | **FR94, NFR50: Detect GPU unavailability within 10 seconds** |
-| **Fallback Strategy** | **Ollama CPU inference on k3s-worker-02** | **NFR54: Maintain <5s inference latency during Gaming Mode** |
+| **GPU Detection** | **vLLM health check + n8n routing** | **FR94, NFR50: Detect GPU unavailability within 10 seconds** |
+| **Fallback Strategy** | **OpenAI gpt-4o-mini via n8n routing (Epic 13)** | **NFR54: Cloud fallback when GPU unavailable** |
 
 **VRAM Budget (Quality-Optimized Model):**
 ```
 RTX 3060: 12GB VRAM total
-├── Ollama (Qwen 2.5 14B): ~8-9GB
+├── vLLM (Qwen 2.5 14B): ~8-9GB
 ├── KV Cache headroom: ~2-3GB
 ├── Gaming (any): 6-10GB → Always requires mode switch
 └── Trade-off: Better AI quality vs no hybrid mode
@@ -259,10 +269,10 @@ RTX 3060: 12GB VRAM total
 
 **Operational Modes:**
 
-| Mode | GPU Owner | Ollama Status | Inference Path | Use Case |
-|------|-----------|---------------|----------------|----------|
-| **ML Mode** | K8s (Ollama) | Running on GPU | GPU-accelerated (~35-40 tok/s) | Default, AI/ML workloads |
-| **Gaming Mode** | Host (Steam) | Scaled to 0 | CPU fallback (~5-10 tok/s) | Any gaming session |
+| Mode | GPU Owner | vLLM Status | Inference Path | Use Case |
+|------|-----------|-------------|----------------|----------|
+| **ML Mode** | K8s (vLLM) | Running on GPU | GPU-accelerated (~35-40 tok/s) | Default, AI/ML workloads |
+| **Gaming Mode** | Host (Steam) | Scaled to 0 | OpenAI fallback (Epic 13) | Any gaming session |
 
 **Mode Switching Architecture:**
 ```
@@ -278,7 +288,7 @@ RTX 3060: 12GB VRAM total
 │  K8s Worker Layer:                                          │
 │  ├── K3s agent (joins via Tailscale)                        │
 │  ├── NVIDIA GPU Operator + Device Plugin                    │
-│  └── Ollama pod with Qwen 2.5 14B (~8-9GB VRAM)            │
+│  └── vLLM pod with Qwen 2.5 14B (~8-9GB VRAM)              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -289,38 +299,38 @@ RTX 3060: 12GB VRAM total
 
 case "$1" in
   gaming)
-    # Scale down Ollama, release VRAM for Steam
-    kubectl scale deployment/ollama --replicas=0 -n ml
-    echo "Gaming Mode: Ollama scaled to 0, GPU available for Steam"
+    # Scale down vLLM, release VRAM for Steam
+    kubectl scale deployment/vllm --replicas=0 -n ml
+    echo "Gaming Mode: vLLM scaled to 0, GPU available for Steam"
     ;;
   ml)
-    # Restore Ollama for ML workloads
-    kubectl scale deployment/ollama --replicas=1 -n ml
-    echo "ML Mode: Ollama restored, GPU dedicated to inference"
+    # Restore vLLM for ML workloads
+    kubectl scale deployment/vllm --replicas=1 -n ml
+    echo "ML Mode: vLLM restored, GPU dedicated to inference"
     ;;
   status)
-    kubectl get deployment/ollama -n ml -o jsonpath='{.spec.replicas}'
+    kubectl get deployment/vllm -n ml -o jsonpath='{.spec.replicas}'
     ;;
 esac
 ```
 
-**n8n Fallback Routing (FR94, NFR54):**
+**n8n Fallback Routing (FR94, NFR54 - Epic 13):**
 ```javascript
-// n8n workflow: Check GPU Ollama availability before inference
-const ollamaHealth = await $http.get('http://ollama.ml.svc:11434/api/tags');
-if (ollamaHealth.status !== 200) {
-  // Fallback to CPU Ollama on worker node
-  return { endpoint: 'http://ollama-cpu.ml.svc:11434', mode: 'cpu' };
+// n8n workflow: Check vLLM GPU availability before inference
+const vllmHealth = await $http.get('http://vllm.ml.svc:8000/health');
+if (vllmHealth.status !== 200) {
+  // Fallback to OpenAI API when GPU unavailable
+  return { endpoint: 'https://api.openai.com/v1', model: 'gpt-4o-mini', mode: 'cloud' };
 }
-return { endpoint: 'http://ollama.ml.svc:11434', mode: 'gpu' };
+return { endpoint: 'http://vllm.ml.svc:8000/v1', model: 'qwen2.5:14b', mode: 'gpu' };
 ```
 
 **NFR Compliance:**
-- NFR50: Ollama health check fails within 10s when GPU unavailable
+- NFR50: vLLM health check fails within 10s when GPU unavailable
 - NFR51: Gaming Mode activation <30s (kubectl scale + VRAM release)
 - NFR52: Full 12GB VRAM available for 60+ FPS gaming at 1080p
 - NFR53: ML Mode restoration <2min (pod startup + model load)
-- NFR54: CPU Ollama maintains <5s inference latency (simple queries)
+- NFR54: OpenAI fallback maintains inference capability during Gaming Mode
 
 ### Multi-Subnet GPU Worker Network Architecture
 
@@ -500,38 +510,41 @@ helm install stirling-pdf stirling-pdf/stirling-pdf-chart -n docs
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **AI Connector** | **clusterzx/paperless-ai** | **FR106: Web UI config, RAG chat, active community (4.9k stars vs 10)** |
-| **LLM Model** | **Qwen 2.5 14B (unified)** | **FR104, NFR58: Single quality model for all tasks, excellent JSON output, strong German support** |
-| **LLM Backend** | **Ollama on CPU worker (k3s-worker-02)** | **Reliable fallback when GPU unavailable; CPU inference for document classification** |
+| **LLM Model** | **Qwen 2.5 14B** | **FR104, NFR58: Single quality model, excellent JSON output, strong German support** |
+| **LLM Backend** | **vLLM on GPU worker (k3s-gpu-worker)** | **FR109-110: GPU-accelerated inference via OpenAI-compatible API** |
+| **Fallback Strategy** | **OpenAI gpt-4o-mini (Epic 13)** | **FR73: Cloud fallback when GPU unavailable, routed via n8n** |
 | **Model Config** | **ConfigMap-based** | **FR105: Model selection without code changes** |
 | Deployment | Deployment in `docs` namespace | Watches Paperless API for new documents |
 | RAG Storage | NFS PVC for embeddings index | FR107: Persistent RAG index for document chat |
 
-**Quality-Optimized Architecture (Single Unified Model):**
+**GPU-Accelerated Architecture (Story 12.10):**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Unified Model: Qwen 2.5 14B on GPU (~8-9GB VRAM)          │
+│  vLLM on GPU: Qwen 2.5 14B (~8-9GB VRAM)                   │
 │                                                             │
-│  Serves ALL use cases with higher quality:                  │
-│  ├── Document classification (Paperless-AI) - German+EN    │
-│  ├── Code generation & review (GPT-4 level)                │
-│  ├── n8n workflow inference                                 │
-│  └── Complex reasoning tasks                                │
+│  Primary backend for Paperless-AI:                          │
+│  ├── Document classification (~5s latency)                  │
+│  ├── Excellent JSON output (95%+ valid)                    │
+│  ├── Strong German + English support                        │
+│  └── OpenAI-compatible API (/v1/chat/completions)          │
 │                                                             │
-│  Trade-off: Quality over speed (35-40 vs 50-60 tok/s)      │
+│  Fallback (Epic 13 via n8n):                               │
+│  └── OpenAI gpt-4o-mini when GPU unavailable               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Implementation Path (Stories 12.8 → 12.9):**
+**Implementation Path (Stories 12.8 → 12.10):**
 
 | Story | Change | Impact |
 |-------|--------|--------|
 | **12.8** | Upgrade llama3.2:1b → Qwen 2.5 14B | NFR58: 95%+ valid JSON, better quality |
 | **12.9** | Migrate to clusterzx/paperless-ai | FR106-108: Web UI, RAG chat, configurable rules |
+| **12.10** | Connect Paperless-AI to vLLM GPU | FR109-110: <5s classification latency |
 
 **Integration Pattern:**
 ```
-New Document → Paperless API → clusterzx/paperless-ai → Ollama (CPU) → Update Tags/Correspondent/Type
+New Document → Paperless API → clusterzx/paperless-ai → vLLM (GPU) → Update Tags/Correspondent/Type
                                       │
                                       └─→ RAG Index → Document Chat (FR107)
 ```
@@ -541,15 +554,15 @@ New Document → Paperless API → clusterzx/paperless-ai → Ollama (CPU) → U
 - Correspondent: Sender/organization extracted from content
 - Document Type: Invoice, contract, receipt, letter, etc.
 
-**clusterzx/paperless-ai Configuration:**
+**clusterzx/paperless-ai Configuration (Story 12.10):**
 ```yaml
 # Deployment environment variables
 env:
   PAPERLESS_URL: "http://paperless-paperless-ngx.docs.svc.cluster.local:8000"
   PAPERLESS_TOKEN: "<from-secret>"
-  AI_PROVIDER: "ollama"
-  OLLAMA_URL: "http://ollama.ml.svc.cluster.local:11434"
-  OLLAMA_MODEL: "qwen2.5:14b"
+  AI_PROVIDER: "custom"  # OpenAI-compatible endpoint
+  CUSTOM_BASE_URL: "http://vllm.ml.svc.cluster.local:8000/v1"
+  LLM_MODEL: "qwen2.5:14b"
   # RAG configuration
   ENABLE_RAG: "true"
   RAG_STORAGE_PATH: "/data/rag-index"
@@ -559,8 +572,8 @@ env:
 - NFR58: Qwen 2.5 14B produces valid JSON 95%+ of requests
 - NFR59: RAG search returns context within 5 seconds
 - NFR60: Web UI config changes without pod restart
-- NFR61: CPU Ollama with Qwen 2.5 14B achieves acceptable inference speed for document classification
-- NFR62: Document classification latency <60 seconds with CPU Ollama (acceptable for batch processing)
+- **NFR63: vLLM achieves <5 second document classification latency with GPU-accelerated qwen2.5:14b**
+- **NFR64: vLLM serves qwen2.5:14b with 35-40 tokens/second throughput on RTX 3060**
 
 ### Email Integration Architecture
 
@@ -923,8 +936,8 @@ Synology: /volume1/k8s-data/
 
 ### Requirements Coverage ✅
 
-**Functional Requirements:** 108/108 covered
-**Non-Functional Requirements:** 62/62 covered
+**Functional Requirements:** 112/112 covered
+**Non-Functional Requirements:** 64/64 covered
 
 All requirements have explicit architectural support documented in Core Architectural Decisions and Project Structure sections.
 
@@ -942,11 +955,13 @@ All requirements have explicit architectural support documented in Core Architec
 - FR100-103: Multi-Subnet GPU Worker Networking — covered by Multi-Subnet GPU Worker Network Architecture
 - **FR104-105: Ollama model upgrade to Qwen 2.5 14B, ConfigMap-based model config — covered by AI Document Classification Architecture (Story 12.8)**
 - **FR106-108: clusterzx/paperless-ai migration with Web UI, RAG chat, configurable rules — covered by AI Document Classification Architecture (Story 12.9)**
+- **FR109-112: vLLM GPU integration for Paperless-AI, OpenAI-compatible endpoint, Ollama slim models, k3s-worker-02 resource reduction — covered by AI/ML Architecture + AI Document Classification Architecture (Story 12.10)**
 - NFR50-54: Gaming Platform performance requirements — covered by Dual-Use GPU Architecture
 - NFR55-57: Multi-Subnet networking requirements — covered by Multi-Subnet GPU Worker Network Architecture
 - **NFR58: Qwen 2.5 14B JSON output quality (95%+) — covered by AI Document Classification Architecture (Story 12.8)**
 - **NFR59-60: RAG search latency, Web UI config hot-reload — covered by AI Document Classification Architecture (Story 12.9)**
 - **NFR61-62: CPU Ollama performance, classification latency (<60s) — covered by AI Document Classification Architecture (Story 12.8)**
+- **NFR63-64: vLLM GPU performance (<5s classification latency, 35-40 tok/s throughput) — covered by AI Document Classification Architecture (Story 12.10)**
 
 ### Implementation Readiness ✅
 
@@ -1011,10 +1026,10 @@ This architecture is ready for implementation because:
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 17 core architectural decisions made (added Paperless-AI Enhancement Architecture for Stories 12.8-12.9)
+- 17 core architectural decisions made (updated for Stories 12.8-12.10 including vLLM GPU integration)
 - 6 implementation pattern categories defined
 - 8 namespace boundaries established
-- 108 functional + 62 non-functional requirements supported
+- 112 functional + 64 non-functional requirements supported
 
 **AI Agent Implementation Guide**
 - Technology stack with Helm chart references

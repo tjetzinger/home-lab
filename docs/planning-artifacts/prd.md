@@ -23,6 +23,7 @@ project_name: 'home-lab'
 **Date:** 2025-12-27 | **Last Updated:** 2026-01-13
 
 **Changelog:**
+- 2026-01-13: Added Story 12.10 (vLLM GPU Integration for Paperless-AI) - vLLM serves qwen2.5:14b on GPU, Paperless-AI uses OpenAI-compatible endpoint, Ollama downgraded to slim models, k3s-worker-02 RAM reduced. Added FR109-112, NFR63-64. Epic 12 reopened.
 - 2026-01-13: Removed Story 12.10 (GPU Ollama) - Ollama stays on CPU worker for fallback availability. Removed FR109-110, updated NFR61-62 for CPU performance
 - 2026-01-13: Unified LLM Architecture - Single Qwen 2.5 14B model replaces vLLM multi-model. Updated FR38, FR72-73, FR94, FR98-99, FR104 and NFR34-38, NFR50, NFR58 for unified model
 - 2026-01-11: Added Multi-Subnet GPU Worker Networking - Solution A with Tailscale mesh (FR100-103, NFR55-57)
@@ -504,6 +505,13 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - FR107: RAG-based document chat enables natural language queries across document archive (Story 12.9)
 - FR108: Document classification rules configurable via web interface without YAML editing (Story 12.9)
 
+### vLLM GPU Integration (Story 12.10)
+
+- FR109: vLLM deployed with qwen2.5:14b model on GPU worker (k3s-gpu-worker) for primary inference
+- FR110: Paperless-AI configured with `AI_PROVIDER=custom` pointing to vLLM OpenAI-compatible endpoint (`/v1/completions`)
+- FR111: Ollama serves slim models (llama3.2:1b, qwen2.5:3b) for experimentation only, qwen2.5:14b removed
+- FR112: k3s-worker-02 resources reduced from 32GB to 8GB RAM after vLLM migration
+
 ### Email Inbox Integration (Paperless-ngx)
 
 - FR90: Paperless-ngx monitors private email inbox via IMAP for document attachments
@@ -661,6 +669,11 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - NFR60: Web UI configuration changes take effect without pod restart (Story 12.9)
 - NFR61: CPU Ollama with Qwen 2.5 14B achieves acceptable inference speed for document classification (Story 12.8)
 - NFR62: Document classification latency <60 seconds with CPU Ollama (acceptable for batch processing) (Story 12.8)
+
+### vLLM GPU Performance (Story 12.10)
+
+- NFR63: vLLM achieves <5 second document classification latency with GPU-accelerated qwen2.5:14b
+- NFR64: vLLM serves qwen2.5:14b with 35-40 tokens/second throughput on RTX 3060
 
 ### Email Integration (Paperless-ngx)
 

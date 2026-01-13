@@ -88,7 +88,7 @@ spec:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 300  # MoE model loading takes longer
+            initialDelaySeconds: 60   # Model loads in ~20s from cache
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 5
@@ -96,10 +96,10 @@ spec:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 180
-            periodSeconds: 15
-            timeoutSeconds: 10
-            failureThreshold: 5
+            initialDelaySeconds: 30   # Model loads in ~20s from cache
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10      # 30 + (10*10) = 130s max wait
       volumes:
         - name: model-cache
           hostPath:

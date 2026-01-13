@@ -10,8 +10,8 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'Removed Story 12.10 (GPU Ollama) - Ollama stays on CPU for fallback. Removed FR109-110, updated NFR61-62 for CPU performance. Unified Qwen 2.5 14B model.'
-currentStep: 'Workflow Complete - Architecture unified'
+updateReason: 'Added Story 12.10 (vLLM GPU Integration for Paperless-AI) - vLLM serves qwen2.5:14b on GPU, Paperless-AI uses OpenAI-compatible endpoint, Ollama downgraded to slim models, k3s-worker-02 RAM reduced. Added FR109-112, NFR63-64.'
+currentStep: 'Workflow Complete - Story 12.10 added'
 ---
 
 # home-lab - Epic Breakdown
@@ -71,7 +71,7 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR34: Operator can restore PostgreSQL from backup
 - FR35: Applications can connect to PostgreSQL within cluster
 
-**AI/ML Workloads (14 FRs)**
+**AI/ML Workloads (18 FRs)**
 - FR36: Operator can deploy Ollama for LLM inference
 - FR37: Applications can query Ollama API for completions
 - FR38: Operator can deploy Ollama with Qwen 2.5 14B for unified GPU inference
@@ -86,6 +86,10 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR101: K3s configured with `--flannel-iface tailscale0` to route pod network over Tailscale mesh
 - FR102: K3s nodes advertise Tailscale IPs via `--node-external-ip` for cross-subnet communication
 - FR103: NO_PROXY environment includes Tailscale CGNAT range (100.64.0.0/10) on all nodes
+- FR109: vLLM deployed with qwen2.5:14b model on GPU worker (k3s-gpu-worker) for primary inference (Story 12.10)
+- FR110: Paperless-AI configured with `AI_PROVIDER=custom` pointing to vLLM OpenAI-compatible endpoint (Story 12.10)
+- FR111: Ollama serves slim models (llama3.2:1b, qwen2.5:3b) for experimentation only, qwen2.5:14b removed (Story 12.10)
+- FR112: k3s-worker-02 resources reduced from 32GB to 8GB RAM after vLLM migration (Story 12.10)
 
 **Gaming Platform (5 FRs)**
 - FR95: Intel NUC runs Steam on host Ubuntu OS (not containerized)
@@ -200,12 +204,14 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR53: Steam games achieve 60+ FPS at 1080p with exclusive GPU access
 - NFR54: Graceful degradation to Ollama CPU maintains <5 second inference latency
 
-**AI Classification Performance - Paperless-AI (5 NFRs)**
+**AI Classification Performance - Paperless-AI (7 NFRs)**
 - NFR58: Qwen 2.5 14B produces valid JSON output for 95%+ of document classification requests (Story 12.8)
 - NFR59: RAG document search returns relevant context within 5 seconds (Story 12.9)
 - NFR60: Web UI configuration changes take effect without pod restart (Story 12.9)
 - NFR61: CPU Ollama with Qwen 2.5 14B achieves acceptable inference speed (Story 12.8)
 - NFR62: Document classification latency <60 seconds with CPU Ollama (Story 12.8)
+- NFR63: vLLM achieves <5 second document classification latency with GPU-accelerated qwen2.5:14b (Story 12.10)
+- NFR64: vLLM serves qwen2.5:14b with 35-40 tokens/second throughput on RTX 3060 (Story 12.10)
 
 ### Additional Requirements
 
@@ -372,7 +378,7 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - **Phase 2 (Epic 10-12):** 49 FRs
   - Epic 10 (Paperless-ngx): FR55-58, FR64-66, FR75-93
   - Epic 11 (Dev Containers): FR59-63, FR67-70
-  - Epic 12 (GPU/ML - Ollama + Qwen 2.5 14B on CPU): FR38-39, FR71-74, FR87-89, FR94, FR100-108
+  - Epic 12 (GPU/ML - vLLM + Qwen 2.5 14B): FR38-39, FR71-74, FR87-89, FR94, FR100-112
 - **Phase 3 (Epic 13):** 5 FRs
   - Epic 13 (Steam Gaming): FR95-99
 
@@ -506,7 +512,7 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 
 **User Outcome:** Tom can run GPU-accelerated LLM inference with Ollama serving the unified Qwen 2.5 14B model on a hot-pluggable GPU worker, with automatic graceful degradation to Ollama CPU when the GPU worker is offline or host is using the GPU for gaming, enabling high-quality AI inference for n8n workflows, Paperless-AI document classification (with RAG chat), and development tasks.
 
-**FRs covered:** FR38, FR39, FR71-74, FR87-89, FR94, FR100-108
+**FRs covered:** FR38, FR39, FR71-74, FR87-89, FR94, FR100-112
 - FR38: Deploy Ollama with Qwen 2.5 14B for unified GPU inference
 - FR39: GPU workloads request GPU resources via NVIDIA Operator
 - FR71: GPU worker (Intel NUC + RTX 3060) joins cluster via Tailscale mesh (Solution A)
@@ -542,6 +548,8 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - NFR60: Web UI config changes without pod restart
 - NFR61: CPU Ollama achieves acceptable inference speed (Story 12.8)
 - NFR62: Document classification latency <60 seconds with CPU (Story 12.8)
+- NFR63: vLLM achieves <5 second document classification latency (Story 12.10)
+- NFR64: vLLM serves qwen2.5:14b with 35-40 tokens/second (Story 12.10)
 
 **Implementation Notes:**
 - Intel NUC + RTX 3060 eGPU (12GB VRAM) on 192.168.0.25
@@ -2868,12 +2876,12 @@ Host pilates-dev
 
 ---
 
-### Epic 12: GPU/ML Inference Platform (Ollama + Qwen 2.5 14B)
+### Epic 12: GPU/ML Inference Platform (vLLM + Qwen 2.5 14B)
 
-**User Outcome:** AI/ML workflows can access GPU-accelerated inference via unified Ollama with Qwen 2.5 14B model, with Paperless-AI document classification (including RAG chat) and graceful fallback to CPU-based Ollama when GPU unavailable or host is using GPU for gaming.
+**User Outcome:** AI/ML workflows can access GPU-accelerated inference via vLLM with Qwen 2.5 14B model, with Paperless-AI document classification (including RAG chat) using vLLM's OpenAI-compatible API. Ollama downgraded to slim models for experimentation. OpenAI gpt-4o-mini fallback when GPU unavailable (Epic 13).
 
-**FRs Covered:** FR38, FR39, FR71-74, FR87-89, FR94, FR100-108
-**NFRs Covered:** NFR34-38, NFR50, NFR55-62 (NFR61-62 for CPU performance)
+**FRs Covered:** FR38, FR39, FR71-74, FR87-89, FR94, FR100-112
+**NFRs Covered:** NFR34-38, NFR50, NFR55-64
 
 ---
 
@@ -3367,6 +3375,64 @@ env:
 
 ---
 
+#### Story 12.10: Configure vLLM GPU Integration for Paperless-AI
+
+**As a** user
+**I want** Paperless-AI to use vLLM on GPU instead of Ollama on CPU
+**So that** document classification is fast (<5 seconds) with GPU-accelerated inference
+
+**Acceptance Criteria:**
+
+**AC1: Configure vLLM with qwen2.5:14b**
+**Given** vLLM is deployed on k3s-gpu-worker
+**When** I configure vLLM to serve qwen2.5:14b
+**Then** model is pulled and loaded (~8-9GB VRAM)
+**And** vLLM serves OpenAI-compatible API at `/v1/chat/completions`
+**And** `curl http://vllm.ml.svc:8000/v1/models` returns qwen2.5:14b
+**And** this validates FR109
+
+**AC2: Reconfigure Paperless-AI to use vLLM**
+**Given** vLLM is serving qwen2.5:14b
+**When** I update Paperless-AI ConfigMap
+**Then** `AI_PROVIDER` is set to `custom`
+**And** `CUSTOM_BASE_URL` is set to `http://vllm.ml.svc.cluster.local:8000/v1`
+**And** `LLM_MODEL` is set to `qwen2.5:14b`
+**And** Paperless-AI pod is restarted with new configuration
+**And** this validates FR110
+
+**AC3: Validate GPU-accelerated Classification**
+**Given** Paperless-AI uses vLLM
+**When** I upload a test document tagged with "pre-process"
+**Then** document is classified within 5 seconds (NFR63)
+**And** title, tags, correspondent, document type are assigned correctly
+**And** vLLM throughput is 35-40 tokens/second (NFR64)
+
+**AC4: Downgrade Ollama to Slim Models**
+**Given** Paperless-AI no longer uses Ollama
+**When** I reconfigure Ollama on k3s-worker-02
+**Then** qwen2.5:14b model is deleted: `ollama rm qwen2.5:14b`
+**And** slim models are available: llama3.2:1b, qwen2.5:3b
+**And** Ollama memory limit reduced to 4Gi
+**And** this validates FR111
+
+**AC5: Reduce k3s-worker-02 Resources**
+**Given** Ollama uses slim models only
+**When** I reduce k3s-worker-02 VM resources
+**Then** RAM is reduced from 32GB to 8GB via Proxmox
+**And** node restarts and rejoins cluster
+**And** `kubectl describe node k3s-worker-02` shows ~8GB allocatable memory
+**And** this validates FR112
+
+**Implementation Notes:**
+- vLLM uses OpenAI-compatible API format (not Ollama's `/api/generate`)
+- clusterzx/paperless-ai supports `AI_PROVIDER=custom` for OpenAI-compatible endpoints
+- OpenAI fallback (gpt-4o-mini) via n8n routing comes in Epic 13
+- Ollama kept for experimentation with lightweight models
+
+**Story Points:** 5
+
+---
+
 ### Epic 13: Steam Gaming Platform (Dual-Use GPU)
 
 **User Outcome:** Tom can use the Intel NUC + RTX 3060 for both Steam gaming (Windows games via Proton) AND ML inference (Ollama with Qwen 2.5 14B), switching between modes with a simple script that gracefully scales down K8s workloads when gaming and restores them afterward.
@@ -3578,7 +3644,7 @@ Tom has a working multi-node K3s cluster he can access from anywhere via Tailsca
 | | | | | |
 | 10 | Document Management System (Paperless-ngx Ecosystem) | 11 | FR55-58, FR64-66, FR75-86, FR90-93 | NFR28-30, NFR39-41 |
 | 11 | Dev Containers Platform | 6 | FR59-63, FR67-70 | NFR31-33 |
-| 12 | GPU/ML Inference Platform (Ollama + Qwen 2.5 14B on CPU) | 9 | FR38-39, FR71-74, FR87-89, FR94, FR100-108 | NFR34-38, NFR50, NFR55-62 |
+| 12 | GPU/ML Inference Platform (vLLM + Qwen 2.5 14B) | 10 | FR38-39, FR71-74, FR87-89, FR94, FR100-112 | NFR34-38, NFR50, NFR55-64 |
 | **Phase 2 Total** | | **26 stories** | **49 FRs** | **27 NFRs** |
 | | | | | |
 | 13 | Steam Gaming Platform (Dual-Use GPU) | 4 | FR95-99 | NFR51-54 |

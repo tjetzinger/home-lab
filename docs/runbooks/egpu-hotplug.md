@@ -45,7 +45,7 @@ Before starting:
 
 | Node | Role | IP (LAN) | IP (Tailscale) | Hardware |
 |------|------|----------|----------------|----------|
-| k3s-gpu-worker | GPU compute | 192.168.2.23 | 100.80.98.64 | Intel NUC + RTX 3060 eGPU |
+| k3s-gpu-worker | GPU compute | 192.168.0.25 | 100.80.98.64 | Intel NUC + RTX 3060 eGPU |
 | k3s-worker-02 | General compute | 192.168.2.22 | 100.88.186.68 | Ollama CPU fallback |
 
 ---
@@ -294,11 +294,37 @@ curl -s -X POST https://vllm.home.jetzinger.com/v1/completions \
 
 ---
 
+## Quick Mode Switching (Gaming vs ML)
+
+For simpler mode switching without hardware disconnect (e.g., switching to/from Steam gaming):
+
+```bash
+# SSH to Intel NUC
+ssh tt@100.80.98.64
+
+# Switch to Gaming Mode (release GPU for Steam)
+gpu-mode gaming
+# Completion: ~6s
+
+# Switch to ML Mode (restore vLLM inference)
+gpu-mode ml
+# Completion: ~38s
+
+# Check current status
+gpu-mode status
+```
+
+The `gpu-mode` script handles vLLM scaling and waits for proper termination/readiness. See [Steam Setup Guide](../../scripts/gpu-worker/steam-setup.md) for gaming configuration.
+
+---
+
 ## Related Documentation
 
 - [vLLM README](../../applications/vllm/README.md) - Graceful degradation configuration
 - [Node Removal Runbook](node-removal.md) - General node drain procedures
 - [Fallback ConfigMap](../../applications/vllm/fallback-config.yaml) - n8n routing configuration
+- [Steam Setup Guide](../../scripts/gpu-worker/steam-setup.md) - Gaming configuration
+- [gpu-mode script](../../scripts/gpu-worker/gpu-mode) - Mode switching script
 - [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
 
 ---
@@ -308,3 +334,4 @@ curl -s -X POST https://vllm.home.jetzinger.com/v1/completions \
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-01-12 | 1.0 | Initial creation - Story 12.5 (FR73, FR74, NFR50, NFR54) |
+| 2026-01-13 | 1.1 | Added Quick Mode Switching section - Story 13.2 |
