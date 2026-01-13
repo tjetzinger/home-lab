@@ -1,10 +1,16 @@
 # Ollama Helm values for home-lab
-# Story: 6.1 - Deploy Ollama for LLM Inference
-# Epic: 6 - AI Inference Platform
+# Story: 12.8 - Upgrade Ollama Model to Qwen 2.5 14B
+# Epic: 12 - GPU/ML Inference Platform
 #
 # FRs:
 # - FR8: Deploy applications using Helm charts
 # - FR36: Deploy Ollama for LLM inference
+# - FR104: Unified Qwen 2.5 14B for all inference
+#
+# NFRs:
+# - NFR58: 95%+ valid JSON output
+# - NFR61: Acceptable inference speed on CPU
+# - NFR62: <60s classification latency on CPU
 #
 # Components: Ollama LLM inference service (Deployment)
 
@@ -41,14 +47,14 @@ service:
   labels:
     app.kubernetes.io/part-of: home-lab
 
-# Resource limits (conservative for home lab, CPU-only inference)
+# Resource limits (sized for qwen2.5:14b model inference)
 resources:
   requests:
     cpu: 500m  # 0.5 CPU cores for inference
-    memory: 2Gi  # 2GB RAM for model loading
+    memory: 4Gi  # 4GB RAM for model loading
   limits:
     cpu: 4000m  # 4 CPU cores max (bursting allowed)
-    memory: 8Gi  # 8GB RAM max for larger models
+    memory: 16Gi  # 16GB RAM for qwen2.5:14b model
 
 # Persistent storage for models
 persistentVolume:
@@ -63,6 +69,8 @@ persistentVolume:
 extraEnv:
   - name: OLLAMA_HOST
     value: "0.0.0.0:11434"  # Listen on all interfaces
+  - name: OLLAMA_KEEP_ALIVE
+    value: "-1"  # Keep model loaded indefinitely (avoids ~164s cold start)
 
 # Labels for home-lab consistency
 podLabels:
@@ -76,8 +84,9 @@ podAnnotations: {}
 securityContext: {}
 podSecurityContext: {}
 
-# Node selector - deploy to any worker node
-nodeSelector: {}
+# Node selector - deploy to k3s-worker-02 (20GB RAM for 14B model)
+nodeSelector:
+  kubernetes.io/hostname: k3s-worker-02
 
 # Tolerations
 tolerations: []

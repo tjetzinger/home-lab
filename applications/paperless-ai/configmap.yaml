@@ -1,0 +1,42 @@
+# Paperless-AI ConfigMap
+# Story: 12.8 - Upgrade Ollama Model to Qwen 2.5 14B
+# Epic: 12 - GPU/ML Inference Platform
+#
+# FRs:
+# - FR87: Paperless-AI connects to Ollama
+# - FR88: LLM-based auto-tagging
+# - FR89: Auto-populate correspondents and types
+# - FR104: Unified Qwen 2.5 14B for all inference
+#
+# NFRs:
+# - NFR58: 95%+ valid JSON output
+# - NFR61: Acceptable inference speed on CPU
+# - NFR62: <60s classification latency on CPU
+#
+# Environment Variables Reference:
+# https://github.com/douaberigoale/paperless-metadata-ollama-processor#environment-variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: paperless-ai-config
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-ai
+    app.kubernetes.io/instance: paperless-ai
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+data:
+  # Application configuration
+  APP_PORT: "5000"
+  LOG_FILE: "/data/log"
+  OLLAMA_PROMPT_FILE: "/data/prompt"
+
+  # Ollama configuration
+  # Service DNS: ollama.ml.svc.cluster.local:11434
+  OLLAMA_API_URL: "http://ollama.ml.svc.cluster.local:11434/api/generate"
+  OLLAMA_MODEL_NAME: "qwen2.5:14b"
+  OLLAMA_TRUNCATE_NUMBER: "500"
+
+  # Paperless-ngx configuration
+  # Service DNS: paperless-paperless-ngx.docs.svc.cluster.local:8000
+  PAPERLESS_API_URL: "http://paperless-paperless-ngx.docs.svc.cluster.local:8000/api"
