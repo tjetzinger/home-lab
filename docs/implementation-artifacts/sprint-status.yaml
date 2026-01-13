@@ -148,7 +148,7 @@ development_status:
   12-3-install-nvidia-container-toolkit-and-gpu-operator: done
   12-4-deploy-vllm-with-3-model-configuration: done
   12-5-configure-hot-plug-and-graceful-degradation: done
-  12-6-gpu-metrics-and-performance-validation: backlog
+  12-6-gpu-metrics-and-performance-validation: done
   12-7-deploy-paperless-ai-with-gpu-ollama-integration: backlog
   epic-12-retrospective: optional
 

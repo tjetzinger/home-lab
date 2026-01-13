@@ -1,0 +1,32 @@
+# NVIDIA DCGM Exporter ServiceMonitor for home-lab
+# Story: 12.6 - GPU Metrics and Performance Validation
+# FR: NFR34 (GPU utilization), NFR35 (50+ tok/s), NFR36 (join time)
+# AC: #2 - Create ServiceMonitor for Prometheus
+#
+# Purpose: Enables Prometheus to scrape GPU metrics from DCGM exporter
+# Target: nvidia-dcgm-exporter service in gpu-operator namespace on port 9400
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nvidia-dcgm-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: nvidia-dcgm-exporter
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: gpu-metrics
+    release: kube-prometheus-stack
+spec:
+  # Target the DCGM exporter service in gpu-operator namespace
+  namespaceSelector:
+    matchNames:
+      - gpu-operator
+  selector:
+    matchLabels:
+      app: nvidia-dcgm-exporter
+  endpoints:
+    - port: gpu-metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+      honorLabels: true
