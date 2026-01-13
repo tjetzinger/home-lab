@@ -1,16 +1,17 @@
 # Ollama Helm values for home-lab
-# Story: 12.8 - Upgrade Ollama Model to Qwen 2.5 14B
+# Story: 12.10 - Configure vLLM GPU Integration for Paperless-AI
 # Epic: 12 - GPU/ML Inference Platform
 #
 # FRs:
 # - FR8: Deploy applications using Helm charts
 # - FR36: Deploy Ollama for LLM inference
-# - FR104: Unified Qwen 2.5 14B for all inference
+# - FR111: Ollama downgraded to slim models (llama3.2:1b, qwen2.5:3b)
 #
 # NFRs:
 # - NFR58: 95%+ valid JSON output
-# - NFR61: Acceptable inference speed on CPU
-# - NFR62: <60s classification latency on CPU
+#
+# Note: Document classification moved to vLLM (GPU). Ollama serves slim models
+# for experimental/lightweight inference only.
 #
 # Components: Ollama LLM inference service (Deployment)
 
@@ -47,14 +48,14 @@ service:
   labels:
     app.kubernetes.io/part-of: home-lab
 
-# Resource limits (sized for qwen2.5:14b model inference)
+# Resource limits (sized for slim models: llama3.2:1b, qwen2.5:3b)
 resources:
   requests:
     cpu: 500m  # 0.5 CPU cores for inference
-    memory: 4Gi  # 4GB RAM for model loading
+    memory: 2Gi  # 2GB RAM for slim model loading
   limits:
-    cpu: 4000m  # 4 CPU cores max (bursting allowed)
-    memory: 16Gi  # 16GB RAM for qwen2.5:14b model
+    cpu: 2000m  # 2 CPU cores max for slim models
+    memory: 4Gi  # 4GB RAM for slim models only
 
 # Persistent storage for models
 persistentVolume:
@@ -84,7 +85,7 @@ podAnnotations: {}
 securityContext: {}
 podSecurityContext: {}
 
-# Node selector - deploy to k3s-worker-02 (20GB RAM for 14B model)
+# Node selector - deploy to k3s-worker-02 (slim models only after 12.10)
 nodeSelector:
   kubernetes.io/hostname: k3s-worker-02
 

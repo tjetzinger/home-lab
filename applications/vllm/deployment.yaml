@@ -1,14 +1,15 @@
 # vLLM Deployment for home-lab
 # Namespace: ml
 #
-# Story: 12.4 - Deploy vLLM with 3-Model Configuration
+# Story: 12.10 - Configure vLLM GPU Integration for Paperless-AI
 # FR: FR38 - Deploy vLLM for production inference
 # FR: FR72 - vLLM serves models via OpenAI-compatible API
-# AC: #1 - Deploy vLLM in ml Namespace
+# FR: FR109 - vLLM serves qwen2.5:14b model for document classification
+# AC: #1 - Configure vLLM with qwen2.5:14b
 #
 # GPU Worker: Intel NUC + RTX 3060 eGPU (12GB VRAM)
-# Model: TheBloke/deepseek-coder-6.7B-instruct-AWQ (4-bit quantized, ~4GB VRAM)
-# Note: AWQ quantization enables 6.7B model on 12GB GPU
+# Model: Qwen/Qwen2.5-7B-Instruct-AWQ (4-bit quantized, ~4-5GB VRAM)
+# Note: 7B model chosen - 14B (9.4GB) leaves no room for KV cache on 12GB GPU
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -49,7 +50,7 @@ spec:
           image: vllm/vllm-openai:v0.5.5
           args:
             - --model
-            - TheBloke/deepseek-coder-6.7B-instruct-AWQ
+            - Qwen/Qwen2.5-7B-Instruct-AWQ
             - --quantization
             - awq_marlin
             - --gpu-memory-utilization

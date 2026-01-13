@@ -1,20 +1,21 @@
 # Paperless-AI ConfigMap
-# Story: 12.8 - Upgrade Ollama Model to Qwen 2.5 14B
+# Story: 12.10 - Configure vLLM GPU Integration for Paperless-AI
 # Epic: 12 - GPU/ML Inference Platform
 #
 # FRs:
-# - FR87: Paperless-AI connects to Ollama
+# - FR87: Paperless-AI connects to LLM
 # - FR88: LLM-based auto-tagging
 # - FR89: Auto-populate correspondents and types
-# - FR104: Unified Qwen 2.5 14B for all inference
+# - FR109: vLLM serves qwen2.5 model for document classification
+# - FR110: Paperless-AI configured to use vLLM via OpenAI-compatible API
 #
 # NFRs:
 # - NFR58: 95%+ valid JSON output
-# - NFR61: Acceptable inference speed on CPU
-# - NFR62: <60s classification latency on CPU
+# - NFR63: Document classification <5 seconds with GPU inference
+# - NFR64: vLLM throughput 35-40 tokens/second
 #
 # Environment Variables Reference:
-# https://github.com/douaberigoale/paperless-metadata-ollama-processor#environment-variables
+# https://github.com/clusterzx/paperless-ai
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -26,17 +27,34 @@ metadata:
     app.kubernetes.io/part-of: home-lab
     app.kubernetes.io/managed-by: kubectl
 data:
-  # Application configuration
-  APP_PORT: "5000"
-  LOG_FILE: "/data/log"
-  OLLAMA_PROMPT_FILE: "/data/prompt"
+  # Initial setup - enables web UI configuration wizard
+  PAPERLESS_AI_INITIAL_SETUP: "yes"
 
-  # Ollama configuration
-  # Service DNS: ollama.ml.svc.cluster.local:11434
-  OLLAMA_API_URL: "http://ollama.ml.svc.cluster.local:11434/api/generate"
-  OLLAMA_MODEL_NAME: "qwen2.5:14b"
-  OLLAMA_TRUNCATE_NUMBER: "500"
+  # Server port - must override K8s service discovery variable collision
+  PORT: "3000"
 
   # Paperless-ngx configuration
   # Service DNS: paperless-paperless-ngx.docs.svc.cluster.local:8000
   PAPERLESS_API_URL: "http://paperless-paperless-ngx.docs.svc.cluster.local:8000/api"
+  # RAG service needs base URL without /api suffix
+  PAPERLESS_URL: "http://paperless-paperless-ngx.docs.svc.cluster.local:8000"
+  PAPERLESS_USERNAME: "tjetzinger"
+
+  # AI Provider configuration - using vLLM via OpenAI-compatible API
+  AI_PROVIDER: "custom"
+
+  # vLLM configuration (GPU-accelerated inference on k3s-gpu-worker)
+  # Service DNS: vllm-api.ml.svc.cluster.local:8000
+  CUSTOM_BASE_URL: "http://vllm-api.ml.svc.cluster.local:8000/v1"
+  LLM_MODEL: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+
+  # Legacy Ollama configuration (commented out - kept for reference)
+  # OLLAMA_API_URL: "http://ollama.ml.svc.cluster.local:11434"
+  # OLLAMA_MODEL: "qwen2.5:14b"
+
+  # Document processing configuration
+  SCAN_INTERVAL: "*/30 * * * *"
+  PROCESS_PREDEFINED_DOCUMENTS: "yes"
+  TAGS: "pre-process"
+  ADD_AI_PROCESSED_TAG: "no"
+  USE_EXISTING_DATA: "no"

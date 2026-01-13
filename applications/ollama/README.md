@@ -1,23 +1,26 @@
 # Ollama LLM Inference Service
 
-**Purpose:** CPU-based LLM inference platform for home-lab AI workloads
+**Purpose:** CPU-based slim model inference for experimental/lightweight workloads
 
-**Story:** 6.1 - Deploy Ollama for LLM Inference
-**Epic:** 6 - AI Inference Platform
+**Story:** 12.10 - Configure vLLM GPU Integration for Paperless-AI
+**Epic:** 12 - GPU/ML Inference Platform
 **Namespace:** `ml`
 
 ---
 
 ## Overview
 
-Ollama is deployed as a Deployment using the official Ollama Helm chart, providing local LLM inference capabilities for cluster applications.
+Ollama is deployed as a Deployment using the official Ollama Helm chart, providing CPU-based inference for lightweight experimental workloads.
+
+**Note:** Document classification has been moved to vLLM (GPU-accelerated) as of Story 12.10.
 
 **Key Features:**
-- CPU-only inference (GPU support deferred to Phase 2)
+- CPU-only inference with slim models (llama3.2:1b, qwen2.5:3b)
 - NFS-backed model storage for persistence
 - HTTPS ingress with Let's Encrypt TLS
 - Internal cluster access via ClusterIP service
 - External access via ollama.home.jetzinger.com
+- Reduced resource footprint (4GB RAM limit)
 
 ---
 
@@ -105,9 +108,9 @@ kubectl run -it --rm curl-test --image=curlimages/curl --restart=Never -- \
 
 | Component | CPU Request | CPU Limit | Memory Request | Memory Limit |
 |-----------|-------------|-----------|----------------|--------------|
-| Ollama | 500m | 4000m | 2Gi | 8Gi |
+| Ollama | 500m | 2000m | 2Gi | 4Gi |
 
-**Note:** Conservative allocation for CPU-only inference with bursting allowed up to 4 cores.
+**Note:** Reduced allocation for slim models only. Document classification uses vLLM (GPU) as of Story 12.10.
 
 ---
 
@@ -128,7 +131,10 @@ kubectl exec -n ml $POD -- ollama list
 
 ### Currently Loaded Models
 
-- **llama3.2:1b** (1.3 GB) - Small model for testing CPU inference
+- **llama3.2:1b** (1.3 GB) - Small model for testing/lightweight inference
+- **qwen2.5:3b** (1.9 GB) - Slim Qwen model for experimental workloads
+
+**Note:** Large models (qwen2.5:14b) removed as of Story 12.10. Document classification now uses vLLM with GPU acceleration.
 
 ### Model Storage Details
 
@@ -692,3 +698,6 @@ Current performance:
 - 2026-01-06: Operations section added (Story 6.4) - Scaling procedures, log viewing, event inspection, troubleshooting
 - 2026-01-06: Validated FR12 (scaling) and FR13 (logs/events) - Demonstrated Kubernetes operational skills
 - 2026-01-06: Discovered NFS storage allows multi-node scaling despite RWO access mode
+- 2026-01-13: Story 12.10 - Downgraded to slim models (llama3.2:1b, qwen2.5:3b), removed qwen2.5:14b
+- 2026-01-13: Reduced memory limit from 16Gi to 4Gi, CPU limit from 4000m to 2000m
+- 2026-01-13: Document classification moved to vLLM (GPU) on k3s-gpu-worker
