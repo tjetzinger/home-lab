@@ -1,13 +1,20 @@
 # LiteLLM Configuration ConfigMap
-# Story: 14.1 - Deploy LiteLLM Proxy with vLLM Backend
+# Story: 14.2 - Configure Three-Tier Fallback Chain
 # Epic: 14 - LiteLLM Inference Proxy
 #
 # FRs:
 # - FR113: LiteLLM proxy deployed in ml namespace providing unified OpenAI-compatible endpoint
-# - FR114: LiteLLM configured with three-tier fallback (vLLM → Ollama → OpenAI) [future stories]
+# - FR114: LiteLLM configured with three-tier fallback (vLLM → Ollama → OpenAI)
+# - FR116: Automatic failover to Ollama when vLLM health check fails
+# - FR117: OpenAI API key stored as Kubernetes secret
 #
-# This ConfigMap contains the LiteLLM proxy configuration with vLLM as primary backend.
-# Fallback backends will be added in Story 14.2.
+# NFRs:
+# - NFR65: Failover detection within 5 seconds
+# - NFR66: LiteLLM proxy latency overhead <100ms
+# - NFR67: Document processing continues (degraded) via fallback chain
+# - NFR68: OpenAI only used when both vLLM and Ollama unavailable
+#
+# Three-tier fallback chain: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
 
 apiVersion: v1
 kind: ConfigMap
@@ -23,22 +30,44 @@ metadata:
 data:
   config.yaml: |
     # LiteLLM Proxy Configuration
-    # Primary backend: vLLM with Qwen 2.5 7B on GPU worker
+    # Three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
 
     model_list:
-      - model_name: default
+      # Tier 1: vLLM on GPU worker (primary)
+      # High performance, GPU-accelerated inference
+      - model_name: vllm-qwen
         litellm_params:
           model: openai/Qwen/Qwen2.5-7B-Instruct-AWQ
           api_base: http://vllm-api.ml.svc.cluster.local:8000/v1
           api_key: sk-none  # vLLM doesn't require auth, but LiteLLM needs a value
+          timeout: 3  # Short timeout for fast failover (NFR65: <5s detection)
         model_info:
           mode: chat
 
-    # Router settings for single backend (Story 14.1)
-    # Will be expanded with fallback chain in Story 14.2
+      # Tier 2: Ollama on CPU worker (secondary fallback)
+      # Slower but runs on CPU, available during Gaming Mode
+      - model_name: ollama-qwen
+        litellm_params:
+          model: ollama/qwen2.5:3b
+          api_base: http://ollama.ml.svc.cluster.local:11434
+          timeout: 60  # CPU inference is slower
+        model_info:
+          mode: chat
+
+      # Tier 3: OpenAI (tertiary fallback - cloud)
+      # Last resort when all local inference is unavailable
+      - model_name: openai-gpt4o
+        litellm_params:
+          model: gpt-4o-mini  # Cost-effective for document classification
+          api_key: os.environ/OPENAI_API_KEY
+          timeout: 30
+        model_info:
+          mode: chat
+
+    # Router settings
     router_settings:
       routing_strategy: simple-shuffle
-      num_retries: 2
+      num_retries: 1  # Reduced to speed up failover (NFR65: <5s)
       timeout: 60
 
     # General settings
@@ -46,7 +75,13 @@ data:
       # No master key for internal cluster use (Tailscale provides security)
       # master_key: os.environ/LITELLM_MASTER_KEY
 
+    # LiteLLM settings - fallbacks define the failover chain
     litellm_settings:
-      # Enable request logging for debugging
       set_verbose: false
       drop_params: true  # Drop unsupported params instead of failing
+      request_timeout: 30
+      # Fallback chain: vLLM → Ollama → OpenAI (NFR68)
+      # Client requests "vllm-qwen", auto-falls back to ollama-qwen, then openai-gpt4o
+      fallbacks: [{"vllm-qwen": ["ollama-qwen"]}, {"ollama-qwen": ["openai-gpt4o"]}]
+      allowed_fails: 1
+      cooldown_time: 30
