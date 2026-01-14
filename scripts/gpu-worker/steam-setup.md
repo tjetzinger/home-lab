@@ -195,6 +195,42 @@ sudo systemctl status gpu-mode-default.service
 
 See [eGPU Hot-Plug Runbook](../../docs/runbooks/egpu-hotplug.md) for hardware disconnect/reconnect procedures.
 
+### LiteLLM Inference Proxy Fallback (Epic 14)
+
+LiteLLM provides a unified OpenAI-compatible API with automatic three-tier fallback. Applications like Paperless-AI connect to LiteLLM instead of directly to vLLM, enabling seamless failover during Gaming Mode.
+
+**Fallback Chain:**
+```
+vLLM (GPU) → Ollama (CPU) → OpenAI (Cloud)
+     3s timeout    120s timeout    30s timeout
+```
+
+**Performance Characteristics (validated Story 14.5):**
+
+| Tier | Backend | Latency (10 tokens) | Throughput | When Used |
+|------|---------|---------------------|------------|-----------|
+| 1 | vLLM (GPU) | ~270ms | ~54 tok/s | ML Mode (default) |
+| 2 | Ollama (CPU) | ~3.5s | ~3 tok/s | Gaming Mode (vLLM down) |
+| 3 | OpenAI (Cloud) | ~5-6s | varies | Both local tiers unavailable |
+
+**NFR Compliance:**
+- ✅ NFR65: Failover detection <5s (measured: ~4.6s including first Ollama response)
+- ✅ NFR66: LiteLLM overhead <100ms (measured: negative/negligible)
+- ✅ NFR67: Processing continues via fallback chain
+- ✅ NFR68: OpenAI only when both vLLM and Ollama unavailable
+
+**LiteLLM Endpoint:**
+- Internal: `http://litellm.ml.svc.cluster.local:4000`
+- External: `https://litellm.home.jetzinger.com`
+
+**What Happens During Gaming Mode:**
+1. User runs `gpu-mode gaming` → vLLM scales to 0
+2. LiteLLM detects vLLM unavailable (3s timeout)
+3. Requests automatically route to Ollama CPU
+4. Paperless-AI continues processing (degraded performance ~13s/document)
+5. User runs `gpu-mode ml` → vLLM scales back to 1
+6. LiteLLM resumes routing to vLLM after cooldown (30s)
+
 ## Troubleshooting
 
 ### Steam Won't Launch
