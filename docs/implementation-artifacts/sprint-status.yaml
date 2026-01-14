@@ -164,8 +164,8 @@ development_status:
   epic-13-retrospective: optional
 
   # Epic 14: LiteLLM Inference Proxy (Three-Tier Fallback)
-  epic-14: backlog
-  14-1-deploy-litellm-proxy-with-vllm-backend: backlog
+  epic-14: in-progress
+  14-1-deploy-litellm-proxy-with-vllm-backend: done
   14-2-configure-three-tier-fallback-chain: backlog
   14-3-integrate-paperless-ai-with-litellm: backlog
   14-4-configure-prometheus-metrics-and-monitoring: backlog

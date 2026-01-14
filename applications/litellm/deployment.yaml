@@ -1,0 +1,122 @@
+# LiteLLM Proxy Deployment
+# Story: 14.1 - Deploy LiteLLM Proxy with vLLM Backend
+# Epic: 14 - LiteLLM Inference Proxy
+#
+# FRs:
+# - FR113: LiteLLM proxy deployed in ml namespace providing unified OpenAI-compatible endpoint
+# - FR114: LiteLLM configured with three-tier fallback (vLLM → Ollama → OpenAI) [future stories]
+#
+# NFRs:
+# - NFR66: LiteLLM proxy latency overhead <100ms
+#
+# LiteLLM provides a unified OpenAI-compatible API that proxies to vLLM backend.
+# Deployed on non-GPU workers to remain available during Gaming Mode.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm
+  namespace: ml
+  labels:
+    app: litellm
+    app.kubernetes.io/name: litellm
+    app.kubernetes.io/instance: litellm
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+    app.kubernetes.io/component: llm-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litellm
+  template:
+    metadata:
+      labels:
+        app: litellm
+        app.kubernetes.io/name: litellm
+        app.kubernetes.io/instance: litellm
+        app.kubernetes.io/part-of: home-lab
+        app.kubernetes.io/component: llm-proxy
+    spec:
+      # Schedule on non-GPU workers (k3s-worker-01 or k3s-worker-02)
+      # LiteLLM must remain available during Gaming Mode when GPU worker scales vLLM to 0
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu
+                    operator: DoesNotExist
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm:main-latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config
+            - /app/config.yaml
+            - --port
+            - "4000"
+            - --host
+            - "0.0.0.0"
+          ports:
+            - name: http
+              containerPort: 4000
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: litellm-secrets
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health/liveliness
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: config
+          configMap:
+            name: litellm-config
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm
+  namespace: ml
+  labels:
+    app: litellm
+    app.kubernetes.io/name: litellm
+    app.kubernetes.io/instance: litellm
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+    app.kubernetes.io/component: llm-proxy
+spec:
+  type: ClusterIP
+  selector:
+    app: litellm
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http
+      protocol: TCP

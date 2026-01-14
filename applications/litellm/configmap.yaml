@@ -1,0 +1,52 @@
+# LiteLLM Configuration ConfigMap
+# Story: 14.1 - Deploy LiteLLM Proxy with vLLM Backend
+# Epic: 14 - LiteLLM Inference Proxy
+#
+# FRs:
+# - FR113: LiteLLM proxy deployed in ml namespace providing unified OpenAI-compatible endpoint
+# - FR114: LiteLLM configured with three-tier fallback (vLLM → Ollama → OpenAI) [future stories]
+#
+# This ConfigMap contains the LiteLLM proxy configuration with vLLM as primary backend.
+# Fallback backends will be added in Story 14.2.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+  namespace: ml
+  labels:
+    app: litellm
+    app.kubernetes.io/name: litellm
+    app.kubernetes.io/instance: litellm
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+data:
+  config.yaml: |
+    # LiteLLM Proxy Configuration
+    # Primary backend: vLLM with Qwen 2.5 7B on GPU worker
+
+    model_list:
+      - model_name: default
+        litellm_params:
+          model: openai/Qwen/Qwen2.5-7B-Instruct-AWQ
+          api_base: http://vllm-api.ml.svc.cluster.local:8000/v1
+          api_key: sk-none  # vLLM doesn't require auth, but LiteLLM needs a value
+        model_info:
+          mode: chat
+
+    # Router settings for single backend (Story 14.1)
+    # Will be expanded with fallback chain in Story 14.2
+    router_settings:
+      routing_strategy: simple-shuffle
+      num_retries: 2
+      timeout: 60
+
+    # General settings
+    general_settings:
+      # No master key for internal cluster use (Tailscale provides security)
+      # master_key: os.environ/LITELLM_MASTER_KEY
+
+    litellm_settings:
+      # Enable request logging for debugging
+      set_verbose: false
+      drop_params: true  # Drop unsupported params instead of failing

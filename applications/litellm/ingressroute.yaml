@@ -1,0 +1,86 @@
+# LiteLLM IngressRoute for home-lab
+# Namespace: ml
+#
+# Story: 14.1 - Deploy LiteLLM Proxy with vLLM Backend
+# Epic: 14 - LiteLLM Inference Proxy
+#
+# FRs:
+# - FR113: LiteLLM proxy deployed in ml namespace providing unified OpenAI-compatible endpoint
+#
+# NFRs:
+# - NFR7: All ingress traffic uses TLS 1.2+ with valid certificates
+#
+# Access: https://litellm.home.jetzinger.com
+# Security: HTTPS-only via Let's Encrypt, Tailscale VPN for remote access
+---
+# Certificate for litellm.home.jetzinger.com
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: litellm-tls
+  namespace: ml
+  labels:
+    app: litellm
+    app.kubernetes.io/name: litellm
+    app.kubernetes.io/instance: litellm
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-proxy
+spec:
+  secretName: litellm-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - litellm.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# HTTPS IngressRoute for LiteLLM API
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: litellm-https
+  namespace: ml
+  labels:
+    app: litellm
+    app.kubernetes.io/name: litellm
+    app.kubernetes.io/instance: litellm
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-proxy
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`litellm.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: litellm
+          port: 4000
+  tls:
+    secretName: litellm-tls
+---
+# HTTP to HTTPS redirect for LiteLLM
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: litellm-redirect
+  namespace: ml
+  labels:
+    app: litellm
+    app.kubernetes.io/name: litellm
+    app.kubernetes.io/instance: litellm-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-proxy
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`litellm.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: ml
+      services:
+        - name: litellm
+          port: 4000
