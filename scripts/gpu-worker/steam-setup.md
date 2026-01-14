@@ -169,6 +169,30 @@ gpu-mode status
 - **Intel NUC:** `/usr/local/bin/gpu-mode`
 - **Repository:** `scripts/gpu-worker/gpu-mode`
 
+### Default ML Mode at Boot (FR119)
+
+The system automatically activates ML Mode when k3s-gpu-worker boots, ensuring vLLM is available for inference by default.
+
+**Installation (run on k3s-gpu-worker):**
+
+```bash
+# Copy service file
+sudo cp /path/to/home-lab/scripts/gpu-worker/gpu-mode-default.service /etc/systemd/system/
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable gpu-mode-default.service
+
+# Verify (after reboot or manual start)
+sudo systemctl status gpu-mode-default.service
+```
+
+**Behavior:**
+- Waits for k3s-agent to be ready (up to 5 minutes)
+- Automatically runs `gpu-mode ml` to scale vLLM to 1
+- User can manually switch to `gpu-mode gaming` anytime
+- After gaming, run `gpu-mode ml` or reboot to restore ML Mode
+
 See [eGPU Hot-Plug Runbook](../../docs/runbooks/egpu-hotplug.md) for hardware disconnect/reconnect procedures.
 
 ## Troubleshooting
@@ -215,3 +239,4 @@ sudo systemctl restart gdm3
 |------|---------|---------|
 | 2026-01-13 | 1.0 | Initial creation - Story 13.1 |
 | 2026-01-13 | 1.1 | Added gpu-mode script usage - Story 13.2 |
+| 2026-01-14 | 1.2 | Added CS2 validation, default ML Mode at boot (FR119) |

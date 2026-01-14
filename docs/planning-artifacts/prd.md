@@ -12,7 +12,7 @@ researchCount: 1
 brainstormingCount: 1
 projectDocsCount: 0
 date: '2025-12-27'
-lastUpdated: '2026-01-13'
+lastUpdated: '2026-01-14'
 author: 'Tom'
 project_name: 'home-lab'
 ---
@@ -20,9 +20,11 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-01-13
+**Date:** 2025-12-27 | **Last Updated:** 2026-01-14
 
 **Changelog:**
+- 2026-01-14: Added ML Mode default at boot for k3s-gpu-worker (FR119, NFR70) - systemd service auto-activates vLLM after k3s agent ready
+- 2026-01-14: Added LiteLLM Inference Proxy (Story 14.x) - Three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud). Paperless-AI uses unified LiteLLM endpoint. Added FR113-118, NFR65-69.
 - 2026-01-13: Added Story 12.10 (vLLM GPU Integration for Paperless-AI) - vLLM serves qwen2.5:14b on GPU, Paperless-AI uses OpenAI-compatible endpoint, Ollama downgraded to slim models, k3s-worker-02 RAM reduced. Added FR109-112, NFR63-64. Epic 12 reopened.
 - 2026-01-13: Removed Story 12.10 (GPU Ollama) - Ollama stays on CPU worker for fallback availability. Removed FR109-110, updated NFR61-62 for CPU performance
 - 2026-01-13: Unified LLM Architecture - Single Qwen 2.5 14B model replaces vLLM multi-model. Updated FR38, FR72-73, FR94, FR98-99, FR104 and NFR34-38, NFR50, NFR58 for unified model
@@ -508,9 +510,18 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 ### vLLM GPU Integration (Story 12.10)
 
 - FR109: vLLM deployed with qwen2.5:14b model on GPU worker (k3s-gpu-worker) for primary inference
-- FR110: Paperless-AI configured with `AI_PROVIDER=custom` pointing to vLLM OpenAI-compatible endpoint (`/v1/completions`)
-- FR111: Ollama serves slim models (llama3.2:1b, qwen2.5:3b) for experimentation only, qwen2.5:14b removed
+- FR110: Paperless-AI configured with `AI_PROVIDER=custom` pointing to LiteLLM unified endpoint
+- FR111: Ollama serves slim models (llama3.2:1b, qwen2.5:3b) as first fallback tier
 - FR112: k3s-worker-02 resources reduced from 32GB to 8GB RAM after vLLM migration
+
+### LiteLLM Inference Proxy (Story 14.x)
+
+- FR113: LiteLLM proxy deployed in `ml` namespace providing unified OpenAI-compatible endpoint
+- FR114: LiteLLM configured with three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+- FR115: Paperless-AI configured to use LiteLLM endpoint instead of direct vLLM connection
+- FR116: LiteLLM automatically routes to next fallback tier when primary backend health check fails
+- FR117: OpenAI API key stored securely via Kubernetes secret for cloud fallback tier
+- FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
 
 ### Email Inbox Integration (Paperless-ngx)
 
@@ -526,6 +537,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - FR97: Operator can switch between Gaming Mode and ML Mode via script
 - FR98: Gaming Mode scales Ollama pods to 0 and enables CPU fallback
 - FR99: ML Mode restores GPU Ollama pods when Steam/gaming exits
+- FR119: k3s-gpu-worker boots into ML Mode by default via systemd service (vLLM scaled to 1 at startup)
 
 ### Multi-Subnet GPU Worker Networking (Solution A)
 
@@ -675,6 +687,14 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - NFR63: vLLM achieves <5 second document classification latency with GPU-accelerated qwen2.5:14b
 - NFR64: vLLM serves qwen2.5:14b with 35-40 tokens/second throughput on RTX 3060
 
+### LiteLLM Inference Proxy (Story 14.x)
+
+- NFR65: LiteLLM failover detection completes within 5 seconds of backend unavailability
+- NFR66: LiteLLM adds <100ms latency to inference requests during normal operation
+- NFR67: Paperless-AI document processing continues (degraded) during Gaming Mode via fallback chain
+- NFR68: OpenAI fallback tier only activated when both vLLM and Ollama are unavailable
+- NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
+
 ### Email Integration (Paperless-ngx)
 
 - NFR48: Email inboxes checked every 10 minutes for new attachments
@@ -686,6 +706,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - NFR52: ML Mode restoration completes within 2 minutes (pod scale-up + model load)
 - NFR53: Steam games achieve 60+ FPS at 1080p with exclusive GPU access
 - NFR54: Graceful degradation to Ollama CPU maintains <5 second inference latency
+- NFR70: ML Mode auto-activates within 5 minutes of k3s-gpu-worker boot (after k3s agent ready)
 
 ### Multi-Subnet GPU Worker Networking (Solution A)
 

@@ -2,8 +2,8 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
-lastModified: '2026-01-13'
-updateReason: 'Story 12.10: vLLM GPU Integration for Paperless-AI. vLLM serves qwen2.5:14b on GPU as primary backend. Paperless-AI uses AI_PROVIDER=custom with OpenAI-compatible vLLM endpoint. Ollama downgraded to slim models (llama3.2:1b, qwen2.5:3b) for experiments only. k3s-worker-02 RAM reduced 32GB→8GB. FR109-112, NFR63-64.'
+lastModified: '2026-01-14'
+updateReason: 'FR119/NFR70: Default ML Mode at boot for k3s-gpu-worker. systemd service auto-activates vLLM after k3s agent ready. Manual override via gpu-mode gaming available.'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -23,7 +23,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements:** 112 FRs across 16 capability areas
+**Functional Requirements:** 119 FRs across 16 capability areas
 - Cluster Operations (6): K3s lifecycle, node management
 - Workload Management (7): Deployments, Helm, ingress
 - Storage Management (5): NFS, PVCs, dynamic provisioning
@@ -36,10 +36,11 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Portfolio & Documentation (6): ADRs, GitHub, blog
 - Document Management (26): Paperless-ngx, Redis, OCR, Tika, Gotenberg, Stirling-PDF, Paperless-AI (enhanced with RAG, GPU, model config), Email integration
 - Dev Containers (5): VS Code SSH, Claude Code, git worktrees
-- Gaming Platform (5): Steam, Proton, mode switching, fallback routing
+- Gaming Platform (6): Steam, Proton, mode switching, fallback routing, default ML Mode at boot
 - Multi-Subnet Networking (4): Tailscale mesh, Flannel over VPN
+- LiteLLM Inference Proxy (6): Three-tier fallback, Prometheus metrics
 
-**Non-Functional Requirements:** 64 NFRs
+**Non-Functional Requirements:** 70 NFRs
 - Reliability: 95% uptime, 5-min recovery, automatic pod rescheduling
 - Security: TLS 1.2+, Tailscale-only access, encrypted secrets
 - Performance: 30s Ollama response, 5s dashboard load
@@ -331,6 +332,175 @@ return { endpoint: 'http://vllm.ml.svc:8000/v1', model: 'qwen2.5:14b', mode: 'gp
 - NFR52: Full 12GB VRAM available for 60+ FPS gaming at 1080p
 - NFR53: ML Mode restoration <2min (pod startup + model load)
 - NFR54: OpenAI fallback maintains inference capability during Gaming Mode
+- NFR70: ML Mode auto-activates within 5 minutes of boot (after k3s agent ready)
+
+**Default Boot Behavior (FR119, NFR70):**
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Boot Default** | **ML Mode** | **FR119: vLLM should be available by default for inference workloads** |
+| **Activation Method** | **systemd service** | **Reliable, restarts on failure, integrates with boot sequence** |
+| **Dependency** | **k3s-agent.service** | **Must wait for K8s API to be available before scaling** |
+| **Timeout** | **5 minutes** | **NFR70: Allows time for k3s readiness after node boot** |
+
+```
+Boot Sequence:
+┌──────────────────────────────────────────────────────────┐
+│  k3s-gpu-worker boot                                     │
+├──────────────────────────────────────────────────────────┤
+│  1. systemd starts k3s-agent.service                     │
+│  2. k3s agent joins cluster via Tailscale                │
+│  3. gpu-mode-default.service waits for kubectl ready     │
+│  4. Runs: gpu-mode ml → scales vLLM to 1                 │
+│  5. vLLM pod starts, loads Qwen 2.5 14B (~60-90s)       │
+│  6. ML Mode active, GPU inference available              │
+└──────────────────────────────────────────────────────────┘
+
+Manual Override (anytime):
+  gpu-mode gaming  → Scales vLLM to 0, GPU free for Steam
+  gpu-mode ml      → Restores vLLM (or reboot)
+```
+
+**systemd Unit (gpu-mode-default.service):**
+```ini
+[Unit]
+Description=Set GPU to ML Mode at boot (FR119)
+After=network-online.target k3s-agent.service
+Requires=k3s-agent.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/bash -c 'for i in {1..60}; do kubectl get nodes &>/dev/null && exit 0; sleep 5; done; exit 1'
+ExecStart=/usr/local/bin/gpu-mode ml
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### LiteLLM Inference Proxy Architecture (Epic 14)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Inference Proxy** | **LiteLLM** | **FR113: Unified OpenAI-compatible endpoint, handles multi-backend routing** |
+| **Primary Backend** | **vLLM (GPU)** | **FR114: Highest quality/speed when GPU available (~35-40 tok/s)** |
+| **First Fallback** | **Ollama (CPU)** | **FR114: On-premises fallback, <5s latency (NFR54), no API costs** |
+| **Second Fallback** | **OpenAI API** | **FR114: Cloud fallback for guaranteed availability** |
+| **API Key Storage** | **Kubernetes Secret** | **FR117: Secure storage for OpenAI API credentials** |
+| **Observability** | **Prometheus metrics** | **FR118: Track routing decisions, fallback events, latencies** |
+
+**Three-Tier Fallback Architecture:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  LiteLLM Proxy (ml namespace)                                   │
+│  Endpoint: http://litellm.ml.svc.cluster.local:4000/v1          │
+├─────────────────────────────────────────────────────────────────┤
+│  Unified OpenAI-compatible API for all consumers:               │
+│  ├── Paperless-AI (document classification)                     │
+│  ├── n8n workflows (automation)                                 │
+│  └── Future AI integrations                                     │
+├─────────────────────────────────────────────────────────────────┤
+│  Fallback Chain (automatic failover):                           │
+│                                                                 │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
+│  │   Tier 1     │    │   Tier 2     │    │   Tier 3     │       │
+│  │   vLLM       │───►│   Ollama     │───►│   OpenAI     │       │
+│  │   (GPU)      │    │   (CPU)      │    │   (Cloud)    │       │
+│  └──────────────┘    └──────────────┘    └──────────────┘       │
+│  • ~35-40 tok/s      • <5s latency       • gpt-4o-mini          │
+│  • Qwen 2.5 14B      • qwen2.5:3b        • 100% availability    │
+│  • Best quality      • On-premises       • Pay-per-use          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**LiteLLM Configuration Pattern:**
+```yaml
+# applications/litellm/config.yaml
+model_list:
+  - model_name: "default"
+    litellm_params:
+      model: "openai/Qwen/Qwen2.5-7B-Instruct-AWQ"
+      api_base: "http://vllm-api.ml.svc.cluster.local:8000/v1"
+      api_key: "not-needed"
+    model_info:
+      mode: "chat"
+
+  - model_name: "default"  # Same name = fallback
+    litellm_params:
+      model: "ollama/qwen2.5:3b"
+      api_base: "http://ollama.ml.svc.cluster.local:11434"
+    model_info:
+      mode: "chat"
+
+  - model_name: "default"  # Same name = fallback
+    litellm_params:
+      model: "gpt-4o-mini"
+      api_key: "os.environ/OPENAI_API_KEY"
+    model_info:
+      mode: "chat"
+
+router_settings:
+  routing_strategy: "simple-shuffle"  # Try in order
+  num_retries: 2
+  timeout: 30
+  fallbacks: [{"default": ["default"]}]
+
+general_settings:
+  master_key: "os.environ/LITELLM_MASTER_KEY"
+```
+
+**Service Integration Pattern:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Before (Direct vLLM):                                          │
+│  Paperless-AI ──────────────────────────► vLLM                  │
+│  (Fails during Gaming Mode)                                     │
+├─────────────────────────────────────────────────────────────────┤
+│  After (LiteLLM Proxy):                                         │
+│                                                                 │
+│  Paperless-AI ───► LiteLLM ───┬──► vLLM (GPU)    [Primary]     │
+│                               ├──► Ollama (CPU)   [Fallback 1] │
+│                               └──► OpenAI (Cloud) [Fallback 2] │
+│                                                                 │
+│  (Works in all modes with graceful degradation)                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Paperless-AI Configuration Change:**
+```yaml
+# Before (direct vLLM):
+AI_PROVIDER: custom
+CUSTOM_BASE_URL: http://vllm-api.ml.svc.cluster.local:8000/v1
+
+# After (via LiteLLM):
+AI_PROVIDER: custom
+CUSTOM_BASE_URL: http://litellm.ml.svc.cluster.local:4000/v1
+```
+
+**Operational Behavior by Mode:**
+
+| Mode | vLLM | Ollama | LiteLLM Routing | Performance |
+|------|------|--------|-----------------|-------------|
+| **ML Mode** | Running | Running | vLLM (Tier 1) | ~35-40 tok/s, best quality |
+| **Gaming Mode** | Scaled to 0 | Running | Ollama (Tier 2) | <5s latency, on-premises |
+| **Full Outage** | Down | Down | OpenAI (Tier 3) | Cloud, pay-per-use |
+
+**NFR Compliance (LiteLLM):**
+- NFR65: Failover detection <5s via health check polling
+- NFR66: <100ms latency overhead during normal operation (proxy passthrough)
+- NFR67: Paperless-AI continues (degraded) during Gaming Mode via Ollama fallback
+- NFR68: OpenAI only used when both local backends unavailable
+- NFR69: Health endpoint responds <1s for K8s readiness probes
+
+**Prometheus Metrics (FR118):**
+```
+litellm_requests_total{model="vllm",status="success"}
+litellm_requests_total{model="ollama",status="fallback"}
+litellm_requests_total{model="openai",status="fallback"}
+litellm_latency_seconds{model="vllm",quantile="0.95"}
+litellm_fallback_events_total{from="vllm",to="ollama"}
+```
 
 ### Multi-Subnet GPU Worker Network Architecture
 
@@ -936,8 +1106,8 @@ Synology: /volume1/k8s-data/
 
 ### Requirements Coverage ✅
 
-**Functional Requirements:** 112/112 covered
-**Non-Functional Requirements:** 64/64 covered
+**Functional Requirements:** 119/119 covered
+**Non-Functional Requirements:** 70/70 covered
 
 All requirements have explicit architectural support documented in Core Architectural Decisions and Project Structure sections.
 
@@ -956,12 +1126,16 @@ All requirements have explicit architectural support documented in Core Architec
 - **FR104-105: Ollama model upgrade to Qwen 2.5 14B, ConfigMap-based model config — covered by AI Document Classification Architecture (Story 12.8)**
 - **FR106-108: clusterzx/paperless-ai migration with Web UI, RAG chat, configurable rules — covered by AI Document Classification Architecture (Story 12.9)**
 - **FR109-112: vLLM GPU integration for Paperless-AI, OpenAI-compatible endpoint, Ollama slim models, k3s-worker-02 resource reduction — covered by AI/ML Architecture + AI Document Classification Architecture (Story 12.10)**
+- **FR113-118: LiteLLM Inference Proxy with three-tier fallback (vLLM → Ollama → OpenAI), Paperless-AI integration, OpenAI API key secret, Prometheus metrics — covered by LiteLLM Inference Proxy Architecture (Epic 14)**
+- **FR119: k3s-gpu-worker boots into ML Mode by default via systemd service — covered by Dual-Use GPU Architecture (Default Boot Behavior)**
 - NFR50-54: Gaming Platform performance requirements — covered by Dual-Use GPU Architecture
 - NFR55-57: Multi-Subnet networking requirements — covered by Multi-Subnet GPU Worker Network Architecture
 - **NFR58: Qwen 2.5 14B JSON output quality (95%+) — covered by AI Document Classification Architecture (Story 12.8)**
 - **NFR59-60: RAG search latency, Web UI config hot-reload — covered by AI Document Classification Architecture (Story 12.9)**
 - **NFR61-62: CPU Ollama performance, classification latency (<60s) — covered by AI Document Classification Architecture (Story 12.8)**
 - **NFR63-64: vLLM GPU performance (<5s classification latency, 35-40 tok/s throughput) — covered by AI Document Classification Architecture (Story 12.10)**
+- **NFR65-69: LiteLLM failover latency (<5s), proxy overhead (<100ms), degraded operation during Gaming Mode, health endpoint response time — covered by LiteLLM Inference Proxy Architecture (Epic 14)**
+- **NFR70: ML Mode auto-activates within 5 minutes of k3s-gpu-worker boot — covered by Dual-Use GPU Architecture (Default Boot Behavior)**
 
 ### Implementation Readiness ✅
 
@@ -982,7 +1156,7 @@ This architecture is ready for implementation because:
 - [x] Cross-cutting concerns mapped (Tailscale, TLS, observability)
 
 **✅ Architectural Decisions**
-- [x] Critical decisions documented (16 core decisions)
+- [x] Critical decisions documented (18 core decisions)
 - [x] Technology stack fully specified (Helm charts identified)
 - [x] Integration patterns defined (namespace, network, storage)
 - [x] Implementation sequence established
@@ -1026,10 +1200,10 @@ This architecture is ready for implementation because:
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 17 core architectural decisions made (updated for Stories 12.8-12.10 including vLLM GPU integration)
+- 18 core architectural decisions made (updated for Epic 14: LiteLLM Inference Proxy with three-tier fallback)
 - 6 implementation pattern categories defined
 - 8 namespace boundaries established
-- 112 functional + 64 non-functional requirements supported
+- 118 functional + 69 non-functional requirements supported
 
 **AI Agent Implementation Guide**
 - Technology stack with Helm chart references

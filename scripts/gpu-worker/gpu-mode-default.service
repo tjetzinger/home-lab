@@ -1,0 +1,19 @@
+[Unit]
+Description=Set GPU to ML Mode at boot (FR119)
+Documentation=https://github.com/tjetzinger/home-lab
+After=network-online.target k3s-agent.service
+Wants=network-online.target
+Requires=k3s-agent.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Wait for k3s to be fully ready (kubectl accessible) before switching mode
+ExecStartPre=/bin/bash -c 'for i in {1..60}; do /usr/local/bin/kubectl get nodes &>/dev/null && exit 0; sleep 5; done; exit 1'
+ExecStart=/usr/local/bin/gpu-mode ml
+TimeoutStartSec=300
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

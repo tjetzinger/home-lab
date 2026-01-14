@@ -1,8 +1,8 @@
 ---
-stepsCompleted: [1, 2, 3, 4]
-workflow_completed: true
+stepsCompleted: [1]
+workflow_completed: false
 completedAt: '2026-01-08'
-lastModified: '2026-01-13'
+lastModified: '2026-01-14'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,8 +10,8 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'Added Story 12.10 (vLLM GPU Integration for Paperless-AI) - vLLM serves qwen2.5:14b on GPU, Paperless-AI uses OpenAI-compatible endpoint, Ollama downgraded to slim models, k3s-worker-02 RAM reduced. Added FR109-112, NFR63-64.'
-currentStep: 'Workflow Complete - Story 12.10 added'
+updateReason: 'Added FR119/NFR70 to Epic 13: Default ML Mode at boot for k3s-gpu-worker via systemd service.'
+currentStep: 'Incremental update - FR119/NFR70 added to requirements inventory and Epic 13'
 ---
 
 # home-lab - Epic Breakdown
@@ -91,12 +91,21 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR111: Ollama serves slim models (llama3.2:1b, qwen2.5:3b) for experimentation only, qwen2.5:14b removed (Story 12.10)
 - FR112: k3s-worker-02 resources reduced from 32GB to 8GB RAM after vLLM migration (Story 12.10)
 
-**Gaming Platform (5 FRs)**
+**Gaming Platform (6 FRs)**
 - FR95: Intel NUC runs Steam on host Ubuntu OS (not containerized)
 - FR96: Steam uses Proton for Windows game compatibility
 - FR97: Operator can switch between Gaming Mode and ML Mode via script
 - FR98: Gaming Mode scales Ollama pods to 0 and enables CPU fallback
 - FR99: ML Mode restores GPU Ollama pods when Steam/gaming exits
+- FR119: k3s-gpu-worker boots into ML Mode by default via systemd service (vLLM scaled to 1 at startup)
+
+**LiteLLM Inference Proxy (6 FRs)**
+- FR113: LiteLLM proxy deployed in `ml` namespace providing unified OpenAI-compatible endpoint
+- FR114: LiteLLM configured with three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+- FR115: Paperless-AI configured to use LiteLLM endpoint instead of direct vLLM connection
+- FR116: LiteLLM automatically routes to next fallback tier when primary backend health check fails
+- FR117: OpenAI API key stored securely via Kubernetes secret for cloud fallback tier
+- FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
 
 **Development Proxy (3 FRs)**
 - FR41: Operator can configure Nginx to proxy to local dev servers
@@ -198,11 +207,12 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR56: Pod-to-pod communication works across different physical subnets (192.168.0.x <-> 192.168.2.x) via Tailscale
 - NFR57: MTU configured at 1280 bytes to prevent VXLAN packet fragmentation over Tailscale
 
-**Gaming Platform (4 NFRs)**
+**Gaming Platform (5 NFRs)**
 - NFR51: Gaming Mode activation completes within 30 seconds (pod scale-down + VRAM release)
 - NFR52: ML Mode restoration completes within 2 minutes (pod scale-up + model load)
 - NFR53: Steam games achieve 60+ FPS at 1080p with exclusive GPU access
 - NFR54: Graceful degradation to Ollama CPU maintains <5 second inference latency
+- NFR70: ML Mode auto-activates within 5 minutes of k3s-gpu-worker boot (after k3s agent ready)
 
 **AI Classification Performance - Paperless-AI (7 NFRs)**
 - NFR58: Qwen 2.5 14B produces valid JSON output for 95%+ of document classification requests (Story 12.8)
@@ -212,6 +222,13 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR62: Document classification latency <60 seconds with CPU Ollama (Story 12.8)
 - NFR63: vLLM achieves <5 second document classification latency with GPU-accelerated qwen2.5:14b (Story 12.10)
 - NFR64: vLLM serves qwen2.5:14b with 35-40 tokens/second throughput on RTX 3060 (Story 12.10)
+
+**LiteLLM Inference Proxy (5 NFRs)**
+- NFR65: LiteLLM failover detection completes within 5 seconds of backend unavailability
+- NFR66: LiteLLM adds <100ms latency to inference requests during normal operation
+- NFR67: Paperless-AI document processing continues (degraded) during Gaming Mode via fallback chain
+- NFR68: OpenAI fallback tier only activated when both vLLM and Ollama are unavailable
+- NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
 
 ### Additional Requirements
 
@@ -373,14 +390,15 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR102 | Epic 12 | K3s nodes advertise Tailscale IPs via --node-external-ip |
 | FR103 | Epic 12 | NO_PROXY includes Tailscale CGNAT range (100.64.0.0/10) |
 
-**Coverage Summary:** 108 FRs total, 62 NFRs total
+**Coverage Summary:** 125 FRs total, 75 NFRs total
 - **Phase 1 (Epic 1-9):** 54 FRs completed
 - **Phase 2 (Epic 10-12):** 49 FRs
   - Epic 10 (Paperless-ngx): FR55-58, FR64-66, FR75-93
   - Epic 11 (Dev Containers): FR59-63, FR67-70
   - Epic 12 (GPU/ML - vLLM + Qwen 2.5 14B): FR38-39, FR71-74, FR87-89, FR94, FR100-112
-- **Phase 3 (Epic 13):** 5 FRs
-  - Epic 13 (Steam Gaming): FR95-99
+- **Phase 3 (Epic 13-14):** 12 FRs
+  - Epic 13 (Steam Gaming): FR95-99, FR119
+  - Epic 14 (LiteLLM Inference Proxy): FR113-118
 
 ## Epic List
 
@@ -570,16 +588,18 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 
 **User Outcome:** Tom can use the Intel NUC + RTX 3060 for both Steam gaming (Windows games via Proton) AND ML inference (Ollama with Qwen 2.5 14B), switching between modes with a simple script that gracefully scales down K8s workloads when gaming and restores them afterward.
 
-**FRs covered:** FR95-99
+**FRs covered:** FR95-99, FR119
 - FR95: Intel NUC runs Steam on host Ubuntu OS (not containerized)
 - FR96: Steam uses Proton for Windows game compatibility
 - FR97: Operator can switch between Gaming Mode and ML Mode via script
 - FR98: Gaming Mode scales Ollama pods to 0 and enables CPU fallback
 - FR99: ML Mode restores GPU Ollama pods when Steam/gaming exits
+- FR119: k3s-gpu-worker boots into ML Mode by default via systemd service
 
-**NFRs covered:** NFR51-54
+**NFRs covered:** NFR51-54, NFR70
 - NFR51: Gaming Mode activation completes within 30 seconds (pod scale-down + VRAM release)
 - NFR52: ML Mode restoration completes within 2 minutes (pod scale-up + model load)
+- NFR70: ML Mode auto-activates within 5 minutes of k3s-gpu-worker boot
 - NFR53: Steam games achieve 60+ FPS at 1080p with exclusive GPU access
 - NFR54: Graceful degradation to Ollama CPU maintains <5 second inference latency
 
@@ -591,6 +611,217 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - Gaming Mode: `kubectl scale deployment/ollama --replicas=0 -n ml`
 - ML Mode: `kubectl scale deployment/ollama --replicas=1 -n ml`
 - NVIDIA driver configured with `nvidia-drm.modeset=1` for PRIME support
+
+---
+
+### Epic 14: LiteLLM Inference Proxy [Phase 3]
+
+**User Outcome:** Tom has a unified AI inference endpoint that automatically fails over between three tiers (vLLM GPU → Ollama CPU → OpenAI cloud), ensuring Paperless-AI document processing continues even during Gaming Mode or GPU worker unavailability.
+
+**FRs covered:** FR113-118
+- FR113: LiteLLM proxy deployed in `ml` namespace providing unified OpenAI-compatible endpoint
+- FR114: LiteLLM configured with three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+- FR115: Paperless-AI configured to use LiteLLM endpoint instead of direct vLLM connection
+- FR116: LiteLLM automatically routes to next fallback tier when primary backend health check fails
+- FR117: OpenAI API key stored securely via Kubernetes secret for cloud fallback tier
+- FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
+
+**NFRs covered:** NFR65-69
+- NFR65: LiteLLM failover detection completes within 5 seconds of backend unavailability
+- NFR66: LiteLLM adds <100ms latency to inference requests during normal operation
+- NFR67: Paperless-AI document processing continues (degraded) during Gaming Mode via fallback chain
+- NFR68: OpenAI fallback tier only activated when both vLLM and Ollama are unavailable
+- NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
+
+**Implementation Notes:**
+- LiteLLM provides OpenAI-compatible API that routes to multiple backends
+- Fallback order: vLLM (fastest, GPU-accelerated) → Ollama (slower, CPU) → OpenAI (cloud, pay-per-use)
+- Health checks on each backend determine routing decisions
+- Paperless-AI only needs single endpoint configuration change
+- Prometheus metrics track which tier is serving requests
+
+---
+
+### Story 14.1: Deploy LiteLLM Proxy with vLLM Backend
+
+As a **cluster operator**,
+I want **to deploy LiteLLM proxy with vLLM as the primary backend**,
+So that **I have a unified OpenAI-compatible endpoint for all AI inference requests**.
+
+**Story Points:** 3
+
+**Acceptance Criteria:**
+
+**Given** the `ml` namespace exists with vLLM deployment running
+**When** I deploy LiteLLM via Helm chart or Kubernetes manifests
+**Then** LiteLLM pod starts successfully in the `ml` namespace
+**And** LiteLLM exposes an OpenAI-compatible API endpoint
+
+**Given** LiteLLM is deployed
+**When** I configure it to use vLLM as the primary model backend
+**Then** LiteLLM correctly proxies requests to vLLM
+**And** responses are returned in OpenAI API format
+
+**Given** LiteLLM is routing to vLLM
+**When** I send a chat completion request to the LiteLLM endpoint
+**Then** the response matches the model output from vLLM
+**And** latency overhead is <100ms (NFR66)
+
+**Tasks:**
+- [ ] Research LiteLLM deployment options (Docker image, Helm chart)
+- [ ] Create Kubernetes deployment manifest for LiteLLM
+- [ ] Configure LiteLLM with vLLM backend URL (http://vllm.ml.svc.cluster.local:8000)
+- [ ] Create Service and IngressRoute for LiteLLM
+- [ ] Test basic inference request through LiteLLM
+
+---
+
+### Story 14.2: Configure Three-Tier Fallback Chain
+
+As a **cluster operator**,
+I want **LiteLLM to automatically fall back to Ollama CPU, then OpenAI cloud when vLLM is unavailable**,
+So that **AI inference continues even during Gaming Mode or GPU worker outages**.
+
+**Story Points:** 5
+
+**Acceptance Criteria:**
+
+**Given** LiteLLM is deployed with vLLM backend
+**When** I add Ollama as a secondary backend in LiteLLM configuration
+**Then** LiteLLM routes to Ollama when vLLM health check fails
+**And** failover completes within 5 seconds (NFR65)
+
+**Given** LiteLLM has vLLM and Ollama backends configured
+**When** I add OpenAI as a tertiary backend
+**Then** OpenAI API key is stored as Kubernetes secret (FR117)
+**And** OpenAI is only used when both vLLM and Ollama are unavailable (NFR68)
+
+**Given** three-tier fallback is configured
+**When** I scale vLLM to 0 replicas (Gaming Mode)
+**Then** LiteLLM automatically routes requests to Ollama CPU
+**And** document processing continues (degraded) via fallback chain (NFR67)
+
+**Given** vLLM and Ollama are both unavailable
+**When** I send an inference request
+**Then** LiteLLM routes to OpenAI cloud as last resort
+**And** response is returned with higher latency but correct format
+
+**Tasks:**
+- [ ] Configure LiteLLM model routing with fallback chain
+- [ ] Add Ollama backend configuration (http://ollama.ml.svc.cluster.local:11434)
+- [ ] Create Kubernetes secret for OpenAI API key
+- [ ] Configure OpenAI as tertiary fallback backend
+- [ ] Test failover by scaling vLLM to 0
+- [ ] Test complete fallback chain (both vLLM and Ollama down)
+- [ ] Verify failover detection time (<5 seconds)
+
+---
+
+### Story 14.3: Integrate Paperless-AI with LiteLLM
+
+As a **document management user**,
+I want **Paperless-AI to use the LiteLLM unified endpoint**,
+So that **document classification continues working regardless of which backend is available**.
+
+**Story Points:** 3
+
+**Acceptance Criteria:**
+
+**Given** LiteLLM is deployed with three-tier fallback
+**When** I update Paperless-AI configuration to use LiteLLM endpoint
+**Then** `AI_PROVIDER=custom` points to LiteLLM service URL (FR115)
+**And** document classification requests route through LiteLLM
+
+**Given** Paperless-AI is configured with LiteLLM
+**When** I upload a document for processing
+**Then** the document is classified using the available backend tier
+**And** classification results are stored correctly
+
+**Given** vLLM is unavailable (Gaming Mode)
+**When** Paperless-AI processes a document
+**Then** the request falls back to Ollama CPU via LiteLLM
+**And** processing completes (potentially slower)
+
+**Tasks:**
+- [ ] Update Paperless-AI deployment with LiteLLM endpoint URL
+- [ ] Configure AI_PROVIDER and API endpoint settings
+- [ ] Test document classification through LiteLLM → vLLM path
+- [ ] Test document classification during Gaming Mode (LiteLLM → Ollama)
+- [ ] Verify classification accuracy is maintained across backends
+
+---
+
+### Story 14.4: Configure Prometheus Metrics and Monitoring
+
+As a **cluster operator**,
+I want **LiteLLM to expose Prometheus metrics for inference routing**,
+So that **I can monitor which backend tier is serving requests and track fallback events**.
+
+**Story Points:** 2
+
+**Acceptance Criteria:**
+
+**Given** LiteLLM is deployed
+**When** I enable Prometheus metrics export
+**Then** LiteLLM exposes metrics endpoint on /metrics (FR118)
+**And** ServiceMonitor scrapes LiteLLM metrics
+
+**Given** LiteLLM metrics are being scraped
+**When** I view Grafana dashboards
+**Then** I can see which backend tier is serving requests
+**And** fallback events are visible in metrics
+
+**Given** LiteLLM health endpoint is configured
+**When** Kubernetes performs readiness probe
+**Then** health check responds within 1 second (NFR69)
+**And** pod is marked ready when backends are available
+
+**Tasks:**
+- [ ] Enable Prometheus metrics in LiteLLM configuration
+- [ ] Create ServiceMonitor for LiteLLM
+- [ ] Configure readiness/liveness probes
+- [ ] Add LiteLLM panel to existing Grafana ML dashboard
+- [ ] Test metrics export and dashboard visibility
+
+---
+
+### Story 14.5: Validate Failover and Performance
+
+As a **cluster operator**,
+I want **to validate the complete LiteLLM failover chain meets NFR requirements**,
+So that **I have confidence the system handles backend failures gracefully**.
+
+**Story Points:** 3
+
+**Acceptance Criteria:**
+
+**Given** LiteLLM is fully configured with three-tier fallback
+**When** I run performance tests during normal operation
+**Then** LiteLLM adds <100ms latency overhead (NFR66)
+**And** vLLM serves requests with GPU-accelerated speed
+
+**Given** I switch to Gaming Mode (`gpu-mode gaming`)
+**When** vLLM pods scale to 0
+**Then** LiteLLM detects unavailability within 5 seconds (NFR65)
+**And** requests automatically route to Ollama CPU
+
+**Given** Ollama CPU is serving requests
+**When** I process documents via Paperless-AI
+**Then** processing completes (degraded performance expected)
+**And** classification accuracy is maintained (NFR67)
+
+**Given** both vLLM and Ollama are unavailable
+**When** I send inference request
+**Then** LiteLLM routes to OpenAI cloud (NFR68)
+**And** request completes with cloud latency
+
+**Tasks:**
+- [ ] Measure baseline latency with vLLM (GPU)
+- [ ] Measure LiteLLM proxy overhead (<100ms)
+- [ ] Test failover timing (vLLM → Ollama) <5 seconds
+- [ ] Test complete fallback chain to OpenAI
+- [ ] Document performance characteristics per tier
+- [ ] Update steam-setup.md with LiteLLM fallback behavior
 
 ---
 
@@ -3435,10 +3666,10 @@ env:
 
 ### Epic 13: Steam Gaming Platform (Dual-Use GPU)
 
-**User Outcome:** Tom can use the Intel NUC + RTX 3060 for both Steam gaming (Windows games via Proton) AND ML inference (Ollama with Qwen 2.5 14B), switching between modes with a simple script that gracefully scales down K8s workloads when gaming and restores them afterward.
+**User Outcome:** Tom can use the Intel NUC + RTX 3060 for both Steam gaming (Windows games via Proton) AND ML inference (Ollama with Qwen 2.5 14B), switching between modes with a simple script that gracefully scales down K8s workloads when gaming and restores them afterward. The system boots into ML Mode by default.
 
-**FRs Covered:** FR95-99
-**NFRs Covered:** NFR51-54
+**FRs Covered:** FR95-99, FR119
+**NFRs Covered:** NFR51-54, NFR70
 
 ---
 
@@ -3647,21 +3878,23 @@ Tom has a working multi-node K3s cluster he can access from anywhere via Tailsca
 | 12 | GPU/ML Inference Platform (vLLM + Qwen 2.5 14B) | 10 | FR38-39, FR71-74, FR87-89, FR94, FR100-112 | NFR34-38, NFR50, NFR55-64 |
 | **Phase 2 Total** | | **26 stories** | **49 FRs** | **27 NFRs** |
 | | | | | |
-| 13 | Steam Gaming Platform (Dual-Use GPU) | 4 | FR95-99 | NFR51-54 |
-| **Phase 3 Total** | | **4 stories** | **5 FRs** | **4 NFRs** |
+| 13 | Steam Gaming Platform (Dual-Use GPU) | 4 | FR95-99, FR119 | NFR51-54, NFR70 |
+| 14 | LiteLLM Inference Proxy | 5 | FR113-118 | NFR65-69 |
+| **Phase 3 Total** | | **9 stories** | **12 FRs** | **10 NFRs** |
 | | | | | |
-| **Grand Total** | | **72 stories** | **108 FRs** | **62 NFRs** |
+| **Grand Total** | | **77 stories** | **125 FRs** | **75 NFRs** |
 
 **Phase 1 Status:** ✅ Completed (Epics 1-9)
-**Phase 2 Status:** ✅ Ready for Implementation (Epics 10-12 - all stories created with unified Qwen 2.5 14B architecture)
-**Phase 3 Status:** ✅ Ready for Implementation (Epic 13 - Steam Gaming with mode switching)
+**Phase 2 Status:** ✅ Completed (Epics 10-12)
+**Phase 3 Status:** ✅ Ready for Implementation (Epic 13-14 - Steam Gaming with mode switching + LiteLLM Inference Proxy)
 
 ---
 
-**Workflow Complete:** All Phase 2 epics and stories have been created with detailed acceptance criteria, including:
+**Workflow Complete:** All Phase 2 and Phase 3 epics and stories have been created with detailed acceptance criteria, including:
 - Expanded Paperless-ngx ecosystem (Office processing, PDF editing, AI classification with RAG, email integration)
 - Unified Ollama with Qwen 2.5 14B model (~8-9GB VRAM) replacing vLLM multi-model approach
 - Paperless-AI enhancements (FR104-110, NFR58-62) for better document classification with clusterzx/paperless-ai
-- Steam Gaming Platform (Epic 13) with GPU mode switching
+- Steam Gaming Platform (Epic 13) with GPU mode switching and default ML Mode at boot
+- LiteLLM Inference Proxy (Epic 14) with three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
 
 Ready to add to sprint-status.yaml and begin implementation.
