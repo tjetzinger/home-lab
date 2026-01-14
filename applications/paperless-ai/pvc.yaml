@@ -1,0 +1,29 @@
+# Paperless-AI PersistentVolumeClaim
+# Story: 12.9 - Migrate to clusterzx/paperless-ai
+# Epic: 12 - GPU/ML Inference Platform
+#
+# FRs:
+# - FR106: clusterzx/paperless-ai deployed with web-based configuration UI
+# - FR107: RAG-based document chat enables natural language queries
+#
+# NFRs:
+# - NFR59: RAG document search returns context within 5 seconds
+#
+# Purpose: Persist configuration and RAG index data across pod restarts
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-ai-data
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-ai
+    app.kubernetes.io/instance: paperless-ai
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 5Gi
