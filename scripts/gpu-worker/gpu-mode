@@ -1,4 +1,7 @@
 #!/bin/bash
+# Set KUBECONFIG for kubectl access (required for non-interactive shells like SSH)
+export KUBECONFIG=/home/tt/.kube/config
+
 # gpu-mode - Switch between Gaming Mode and ML Mode on k3s-gpu-worker
 #
 # Story: 13.2 - Configure Mode Switching Script
