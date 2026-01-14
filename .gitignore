@@ -189,3 +189,7 @@ vendor/
 # IP addresses (192.168.x.x) in documentation are internal-only and safe to commit
 # All manifests and Helm values files should be committed (infrastructure as code)
 # Use sealed-secrets or external secret management for sensitive Kubernetes data
+
+# IDE and local tool directories
+.claude/
+.obsidian/
