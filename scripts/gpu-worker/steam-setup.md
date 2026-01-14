@@ -101,7 +101,7 @@ Tested games and their status:
 
 | Game | Proton Version | Status | Notes |
 |------|----------------|--------|-------|
-| *TBD* | - | - | Add tested games here |
+| Counter-Strike 2 | Proton 9.0-4 | ✅ Platinum | 1080p Med: 60 FPS, 58°C max, no stuttering |
 
 Check [ProtonDB](https://www.protondb.com/) for community compatibility reports.
 

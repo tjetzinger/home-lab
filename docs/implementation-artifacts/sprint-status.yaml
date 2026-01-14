@@ -156,9 +156,9 @@ development_status:
   epic-12-retrospective: optional
 
   # Epic 13: Steam Gaming Platform (Dual-Use GPU)
-  epic-13: in-progress
+  epic-13: done
   13-1-install-steam-and-proton-on-intel-nuc: done
   13-2-configure-mode-switching-script: done
   13-3-integrate-n8n-fallback-routing: done
-  13-4-validate-gaming-performance: backlog
+  13-4-validate-gaming-performance: done
   epic-13-retrospective: optional
