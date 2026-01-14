@@ -1,5 +1,5 @@
 # LiteLLM Configuration ConfigMap
-# Story: 14.2 - Configure Three-Tier Fallback Chain
+# Story: 14.4 - Configure Prometheus Metrics and Monitoring
 # Epic: 14 - LiteLLM Inference Proxy
 #
 # FRs:
@@ -7,12 +7,14 @@
 # - FR114: LiteLLM configured with three-tier fallback (vLLM → Ollama → OpenAI)
 # - FR116: Automatic failover to Ollama when vLLM health check fails
 # - FR117: OpenAI API key stored as Kubernetes secret
+# - FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
 #
 # NFRs:
 # - NFR65: Failover detection within 5 seconds
 # - NFR66: LiteLLM proxy latency overhead <100ms
 # - NFR67: Document processing continues (degraded) via fallback chain
 # - NFR68: OpenAI only used when both vLLM and Ollama unavailable
+# - NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
 #
 # Three-tier fallback chain: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
 
@@ -80,6 +82,8 @@ data:
       set_verbose: false
       drop_params: true  # Drop unsupported params instead of failing
       request_timeout: 30
+      # Prometheus metrics callback (FR118) - exposes /metrics endpoint
+      callbacks: ["prometheus"]
       # Fallback chain: vLLM → Ollama → OpenAI (NFR68)
       # Client requests "vllm-qwen", auto-falls back to ollama-qwen, then openai-gpt4o
       fallbacks: [{"vllm-qwen": ["ollama-qwen"]}, {"ollama-qwen": ["openai-gpt4o"]}]

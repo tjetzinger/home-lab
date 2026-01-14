@@ -168,6 +168,6 @@ development_status:
   14-1-deploy-litellm-proxy-with-vllm-backend: done
   14-2-configure-three-tier-fallback-chain: done
   14-3-integrate-paperless-ai-with-litellm: done
-  14-4-configure-prometheus-metrics-and-monitoring: backlog
+  14-4-configure-prometheus-metrics-and-monitoring: done
   14-5-validate-failover-and-performance: backlog
   epic-14-retrospective: optional

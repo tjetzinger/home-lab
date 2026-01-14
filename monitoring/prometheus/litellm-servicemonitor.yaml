@@ -1,0 +1,38 @@
+# LiteLLM ServiceMonitor for Prometheus
+# Story: 14.4 - Configure Prometheus Metrics and Monitoring
+# Epic: 14 - LiteLLM Inference Proxy
+#
+# FRs:
+# - FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
+#
+# NFRs:
+# - NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
+#
+# Purpose: Enables Prometheus to scrape LiteLLM proxy metrics
+# Target: litellm service in ml namespace on port 4000
+# Metrics endpoint: /metrics/ (note trailing slash required by LiteLLM)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: litellm
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: litellm
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-proxy-metrics
+    release: kube-prometheus-stack
+spec:
+  # Target the LiteLLM service in ml namespace
+  namespaceSelector:
+    matchNames:
+      - ml
+  selector:
+    matchLabels:
+      app: litellm
+  endpoints:
+    - port: http
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics/
+      honorLabels: true
