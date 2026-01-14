@@ -1,9 +1,9 @@
 [Unit]
 Description=Set GPU to ML Mode at boot (FR119)
 Documentation=https://github.com/tjetzinger/home-lab
-After=network-online.target k3s-agent.service
-Wants=network-online.target
-Requires=k3s-agent.service
+# Start after display manager so login isn't blocked
+After=graphical.target k3s-agent.service
+Wants=graphical.target
 
 [Service]
 Type=oneshot
