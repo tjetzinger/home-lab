@@ -1,18 +1,17 @@
 # Paperless-AI ConfigMap
-# Story: 12.10 - Configure vLLM GPU Integration for Paperless-AI
-# Epic: 12 - GPU/ML Inference Platform
+# Story: 14.3 - Integrate Paperless-AI with LiteLLM
+# Epic: 14 - LiteLLM Inference Proxy (Three-Tier Fallback)
 #
 # FRs:
 # - FR87: Paperless-AI connects to LLM
 # - FR88: LLM-based auto-tagging
 # - FR89: Auto-populate correspondents and types
-# - FR109: vLLM serves qwen2.5 model for document classification
-# - FR110: Paperless-AI configured to use vLLM via OpenAI-compatible API
+# - FR115: Paperless-AI uses LiteLLM unified endpoint
 #
 # NFRs:
 # - NFR58: 95%+ valid JSON output
 # - NFR63: Document classification <5 seconds with GPU inference
-# - NFR64: vLLM throughput 35-40 tokens/second
+# - NFR67: Document processing continues (degraded) via fallback chain
 #
 # Environment Variables Reference:
 # https://github.com/clusterzx/paperless-ai
@@ -40,17 +39,18 @@ data:
   PAPERLESS_URL: "http://paperless-paperless-ngx.docs.svc.cluster.local:8000"
   PAPERLESS_USERNAME: "tjetzinger"
 
-  # AI Provider configuration - using vLLM via OpenAI-compatible API
+  # AI Provider configuration - using LiteLLM proxy with three-tier fallback
   AI_PROVIDER: "custom"
 
-  # vLLM configuration (GPU-accelerated inference on k3s-gpu-worker)
-  # Service DNS: vllm-api.ml.svc.cluster.local:8000
-  CUSTOM_BASE_URL: "http://vllm-api.ml.svc.cluster.local:8000/v1"
-  LLM_MODEL: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+  # LiteLLM configuration (unified endpoint with automatic failover)
+  # Three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+  # Service DNS: litellm.ml.svc.cluster.local:4000
+  CUSTOM_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
+  LLM_MODEL: "vllm-qwen"
 
-  # Legacy Ollama configuration (commented out - kept for reference)
-  # OLLAMA_API_URL: "http://ollama.ml.svc.cluster.local:11434"
-  # OLLAMA_MODEL: "qwen2.5:14b"
+  # Previous direct vLLM configuration (superseded by LiteLLM)
+  # CUSTOM_BASE_URL: "http://vllm-api.ml.svc.cluster.local:8000/v1"
+  # LLM_MODEL: "Qwen/Qwen2.5-7B-Instruct-AWQ"
 
   # Document processing configuration
   SCAN_INTERVAL: "*/30 * * * *"
