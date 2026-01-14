@@ -11,7 +11,8 @@ RemainAfterExit=yes
 # KUBECONFIG path for kubectl access (gpu-worker uses user's kubeconfig)
 Environment="KUBECONFIG=/home/tt/.kube/config"
 # Wait for k3s to be fully ready (kubectl accessible) before switching mode
-ExecStartPre=/bin/bash -c 'for i in {1..60}; do /usr/local/bin/kubectl get nodes &>/dev/null && exit 0; sleep 5; done; exit 1'
+# Check every 2s instead of 5s for faster boot (max 2 min wait)
+ExecStartPre=/bin/bash -c 'for i in {1..60}; do /usr/local/bin/kubectl get nodes &>/dev/null && exit 0; sleep 2; done; exit 1'
 ExecStart=/usr/local/bin/gpu-mode ml
 TimeoutStartSec=300
 StandardOutput=journal
