@@ -1,0 +1,84 @@
+# Open-WebUI Helm values for home-lab
+# Story: 17.1 - Deploy Open-WebUI with Persistent Storage
+# Epic: 17 - ChatGPT-like Interface (Open-WebUI)
+# Chart: open-webui/open-webui
+#
+# FRs:
+# - FR126: Open-WebUI deployed in `apps` namespace with persistent storage
+# - FR127: Open-WebUI configured to use LiteLLM as backend (Story 17.2)
+# - FR128: Open-WebUI accessible via ingress (Story 17.3)
+#
+# NFRs:
+# - NFR75: Web interface loads within 3 seconds
+# - NFR76: Chat history persisted to NFS storage surviving pod restarts
+
+# Disable bundled Ollama (using LiteLLM instead - Story 17.2)
+ollama:
+  enabled: false
+
+# Disable bundled Pipelines (not needed)
+pipelines:
+  enabled: false
+
+# Disable websocket Redis (single user, not needed)
+websocket:
+  enabled: false
+  redis:
+    enabled: false
+
+# Disable Tika (not needed)
+tika:
+  enabled: false
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels:
+  app.kubernetes.io/part-of: home-lab
+
+# Resource limits for home lab
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+# Persistent storage for chat history (NFR76)
+persistence:
+  enabled: true
+  storageClass: nfs-client
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+  annotations:
+    helm.sh/resource-policy: keep
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+
+# Ingress disabled - will configure in Story 17.3
+ingress:
+  enabled: false
+
+# Environment variables
+extraEnvVars:
+  # Disable Ollama API (using LiteLLM OpenAI-compatible API)
+  - name: ENABLE_OLLAMA_API
+    value: "false"
+  # Enable OpenAI API for LiteLLM integration (Story 17.2)
+  - name: ENABLE_OPENAI_API
+    value: "true"
+  # Will be configured in Story 17.2:
+  # - name: OPENAI_API_BASE_URL
+  #   value: "http://litellm.ml.svc.cluster.local:4000/v1"
+
+# Node selector - allow scheduling on any worker
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
