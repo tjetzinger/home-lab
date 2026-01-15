@@ -1,8 +1,8 @@
 ---
-stepsCompleted: [1]
-workflow_completed: false
-completedAt: '2026-01-08'
-lastModified: '2026-01-14'
+stepsCompleted: [1, 2, 3, 4]
+workflow_completed: true
+completedAt: '2026-01-15'
+lastModified: '2026-01-15'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,8 +10,8 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'Added FR119/NFR70 to Epic 13: Default ML Mode at boot for k3s-gpu-worker via systemd service.'
-currentStep: 'Incremental update - FR119/NFR70 added to requirements inventory and Epic 13'
+updateReason: 'Workflow complete - Added 18 new stories for Phase 4 epics (15-20) plus Story 9.6 and 14.6. All 148 FRs covered across 96 stories in 20 epics.'
+currentStep: 'Workflow Complete - All validations passed, ready for implementation'
 ---
 
 # home-lab - Epic Breakdown
@@ -106,6 +106,51 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR116: LiteLLM automatically routes to next fallback tier when primary backend health check fails
 - FR117: OpenAI API key stored securely via Kubernetes secret for cloud fallback tier
 - FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
+
+**Tailscale Subnet Router (3 FRs)**
+- FR120: k3s-master configured as Tailscale subnet router advertising 192.168.2.0/24 to Tailscale network
+- FR121: k3s-gpu-worker configured as Tailscale subnet router advertising 192.168.0.0/24 to Tailscale network
+- FR122: Tailscale ACLs configured to allow subnet route access for authorized users
+
+**Synology NAS K3s Worker (3 FRs)**
+- FR123: K3s worker VM deployed on Synology DS920+ using Virtual Machine Manager
+- FR124: NAS worker node labeled for lightweight/storage-adjacent workloads only
+- FR125: NAS worker node tainted to prevent general workload scheduling
+
+**Open-WebUI Application (4 FRs)**
+- FR126: Open-WebUI deployed in `apps` namespace with persistent storage for chat history
+- FR127: Open-WebUI configured to use LiteLLM as backend for unified model access
+- FR128: Open-WebUI accessible via ingress at `chat.home.jetzinger.com` with HTTPS
+- FR129: Open-WebUI supports switching between local models (vLLM, Ollama) and external providers (Groq, Google, Mistral)
+
+**Kubernetes Dashboard (4 FRs)**
+- FR130: Kubernetes Dashboard deployed in `infra` namespace
+- FR131: Dashboard accessible via ingress at `dashboard.home.jetzinger.com` with HTTPS
+- FR132: Dashboard authentication via bearer token or Tailscale identity
+- FR133: Dashboard provides read-only view of all namespaces, pods, and resources
+
+**Gitea Self-Hosted Git (4 FRs)**
+- FR134: Gitea deployed in `dev` namespace with PostgreSQL backend
+- FR135: Gitea accessible via ingress at `git.home.jetzinger.com` with HTTPS
+- FR136: Gitea persists repositories and data to NFS storage
+- FR137: Gitea configured for single-user operation with SSH key authentication
+
+**DeepSeek-R1 14B Reasoning Mode (4 FRs)**
+- FR138: DeepSeek-R1 14B model deployed via vLLM on GPU worker for reasoning tasks
+- FR139: R1-Mode added as third GPU mode alongside ML-Mode and Gaming-Mode
+- FR140: Mode switching script updated to support R1-Mode (scales vLLM to DeepSeek-R1 model)
+- FR141: LiteLLM configured with DeepSeek-R1 as reasoning-tier model
+
+**LiteLLM External Providers (4 FRs)**
+- FR142: LiteLLM configured with Groq free tier as fast inference fallback
+- FR143: LiteLLM configured with Google AI Studio (Gemini) free tier
+- FR144: LiteLLM configured with Mistral API free tier
+- FR145: API keys for external providers stored securely via Kubernetes secrets
+
+**Blog Article Completion (3 FRs)**
+- FR146: Technical blog post published covering Phase 1 MVP and new feature additions
+- FR147: Blog post includes architecture diagrams, ADR references, and Grafana screenshots
+- FR148: Blog post documents AI-assisted engineering workflow used throughout project
 
 **Development Proxy (3 FRs)**
 - FR41: Operator can configure Nginx to proxy to local dev servers
@@ -229,6 +274,37 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR67: Paperless-AI document processing continues (degraded) during Gaming Mode via fallback chain
 - NFR68: OpenAI fallback tier only activated when both vLLM and Ollama are unavailable
 - NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
+
+**Tailscale Subnet Router (2 NFRs)**
+- NFR71: Subnet routes advertised within 60 seconds of node boot
+- NFR72: Subnet router failover: if one router goes down, network segment remains accessible via direct Tailscale connection
+
+**Synology NAS K3s Worker (2 NFRs)**
+- NFR73: NAS worker VM allocated maximum 2 vCPU, 4GB RAM to preserve NAS primary functions
+- NFR74: NAS worker node joins cluster within 3 minutes of VM boot
+
+**Open-WebUI Application (2 NFRs)**
+- NFR75: Open-WebUI web interface loads within 3 seconds
+- NFR76: Chat history persisted to NFS storage surviving pod restarts
+
+**Kubernetes Dashboard (2 NFRs)**
+- NFR77: Dashboard loads cluster overview within 5 seconds
+- NFR78: Dashboard access restricted to Tailscale network only
+
+**Gitea Self-Hosted Git (2 NFRs)**
+- NFR79: Gitea repository operations (clone, push, pull) complete within 10 seconds for typical repos
+- NFR80: Gitea web interface loads within 3 seconds
+
+**DeepSeek-R1 14B Reasoning Mode (2 NFRs)**
+- NFR81: R1-Mode model loading completes within 90 seconds
+- NFR82: DeepSeek-R1 achieves 30+ tokens/second on RTX 3060 for reasoning tasks
+
+**LiteLLM External Providers (2 NFRs)**
+- NFR83: External provider failover activates within 5 seconds when local models unavailable
+- NFR84: Rate limiting configured to stay within free tier quotas per provider
+
+**Blog Article Completion (1 NFR)**
+- NFR85: Blog post published to dev.to or equivalent platform within 2 weeks of Epic completion
 
 ### Additional Requirements
 
@@ -389,16 +465,60 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR101 | Epic 12 | K3s configured with --flannel-iface tailscale0 |
 | FR102 | Epic 12 | K3s nodes advertise Tailscale IPs via --node-external-ip |
 | FR103 | Epic 12 | NO_PROXY includes Tailscale CGNAT range (100.64.0.0/10) |
+| FR113 | Epic 14 | LiteLLM proxy deployed in `ml` namespace |
+| FR114 | Epic 14 | LiteLLM configured with multi-tier fallback |
+| FR115 | Epic 14 | Paperless-AI configured to use LiteLLM endpoint |
+| FR116 | Epic 14 | LiteLLM auto-routes to fallback tier on health check failure |
+| FR117 | Epic 14 | OpenAI API key stored securely via K8s secret |
+| FR118 | Epic 14 | LiteLLM exposes Prometheus metrics |
+| FR119 | Epic 13 | k3s-gpu-worker boots into ML Mode by default |
+| FR120 | Epic 15 | k3s-master as Tailscale subnet router (192.168.2.0/24) |
+| FR121 | Epic 15 | k3s-gpu-worker as Tailscale subnet router (192.168.0.0/24) |
+| FR122 | Epic 15 | Tailscale ACLs configured for subnet route access |
+| FR123 | Epic 16 | K3s worker VM deployed on Synology DS920+ |
+| FR124 | Epic 16 | NAS worker node labeled for lightweight workloads |
+| FR125 | Epic 16 | NAS worker node tainted to prevent general scheduling |
+| FR126 | Epic 17 | Open-WebUI deployed with persistent chat history |
+| FR127 | Epic 17 | Open-WebUI configured to use LiteLLM backend |
+| FR128 | Epic 17 | Open-WebUI accessible at chat.home.jetzinger.com |
+| FR129 | Epic 17 | Open-WebUI supports model switching |
+| FR130 | Epic 18 | Kubernetes Dashboard deployed in `infra` namespace |
+| FR131 | Epic 18 | Dashboard accessible at dashboard.home.jetzinger.com |
+| FR132 | Epic 18 | Dashboard authentication via bearer token |
+| FR133 | Epic 18 | Dashboard provides read-only view of all resources |
+| FR134 | Epic 19 | Gitea deployed with PostgreSQL backend |
+| FR135 | Epic 19 | Gitea accessible at git.home.jetzinger.com |
+| FR136 | Epic 19 | Gitea persists repositories to NFS |
+| FR137 | Epic 19 | Gitea configured for single-user SSH auth |
+| FR138 | Epic 20 | DeepSeek-R1 14B deployed via vLLM |
+| FR139 | Epic 20 | R1-Mode added as third GPU mode |
+| FR140 | Epic 20 | Mode switching script supports R1-Mode |
+| FR141 | Epic 20 | LiteLLM configured with DeepSeek-R1 as reasoning tier |
+| FR142 | Epic 14 | LiteLLM configured with Groq free tier (parallel model) |
+| FR143 | Epic 14 | LiteLLM configured with Google AI Studio (parallel model) |
+| FR144 | Epic 14 | LiteLLM configured with Mistral API (parallel model) |
+| FR145 | Epic 14 | External provider API keys stored via K8s secrets |
+| FR146 | Epic 9 | Technical blog post covering Phase 1 MVP + new features |
+| FR147 | Epic 9 | Blog includes architecture diagrams and Grafana screenshots |
+| FR148 | Epic 9 | Blog documents AI-assisted engineering workflow |
 
-**Coverage Summary:** 125 FRs total, 75 NFRs total
-- **Phase 1 (Epic 1-9):** 54 FRs completed
+**Coverage Summary:** 148 FRs total, 85 NFRs total
+- **Phase 1 (Epic 1-9):** 54 FRs completed + 3 new (FR146-148 for Blog Article)
+  - Epic 9 (Portfolio): FR49-54, FR146-148
 - **Phase 2 (Epic 10-12):** 49 FRs
   - Epic 10 (Paperless-ngx): FR55-58, FR64-66, FR75-93
   - Epic 11 (Dev Containers): FR59-63, FR67-70
   - Epic 12 (GPU/ML - vLLM + Qwen 2.5 14B): FR38-39, FR71-74, FR87-89, FR94, FR100-112
-- **Phase 3 (Epic 13-14):** 12 FRs
+- **Phase 3 (Epic 13-14):** 12 FRs + 4 new (FR142-145 for External Providers)
   - Epic 13 (Steam Gaming): FR95-99, FR119
-  - Epic 14 (LiteLLM Inference Proxy): FR113-118
+  - Epic 14 (LiteLLM Inference Proxy): FR113-118, FR142-145
+- **Phase 4 (Epic 15-20):** 22 FRs (new)
+  - Epic 15 (Tailscale Subnet Router): FR120-122
+  - Epic 16 (NAS K3s Worker): FR123-125
+  - Epic 17 (Open-WebUI): FR126-129
+  - Epic 18 (K8s Dashboard): FR130-133
+  - Epic 19 (Gitea): FR134-137
+  - Epic 20 (DeepSeek-R1): FR138-141
 
 ## Epic List
 
@@ -435,8 +555,9 @@ Tom can upgrade K3s, backup/restore the cluster, and maintain long-term operatio
 **FRs covered:** FR44, FR45, FR46, FR47, FR48
 
 ### Epic 9: Portfolio & Public Showcase
-Tom has a polished public portfolio that demonstrates capability to hiring managers and recruiters.
-**FRs covered:** FR49, FR50, FR51, FR52, FR53, FR54
+Tom has a polished public portfolio that demonstrates capability to hiring managers and recruiters, including comprehensive technical blog coverage.
+**FRs covered:** FR49-54, FR146-148
+**NFRs covered:** NFR85
 
 ### Epic 10: Document Management System (Paperless-ngx Ecosystem) [Phase 2]
 
@@ -616,29 +737,166 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 
 ### Epic 14: LiteLLM Inference Proxy [Phase 3]
 
-**User Outcome:** Tom has a unified AI inference endpoint that automatically fails over between three tiers (vLLM GPU → Ollama CPU → OpenAI cloud), ensuring Paperless-AI document processing continues even during Gaming Mode or GPU worker unavailability.
+**User Outcome:** Tom has a unified AI inference endpoint with automatic failover (vLLM GPU → Ollama CPU → OpenAI Paid) plus parallel access to free external providers (Groq, Gemini, Mistral) as independent model choices for any application.
 
-**FRs covered:** FR113-118
+**FRs covered:** FR113-118, FR142-145
 - FR113: LiteLLM proxy deployed in `ml` namespace providing unified OpenAI-compatible endpoint
 - FR114: LiteLLM configured with three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
 - FR115: Paperless-AI configured to use LiteLLM endpoint instead of direct vLLM connection
 - FR116: LiteLLM automatically routes to next fallback tier when primary backend health check fails
 - FR117: OpenAI API key stored securely via Kubernetes secret for cloud fallback tier
 - FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
+- FR142: LiteLLM configured with Groq free tier as parallel model option (not fallback)
+- FR143: LiteLLM configured with Google AI Studio (Gemini) free tier as parallel model option
+- FR144: LiteLLM configured with Mistral API free tier as parallel model option
+- FR145: API keys for external providers stored securely via Kubernetes secrets
 
-**NFRs covered:** NFR65-69
+**NFRs covered:** NFR65-69, NFR83-84
 - NFR65: LiteLLM failover detection completes within 5 seconds of backend unavailability
 - NFR66: LiteLLM adds <100ms latency to inference requests during normal operation
 - NFR67: Paperless-AI document processing continues (degraded) during Gaming Mode via fallback chain
 - NFR68: OpenAI fallback tier only activated when both vLLM and Ollama are unavailable
 - NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
+- NFR83: External provider requests route within 5 seconds
+- NFR84: Rate limiting configured to stay within free tier quotas per provider
 
 **Implementation Notes:**
 - LiteLLM provides OpenAI-compatible API that routes to multiple backends
-- Fallback order: vLLM (fastest, GPU-accelerated) → Ollama (slower, CPU) → OpenAI (cloud, pay-per-use)
-- Health checks on each backend determine routing decisions
-- Paperless-AI only needs single endpoint configuration change
-- Prometheus metrics track which tier is serving requests
+- Fallback chain (unchanged): vLLM (GPU) → Ollama (CPU) → OpenAI (paid)
+- Parallel models (new): Groq, Gemini, Mistral available as independent model choices
+- Applications can explicitly request external models (e.g., `groq/llama-3.1-70b`, `gemini/gemini-pro`)
+- Health checks on fallback chain backends determine automatic routing
+- Prometheus metrics track model usage across all providers
+
+---
+
+### Epic 15: Network Access Enhancement (Tailscale Subnet Router) [Phase 4]
+
+**User Outcome:** Tom can access the full home network (192.168.0.0/24 and 192.168.2.0/24) from anywhere via Tailscale subnet routing, without needing Tailscale installed on every device.
+
+**FRs covered:** FR120-122
+- FR120: k3s-master configured as Tailscale subnet router advertising 192.168.2.0/24 to Tailscale network
+- FR121: k3s-gpu-worker configured as Tailscale subnet router advertising 192.168.0.0/24 to Tailscale network
+- FR122: Tailscale ACLs configured to allow subnet route access for authorized users
+
+**NFRs covered:** NFR71-72
+- NFR71: Subnet routes advertised within 60 seconds of node boot
+- NFR72: Subnet router failover: if one router goes down, network segment remains accessible via direct Tailscale connection
+
+**Implementation Notes:**
+- Both k3s-master and k3s-gpu-worker already run Tailscale for cluster networking
+- Enable `--advertise-routes` flag on existing Tailscale installations
+- Configure Tailscale ACLs via admin console to approve subnet routes
+- Provides access to NAS, printers, and other LAN devices from anywhere
+
+---
+
+### Epic 16: NAS Worker Node (Synology DS920+) [Phase 4]
+
+**User Outcome:** Tom has a lightweight K3s worker node running on the Synology NAS for storage-adjacent workloads, maximizing NAS utilization without impacting primary storage functions.
+
+**FRs covered:** FR123-125
+- FR123: K3s worker VM deployed on Synology DS920+ using Virtual Machine Manager
+- FR124: NAS worker node labeled for lightweight/storage-adjacent workloads only
+- FR125: NAS worker node tainted to prevent general workload scheduling
+
+**NFRs covered:** NFR73-74
+- NFR73: NAS worker VM allocated maximum 2 vCPU, 4GB RAM to preserve NAS primary functions
+- NFR74: NAS worker node joins cluster within 3 minutes of VM boot
+
+**Implementation Notes:**
+- Synology DS920+ has 4 cores and 19GB RAM available
+- VM uses conservative resources (2 vCPU, 4GB RAM) to avoid impacting NAS performance
+- Node taint prevents general workloads; only tolerating pods scheduled here
+- Ideal for backup jobs, storage monitoring, or NFS-adjacent processing
+
+---
+
+### Epic 17: ChatGPT-like Interface (Open-WebUI) [Phase 4]
+
+**User Outcome:** Tom has a polished ChatGPT-like web interface for interacting with all LLM models (local vLLM, Ollama, and external providers) through a unified chat experience with persistent history.
+
+**FRs covered:** FR126-129
+- FR126: Open-WebUI deployed in `apps` namespace with persistent storage for chat history
+- FR127: Open-WebUI configured to use LiteLLM as backend for unified model access
+- FR128: Open-WebUI accessible via ingress at `chat.home.jetzinger.com` with HTTPS
+- FR129: Open-WebUI supports switching between local models (vLLM, Ollama) and external providers (Groq, Google, Mistral)
+
+**NFRs covered:** NFR75-76
+- NFR75: Open-WebUI web interface loads within 3 seconds
+- NFR76: Chat history persisted to NFS storage surviving pod restarts
+
+**Implementation Notes:**
+- Open-WebUI provides ChatGPT-like experience for self-hosted models
+- Connects to LiteLLM unified endpoint (Epic 14) for model routing
+- Supports multiple conversations, model switching, and chat export
+- Persistent storage ensures chat history survives restarts
+
+---
+
+### Epic 18: Cluster Visualization Dashboard [Phase 4]
+
+**User Outcome:** Tom can visualize cluster resources, pod status, and Kubernetes objects through a web-based dashboard, complementing Grafana metrics with real-time cluster state.
+
+**FRs covered:** FR130-133
+- FR130: Kubernetes Dashboard deployed in `infra` namespace
+- FR131: Dashboard accessible via ingress at `dashboard.home.jetzinger.com` with HTTPS
+- FR132: Dashboard authentication via bearer token or Tailscale identity
+- FR133: Dashboard provides read-only view of all namespaces, pods, and resources
+
+**NFRs covered:** NFR77-78
+- NFR77: Dashboard loads cluster overview within 5 seconds
+- NFR78: Dashboard access restricted to Tailscale network only
+
+**Implementation Notes:**
+- Official Kubernetes Dashboard provides cluster visualization
+- Read-only access sufficient for monitoring and troubleshooting
+- Bearer token auth or skip login for Tailscale-only access
+- Complements Grafana (metrics) with live resource state
+
+---
+
+### Epic 19: Self-Hosted Git Service (Gitea) [Phase 4]
+
+**User Outcome:** Tom can host private Git repositories locally with a lightweight, self-hosted Git service that provides GitHub-like features without external dependencies.
+
+**FRs covered:** FR134-137
+- FR134: Gitea deployed in `dev` namespace with PostgreSQL backend
+- FR135: Gitea accessible via ingress at `git.home.jetzinger.com` with HTTPS
+- FR136: Gitea persists repositories and data to NFS storage
+- FR137: Gitea configured for single-user operation with SSH key authentication
+
+**NFRs covered:** NFR79-80
+- NFR79: Gitea repository operations (clone, push, pull) complete within 10 seconds for typical repos
+- NFR80: Gitea web interface loads within 3 seconds
+
+**Implementation Notes:**
+- Gitea is lightweight alternative to GitLab (lower resource requirements)
+- Uses existing PostgreSQL (Epic 5) for metadata storage
+- SSH access via NodePort or Tailscale for git+ssh operations
+- Single-user mode simplifies configuration
+
+---
+
+### Epic 20: Reasoning Model Support (DeepSeek-R1 14B) [Phase 4]
+
+**User Outcome:** Tom can use reasoning-focused AI models for complex tasks via a third GPU mode (R1-Mode), enabling chain-of-thought reasoning alongside standard ML inference and gaming.
+
+**FRs covered:** FR138-141
+- FR138: DeepSeek-R1 14B model deployed via vLLM on GPU worker for reasoning tasks
+- FR139: R1-Mode added as third GPU mode alongside ML-Mode and Gaming-Mode
+- FR140: Mode switching script updated to support R1-Mode (scales vLLM to DeepSeek-R1 model)
+- FR141: LiteLLM configured with DeepSeek-R1 as reasoning-tier model
+
+**NFRs covered:** NFR81-82
+- NFR81: R1-Mode model loading completes within 90 seconds
+- NFR82: DeepSeek-R1 achieves 30+ tokens/second on RTX 3060 for reasoning tasks
+
+**Implementation Notes:**
+- DeepSeek-R1 14B fits in 12GB VRAM (RTX 3060)
+- Extended gpu-mode script: ML-Mode (Qwen 2.5) → R1-Mode (DeepSeek-R1) → Gaming-Mode
+- LiteLLM can route reasoning requests to DeepSeek-R1 when in R1-Mode
+- Model swap requires vLLM restart (different model weights)
 
 ---
 
@@ -822,6 +1080,59 @@ So that **I have confidence the system handles backend failures gracefully**.
 - [ ] Test complete fallback chain to OpenAI
 - [ ] Document performance characteristics per tier
 - [ ] Update steam-setup.md with LiteLLM fallback behavior
+
+---
+
+### Story 14.6: Configure External Provider Parallel Models
+
+As a **cluster operator**,
+I want **to configure Groq, Google AI Studio, and Mistral as parallel model options in LiteLLM**,
+So that **any application can explicitly select these free-tier models without affecting the existing fallback chain**.
+
+**Story Points:** 3
+
+**Acceptance Criteria:**
+
+**Given** LiteLLM is deployed with the existing fallback chain
+**When** I add Groq model definitions to the LiteLLM config
+**Then** `groq/llama-3.3-70b-versatile` is available as a model choice
+**And** `groq/mixtral-8x7b-32768` is available as a model choice
+**And** these models do NOT participate in the fallback chain
+
+**Given** Groq models are configured
+**When** I add Google AI Studio model definitions
+**Then** `gemini/gemini-1.5-flash` is available as a model choice
+**And** `gemini/gemini-1.5-pro` is available as a model choice
+
+**Given** Google AI models are configured
+**When** I add Mistral model definitions
+**Then** `mistral/mistral-small-latest` is available as a model choice
+
+**Given** all external provider models are configured
+**When** I create a Kubernetes secret with API keys (FR145)
+**Then** secret contains GROQ_API_KEY, GOOGLE_AI_API_KEY, MISTRAL_API_KEY
+**And** LiteLLM deployment references the secret via environment variables
+
+**Given** external providers are fully configured
+**When** I request `groq/llama-3.3-70b-versatile` via LiteLLM API
+**Then** request routes directly to Groq (NFR83: within 5 seconds)
+**And** response returns successfully
+
+**Given** rate limiting is configured
+**When** requests approach free tier limits
+**Then** LiteLLM enforces rate limits per provider (NFR84)
+**And** requests are throttled rather than failing
+
+**Tasks:**
+- [ ] Add Groq model definitions to LiteLLM config (FR142)
+- [ ] Add Google AI Studio model definitions to LiteLLM config (FR143)
+- [ ] Add Mistral model definitions to LiteLLM config (FR144)
+- [ ] Create litellm-api-keys secret with all provider keys (FR145)
+- [ ] Update LiteLLM deployment to mount secret as env vars
+- [ ] Configure rate limiting per provider (NFR84)
+- [ ] Test each external model via curl/API call
+- [ ] Verify fallback chain still works independently
+- [ ] Document available models in README
 
 ---
 
@@ -2320,6 +2631,62 @@ So that **I can evaluate the depth of implementation**.
 **Then** they can understand scope, depth, and quality
 **And** they have enough context to prepare interview questions
 **And** this validates NFR27 (navigable by external reviewer)
+
+---
+
+### Story 9.6: Write Comprehensive Technical Blog Post
+
+As a **portfolio audience member**,
+I want **to read a detailed technical blog post about the home-lab project**,
+So that **I can understand the implementation journey, technical decisions, and AI-assisted engineering workflow**.
+
+**Story Points:** 5
+
+**Acceptance Criteria:**
+
+**Given** the home-lab project has reached Phase 4 completion
+**When** I write a comprehensive technical blog post (FR146)
+**Then** the post covers:
+- Project motivation and goals
+- Phase 1 MVP architecture and implementation
+- New feature additions (Tailscale subnet routing, NAS worker, Open-WebUI, etc.)
+- Key technical challenges and solutions
+- Lessons learned
+
+**Given** the blog post draft is complete
+**When** I add visual content (FR147)
+**Then** the post includes:
+- Architecture diagrams (from docs/planning-artifacts/)
+- ADR references with links to key decisions
+- Grafana dashboard screenshots showing real metrics
+- Code snippets for key configurations
+
+**Given** the blog post covers technical content
+**When** I document the AI-assisted workflow (FR148)
+**Then** the post explains:
+- How BMAD framework was used for planning
+- How Claude Code assisted with implementation
+- Specific examples of AI-human collaboration
+- Productivity gains and workflow improvements
+
+**Given** the blog post is complete
+**When** I publish to dev.to or equivalent platform (NFR85)
+**Then** the post is publicly accessible
+**And** it includes appropriate tags (kubernetes, homelab, ai, devops)
+**And** publication occurs within 2 weeks of Epic completion
+
+**Tasks:**
+- [ ] Create blog post outline with all major sections
+- [ ] Write project overview and motivation section
+- [ ] Document Phase 1 MVP implementation journey
+- [ ] Cover new Phase 4 features and their value
+- [ ] Create/export architecture diagrams for the post
+- [ ] Capture Grafana screenshots showing real cluster metrics
+- [ ] Write AI-assisted engineering workflow section
+- [ ] Add code snippets for key configurations
+- [ ] Review and edit for technical accuracy
+- [ ] Publish to dev.to with appropriate tags
+- [ ] Share on LinkedIn/social media
 
 ---
 
@@ -3850,6 +4217,624 @@ esac
 
 ---
 
+## Phase 4 Epic Details
+
+### Epic 15: Network Access Enhancement (Tailscale Subnet Router)
+
+**User Outcome:** Tom can access the full home network (192.168.0.0/24 and 192.168.2.0/24) from anywhere via Tailscale subnet routing.
+
+**FRs Covered:** FR120-122
+**NFRs Covered:** NFR71-72
+
+---
+
+#### Story 15.1: Configure k3s-master as Subnet Router
+
+**As a** remote user,
+**I want** k3s-master to advertise the 192.168.2.0/24 subnet to Tailscale,
+**So that** I can access devices on that network segment from anywhere.
+
+**Acceptance Criteria:**
+
+**Given** k3s-master is running Tailscale for cluster networking
+**When** I configure Tailscale to advertise routes
+**Then** `tailscale up --advertise-routes=192.168.2.0/24` is added to startup
+**And** subnet route appears in Tailscale admin console as pending
+
+**Given** subnet route is advertised
+**When** I approve the route in Tailscale admin console
+**Then** route status changes to "approved"
+**And** Tailscale clients can route to 192.168.2.0/24 via k3s-master
+**And** this validates FR120
+
+**Given** subnet routing is enabled
+**When** k3s-master boots
+**Then** subnet routes advertised within 60 seconds (NFR71)
+**And** `tailscale status` shows route as active
+
+**Tasks:**
+- [ ] Update Tailscale startup flags on k3s-master
+- [ ] Add `--advertise-routes=192.168.2.0/24` to tailscale up command
+- [ ] Approve route in Tailscale admin console
+- [ ] Test connectivity from remote Tailscale client to 192.168.2.x devices
+- [ ] Document route approval process
+
+**Story Points:** 2
+
+---
+
+#### Story 15.2: Configure k3s-gpu-worker as Subnet Router
+
+**As a** remote user,
+**I want** k3s-gpu-worker to advertise the 192.168.0.0/24 subnet to Tailscale,
+**So that** I can access devices on the Intel NUC network segment from anywhere.
+
+**Acceptance Criteria:**
+
+**Given** k3s-gpu-worker is running Tailscale for cluster networking
+**When** I configure Tailscale to advertise routes
+**Then** `tailscale up --advertise-routes=192.168.0.0/24` is added to startup
+**And** subnet route appears in Tailscale admin console as pending
+
+**Given** subnet route is advertised
+**When** I approve the route in Tailscale admin console
+**Then** route status changes to "approved"
+**And** Tailscale clients can route to 192.168.0.0/24 via k3s-gpu-worker
+**And** this validates FR121
+
+**Given** both subnet routers are configured
+**When** one router goes down
+**Then** direct Tailscale connections still work (NFR72)
+**And** only the specific subnet loses routing (not entire network)
+
+**Tasks:**
+- [ ] Update Tailscale startup flags on k3s-gpu-worker
+- [ ] Add `--advertise-routes=192.168.0.0/24` to tailscale up command
+- [ ] Approve route in Tailscale admin console
+- [ ] Test connectivity from remote client to 192.168.0.x devices
+- [ ] Test failover behavior when one router is down
+
+**Story Points:** 2
+
+---
+
+#### Story 15.3: Configure Tailscale ACLs for Subnet Access
+
+**As a** security-conscious operator,
+**I want** Tailscale ACLs configured to control subnet route access,
+**So that** only authorized users can access the full home network.
+
+**Acceptance Criteria:**
+
+**Given** subnet routes are approved and working
+**When** I configure Tailscale ACLs
+**Then** ACL policy defines which users/groups can access subnet routes
+**And** this validates FR122
+
+**Given** ACLs are configured
+**When** an authorized user connects via Tailscale
+**Then** they can access both 192.168.0.0/24 and 192.168.2.0/24 subnets
+**And** traffic routes through appropriate subnet router
+
+**Given** ACLs restrict access
+**When** an unauthorized Tailscale user attempts subnet access
+**Then** connection is blocked by ACL policy
+**And** only direct Tailscale device connections work
+
+**Tasks:**
+- [ ] Design ACL policy for subnet access (FR122)
+- [ ] Update Tailscale ACL configuration via admin console
+- [ ] Test authorized user access to both subnets
+- [ ] Test unauthorized user is blocked from subnets
+- [ ] Document ACL policy in repository
+
+**Story Points:** 2
+
+---
+
+### Epic 16: NAS Worker Node (Synology DS920+)
+
+**User Outcome:** Tom has a lightweight K3s worker node running on the Synology NAS for storage-adjacent workloads.
+
+**FRs Covered:** FR123-125
+**NFRs Covered:** NFR73-74
+
+---
+
+#### Story 16.1: Deploy K3s Worker VM on Synology NAS
+
+**As a** cluster operator,
+**I want** a K3s worker VM running on the Synology DS920+ NAS,
+**So that** I can run storage-adjacent workloads close to the data.
+
+**Acceptance Criteria:**
+
+**Given** Synology DS920+ has Virtual Machine Manager installed
+**When** I create a new VM for K3s worker
+**Then** VM is allocated 2 vCPU and 4GB RAM (NFR73)
+**And** VM uses Debian or Ubuntu minimal image
+**And** this validates FR123
+
+**Given** VM is created
+**When** I install K3s agent on the VM
+**Then** agent connects to k3s-master control plane
+**And** node appears in `kubectl get nodes`
+**And** node joins within 3 minutes of VM boot (NFR74)
+
+**Given** K3s agent is running
+**When** I configure Tailscale on the NAS worker
+**Then** node is accessible via Tailscale mesh
+**And** cluster networking works across subnets
+
+**Tasks:**
+- [ ] Create VM in Synology VMM with 2 vCPU, 4GB RAM (NFR73)
+- [ ] Install minimal Debian/Ubuntu on VM
+- [ ] Install Tailscale on VM and join tailnet
+- [ ] Install K3s agent connecting to k3s-master
+- [ ] Verify node joins cluster within 3 minutes (NFR74)
+- [ ] Document VM configuration and setup steps
+
+**Story Points:** 3
+
+---
+
+#### Story 16.2: Label and Taint NAS Worker Node
+
+**As a** cluster operator,
+**I want** the NAS worker node labeled and tainted for specific workloads,
+**So that** general workloads don't accidentally schedule there and impact NAS performance.
+
+**Acceptance Criteria:**
+
+**Given** NAS worker node has joined the cluster
+**When** I apply labels for workload targeting
+**Then** node has label `node-type=nas-worker`
+**And** node has label `workload-class=lightweight`
+**And** this validates FR124
+
+**Given** node is labeled
+**When** I apply taint to prevent general scheduling
+**Then** node has taint `workload-class=nas-only:NoSchedule`
+**And** general pods without toleration won't schedule here
+**And** this validates FR125
+
+**Given** taint is applied
+**When** I deploy a pod without toleration
+**Then** pod does NOT schedule on NAS worker
+**And** pod schedules on other available workers
+
+**Given** taint is applied
+**When** I deploy a pod WITH toleration for `nas-only`
+**Then** pod CAN schedule on NAS worker
+**And** node selector `node-type=nas-worker` targets it specifically
+
+**Tasks:**
+- [ ] Apply labels: `node-type=nas-worker`, `workload-class=lightweight` (FR124)
+- [ ] Apply taint: `workload-class=nas-only:NoSchedule` (FR125)
+- [ ] Test that general pods don't schedule on NAS worker
+- [ ] Create example pod spec with toleration for NAS worker
+- [ ] Document node labels and taints in repository
+
+**Story Points:** 2
+
+---
+
+### Epic 17: ChatGPT-like Interface (Open-WebUI)
+
+**User Outcome:** Tom has a polished ChatGPT-like web interface for all LLM models through LiteLLM.
+
+**FRs Covered:** FR126-129
+**NFRs Covered:** NFR75-76
+
+---
+
+#### Story 17.1: Deploy Open-WebUI with Persistent Storage
+
+**As a** home-lab user,
+**I want** Open-WebUI deployed with persistent chat history,
+**So that** I have a ChatGPT-like interface for my self-hosted models.
+
+**Acceptance Criteria:**
+
+**Given** the `apps` namespace exists
+**When** I deploy Open-WebUI via Helm or manifests
+**Then** Open-WebUI pod starts successfully
+**And** PVC is created for chat history on NFS storage
+**And** this validates FR126
+
+**Given** Open-WebUI is deployed
+**When** I access the web interface
+**Then** interface loads within 3 seconds (NFR75)
+**And** login/registration page is displayed
+
+**Given** chat history is stored
+**When** pod restarts
+**Then** chat history is preserved (NFR76)
+**And** previous conversations are accessible
+
+**Tasks:**
+- [ ] Create PVC for Open-WebUI data on NFS storage
+- [ ] Deploy Open-WebUI in `apps` namespace (FR126)
+- [ ] Configure persistent volume mount for `/app/backend/data`
+- [ ] Test pod restart preserves chat history (NFR76)
+- [ ] Measure page load time (<3 seconds, NFR75)
+
+**Story Points:** 3
+
+---
+
+#### Story 17.2: Configure Open-WebUI with LiteLLM Backend
+
+**As a** home-lab user,
+**I want** Open-WebUI connected to LiteLLM for unified model access,
+**So that** I can use all configured models (local and external) through one interface.
+
+**Acceptance Criteria:**
+
+**Given** Open-WebUI is deployed
+**When** I configure the OpenAI API endpoint
+**Then** endpoint points to LiteLLM service (`http://litellm.ml.svc.cluster.local:4000/v1`)
+**And** this validates FR127
+
+**Given** LiteLLM backend is configured
+**When** I open the model selector in Open-WebUI
+**Then** all LiteLLM models are available:
+- `default` (fallback chain)
+- `groq/llama-3.3-70b-versatile`
+- `gemini/gemini-1.5-flash`
+- `mistral/mistral-small-latest`
+**And** this validates FR129
+
+**Given** models are available
+**When** I switch between models in a conversation
+**Then** responses come from the selected model
+**And** model switching works seamlessly
+
+**Tasks:**
+- [ ] Configure OPENAI_API_BASE to point to LiteLLM (FR127)
+- [ ] Configure OPENAI_API_KEY (can be dummy for LiteLLM)
+- [ ] Verify all LiteLLM models appear in Open-WebUI (FR129)
+- [ ] Test chat with each model type
+- [ ] Document model switching functionality
+
+**Story Points:** 2
+
+---
+
+#### Story 17.3: Configure Open-WebUI Ingress
+
+**As a** home-lab user,
+**I want** Open-WebUI accessible via HTTPS ingress,
+**So that** I can access it from any device on my network.
+
+**Acceptance Criteria:**
+
+**Given** Open-WebUI is deployed and working
+**When** I create ingress resource
+**Then** ingress routes `chat.home.jetzinger.com` to Open-WebUI service
+**And** TLS certificate is provisioned via cert-manager
+**And** this validates FR128
+
+**Given** ingress is configured
+**When** I access `https://chat.home.jetzinger.com`
+**Then** Open-WebUI interface loads with valid HTTPS
+**And** interface is accessible from any Tailscale-connected device
+
+**Tasks:**
+- [ ] Create ingress for `chat.home.jetzinger.com` (FR128)
+- [ ] Configure TLS with cert-manager annotation
+- [ ] Verify HTTPS access works
+- [ ] Test from multiple devices (phone, laptop)
+- [ ] Add DNS entry if not using wildcard
+
+**Story Points:** 2
+
+---
+
+### Epic 18: Cluster Visualization Dashboard
+
+**User Outcome:** Tom can visualize cluster resources via Kubernetes Dashboard.
+
+**FRs Covered:** FR130-133
+**NFRs Covered:** NFR77-78
+
+---
+
+#### Story 18.1: Deploy Kubernetes Dashboard
+
+**As a** cluster operator,
+**I want** Kubernetes Dashboard deployed for cluster visualization,
+**So that** I can view cluster resources through a web interface.
+
+**Acceptance Criteria:**
+
+**Given** the `infra` namespace exists
+**When** I deploy Kubernetes Dashboard via Helm
+**Then** dashboard pods start successfully
+**And** dashboard service is created
+**And** this validates FR130
+
+**Given** dashboard is deployed
+**When** I access the dashboard
+**Then** cluster overview loads within 5 seconds (NFR77)
+**And** all namespaces, pods, and resources are visible (FR133)
+
+**Tasks:**
+- [ ] Deploy Kubernetes Dashboard Helm chart in `infra` namespace (FR130)
+- [ ] Configure dashboard for read-only access (FR133)
+- [ ] Verify dashboard loads within 5 seconds (NFR77)
+- [ ] Test visibility of all cluster resources
+
+**Story Points:** 2
+
+---
+
+#### Story 18.2: Configure Dashboard Ingress and Authentication
+
+**As a** cluster operator,
+**I want** Dashboard accessible via HTTPS with authentication,
+**So that** I can securely access it from any Tailscale device.
+
+**Acceptance Criteria:**
+
+**Given** Kubernetes Dashboard is deployed
+**When** I create ingress resource
+**Then** ingress routes `dashboard.home.jetzinger.com` to dashboard service
+**And** TLS certificate is provisioned via cert-manager
+**And** this validates FR131
+
+**Given** ingress is configured
+**When** I configure authentication
+**Then** dashboard requires bearer token or Tailscale identity (FR132)
+**And** access is restricted to Tailscale network only (NFR78)
+
+**Given** authentication is configured
+**When** I access from outside Tailscale network
+**Then** access is denied
+**And** only Tailscale-connected devices can reach dashboard
+
+**Tasks:**
+- [ ] Create ingress for `dashboard.home.jetzinger.com` (FR131)
+- [ ] Configure TLS with cert-manager
+- [ ] Set up bearer token authentication (FR132)
+- [ ] Restrict ingress to Tailscale IP ranges (NFR78)
+- [ ] Create ServiceAccount and token for dashboard access
+- [ ] Document authentication process
+
+**Story Points:** 3
+
+---
+
+### Epic 19: Self-Hosted Git Service (Gitea)
+
+**User Outcome:** Tom can host private Git repositories locally with Gitea.
+
+**FRs Covered:** FR134-137
+**NFRs Covered:** NFR79-80
+
+---
+
+#### Story 19.1: Deploy Gitea with PostgreSQL Backend
+
+**As a** developer,
+**I want** Gitea deployed with PostgreSQL for metadata storage,
+**So that** I have a reliable self-hosted Git service.
+
+**Acceptance Criteria:**
+
+**Given** the `dev` namespace exists and PostgreSQL is available
+**When** I deploy Gitea via Helm chart
+**Then** Gitea pod starts successfully
+**And** Gitea connects to existing PostgreSQL instance
+**And** this validates FR134
+
+**Given** Gitea is deployed
+**When** I access the web interface
+**Then** interface loads within 3 seconds (NFR80)
+**And** initial setup wizard is displayed
+
+**Given** Gitea uses PostgreSQL
+**When** I check database connections
+**Then** Gitea database exists in PostgreSQL
+**And** metadata is stored persistently
+
+**Tasks:**
+- [ ] Create Gitea database in existing PostgreSQL
+- [ ] Deploy Gitea Helm chart in `dev` namespace (FR134)
+- [ ] Configure PostgreSQL connection in Gitea values
+- [ ] Verify web interface loads within 3 seconds (NFR80)
+- [ ] Complete initial setup wizard
+
+**Story Points:** 3
+
+---
+
+#### Story 19.2: Configure Gitea Storage and Ingress
+
+**As a** developer,
+**I want** Gitea repositories persisted to NFS and accessible via HTTPS,
+**So that** my code is safely stored and accessible from anywhere.
+
+**Acceptance Criteria:**
+
+**Given** Gitea is deployed
+**When** I configure persistent storage
+**Then** repositories are stored on NFS volume
+**And** data survives pod restarts
+**And** this validates FR136
+
+**Given** storage is configured
+**When** I create ingress resource
+**Then** ingress routes `git.home.jetzinger.com` to Gitea service
+**And** TLS certificate is provisioned via cert-manager
+**And** this validates FR135
+
+**Given** ingress is configured
+**When** I access `https://git.home.jetzinger.com`
+**Then** Gitea interface loads with valid HTTPS
+**And** repository operations work via HTTPS
+
+**Tasks:**
+- [ ] Create PVC for Gitea data on NFS storage (FR136)
+- [ ] Configure volume mounts for `/data`
+- [ ] Create ingress for `git.home.jetzinger.com` (FR135)
+- [ ] Configure TLS with cert-manager
+- [ ] Test repository creation and cloning via HTTPS
+
+**Story Points:** 2
+
+---
+
+#### Story 19.3: Configure Gitea Single-User SSH Access
+
+**As a** developer,
+**I want** Gitea configured for single-user operation with SSH,
+**So that** I can push/pull repositories via SSH keys.
+
+**Acceptance Criteria:**
+
+**Given** Gitea is deployed and accessible
+**When** I configure single-user mode
+**Then** registration is disabled after initial user creation
+**And** only the primary user can create repositories
+**And** this validates FR137
+
+**Given** single-user mode is configured
+**When** I add my SSH public key to Gitea
+**Then** key is stored in user profile
+**And** SSH authentication works for git operations
+
+**Given** SSH is configured
+**When** I clone a repository via SSH
+**Then** `git clone git@git.home.jetzinger.com:user/repo.git` works
+**And** clone completes within 10 seconds for typical repos (NFR79)
+
+**Tasks:**
+- [ ] Configure Gitea for single-user operation (FR137)
+- [ ] Disable public registration after admin user creation
+- [ ] Add SSH public key to admin user profile
+- [ ] Configure SSH service (NodePort or Tailscale)
+- [ ] Test git clone/push/pull via SSH (NFR79)
+- [ ] Document SSH setup process
+
+**Story Points:** 2
+
+---
+
+### Epic 20: Reasoning Model Support (DeepSeek-R1 14B)
+
+**User Outcome:** Tom can use reasoning-focused AI models via R1-Mode on the GPU worker.
+
+**FRs Covered:** FR138-141
+**NFRs Covered:** NFR81-82
+
+---
+
+#### Story 20.1: Deploy DeepSeek-R1 14B via vLLM
+
+**As a** ML platform operator,
+**I want** DeepSeek-R1 14B deployed via vLLM,
+**So that** I can use reasoning-focused models for complex tasks.
+
+**Acceptance Criteria:**
+
+**Given** vLLM is deployed on k3s-gpu-worker
+**When** I configure vLLM with DeepSeek-R1 14B model
+**Then** model loads successfully on RTX 3060 (12GB VRAM)
+**And** model loading completes within 90 seconds (NFR81)
+**And** this validates FR138
+
+**Given** DeepSeek-R1 is loaded
+**When** I send a reasoning request
+**Then** model generates chain-of-thought response
+**And** throughput achieves 30+ tokens/second (NFR82)
+
+**Given** model is serving
+**When** I check VRAM usage
+**Then** model fits within 12GB VRAM budget
+**And** no OOM errors occur during inference
+
+**Tasks:**
+- [ ] Download DeepSeek-R1 14B model (AWQ quantized)
+- [ ] Configure vLLM deployment for DeepSeek-R1 (FR138)
+- [ ] Test model loading time (<90 seconds, NFR81)
+- [ ] Benchmark inference speed (>30 tok/s, NFR82)
+- [ ] Document model configuration
+
+**Story Points:** 3
+
+---
+
+#### Story 20.2: Implement R1-Mode in GPU Mode Script
+
+**As a** platform operator,
+**I want** R1-Mode added to the gpu-mode script,
+**So that** I can switch between Qwen 2.5, DeepSeek-R1, and Gaming modes.
+
+**Acceptance Criteria:**
+
+**Given** gpu-mode script supports ML-Mode and Gaming-Mode
+**When** I add R1-Mode support
+**Then** `gpu-mode r1` switches vLLM to DeepSeek-R1 model
+**And** `gpu-mode ml` switches back to Qwen 2.5 14B
+**And** this validates FR139 and FR140
+
+**Given** R1-Mode is implemented
+**When** I run `gpu-mode r1`
+**Then** vLLM deployment is updated with DeepSeek-R1 model
+**And** pod restarts with new model
+**And** model is ready within 90 seconds (NFR81)
+
+**Given** mode switching works
+**When** I check available modes
+**Then** `gpu-mode status` shows current mode
+**And** three modes are available: ml, r1, gaming
+
+**Tasks:**
+- [ ] Update gpu-mode script to support `r1` argument (FR139, FR140)
+- [ ] Implement model switching via ConfigMap or deployment patch
+- [ ] Add `gpu-mode status` command to show current mode
+- [ ] Test ml → r1 → gaming → ml transitions
+- [ ] Document R1-Mode usage
+
+**Story Points:** 3
+
+---
+
+#### Story 20.3: Configure LiteLLM with DeepSeek-R1
+
+**As a** application developer,
+**I want** DeepSeek-R1 accessible via LiteLLM,
+**So that** applications can request reasoning-focused inference.
+
+**Acceptance Criteria:**
+
+**Given** DeepSeek-R1 is deployed via vLLM
+**When** I add it to LiteLLM configuration
+**Then** `deepseek-r1` model is available in LiteLLM
+**And** this validates FR141
+
+**Given** LiteLLM is configured
+**When** I request `deepseek-r1` model via API
+**Then** request routes to vLLM with DeepSeek-R1 (when in R1-Mode)
+**And** response includes reasoning chain
+
+**Given** mode is not R1-Mode
+**When** I request `deepseek-r1` model
+**Then** request fails gracefully with clear error
+**And** application can fallback to `default` model
+
+**Tasks:**
+- [ ] Add DeepSeek-R1 model definition to LiteLLM config (FR141)
+- [ ] Configure model to route to vLLM endpoint
+- [ ] Test inference via LiteLLM API
+- [ ] Handle mode mismatch errors gracefully
+- [ ] Document model availability and mode requirements
+
+**Story Points:** 2
+
+---
+
 ## Phase 1 Epic Details (Completed)
 
 ### Epic 1: Foundation - K3s Cluster with Remote Access
@@ -3870,31 +4855,44 @@ Tom has a working multi-node K3s cluster he can access from anywhere via Tailsca
 | 6 | AI Inference Platform | 4 | FR12-13, FR36-37, FR40 | NFR13 |
 | 7 | Development Proxy | 3 | FR41-43 | - |
 | 8 | Cluster Operations & Maintenance | 5 | FR44-48 | NFR2, NFR11, NFR20, NFR22 |
-| 9 | Portfolio & Public Showcase | 5 | FR49-54 | NFR24, NFR25, NFR26, NFR27 |
-| **Phase 1 Total** | | **42 stories** | **54 FRs** | **19 NFRs** |
+| 9 | Portfolio & Public Showcase | 6 | FR49-54, FR146-148 | NFR24-27, NFR85 |
+| **Phase 1 Total** | | **43 stories** | **57 FRs** | **20 NFRs** |
 | | | | | |
 | 10 | Document Management System (Paperless-ngx Ecosystem) | 11 | FR55-58, FR64-66, FR75-86, FR90-93 | NFR28-30, NFR39-41 |
 | 11 | Dev Containers Platform | 6 | FR59-63, FR67-70 | NFR31-33 |
 | 12 | GPU/ML Inference Platform (vLLM + Qwen 2.5 14B) | 10 | FR38-39, FR71-74, FR87-89, FR94, FR100-112 | NFR34-38, NFR50, NFR55-64 |
-| **Phase 2 Total** | | **26 stories** | **49 FRs** | **27 NFRs** |
+| **Phase 2 Total** | | **27 stories** | **49 FRs** | **27 NFRs** |
 | | | | | |
 | 13 | Steam Gaming Platform (Dual-Use GPU) | 4 | FR95-99, FR119 | NFR51-54, NFR70 |
-| 14 | LiteLLM Inference Proxy | 5 | FR113-118 | NFR65-69 |
-| **Phase 3 Total** | | **9 stories** | **12 FRs** | **10 NFRs** |
+| 14 | LiteLLM Inference Proxy | 6 | FR113-118, FR142-145 | NFR65-69, NFR83-84 |
+| **Phase 3 Total** | | **10 stories** | **16 FRs** | **12 NFRs** |
 | | | | | |
-| **Grand Total** | | **77 stories** | **125 FRs** | **75 NFRs** |
+| 15 | Network Access Enhancement (Tailscale Subnet Router) | 3 | FR120-122 | NFR71-72 |
+| 16 | NAS Worker Node (Synology DS920+) | 2 | FR123-125 | NFR73-74 |
+| 17 | ChatGPT-like Interface (Open-WebUI) | 3 | FR126-129 | NFR75-76 |
+| 18 | Cluster Visualization Dashboard | 2 | FR130-133 | NFR77-78 |
+| 19 | Self-Hosted Git Service (Gitea) | 3 | FR134-137 | NFR79-80 |
+| 20 | Reasoning Model Support (DeepSeek-R1 14B) | 3 | FR138-141 | NFR81-82 |
+| **Phase 4 Total** | | **16 stories** | **22 FRs** | **12 NFRs** |
+| | | | | |
+| **Grand Total** | | **96 stories** | **148 FRs** | **85 NFRs** |
 
 **Phase 1 Status:** ✅ Completed (Epics 1-9)
 **Phase 2 Status:** ✅ Completed (Epics 10-12)
 **Phase 3 Status:** ✅ Ready for Implementation (Epic 13-14 - Steam Gaming with mode switching + LiteLLM Inference Proxy)
+**Phase 4 Status:** 📋 Stories Created (Epics 15-20 - Network, NAS Worker, Open-WebUI, Dashboard, Gitea, DeepSeek-R1)
 
 ---
 
-**Workflow Complete:** All Phase 2 and Phase 3 epics and stories have been created with detailed acceptance criteria, including:
+**Workflow Complete:** All epics and stories through Phase 4 have been created with detailed acceptance criteria, including:
 - Expanded Paperless-ngx ecosystem (Office processing, PDF editing, AI classification with RAG, email integration)
-- Unified Ollama with Qwen 2.5 14B model (~8-9GB VRAM) replacing vLLM multi-model approach
-- Paperless-AI enhancements (FR104-110, NFR58-62) for better document classification with clusterzx/paperless-ai
 - Steam Gaming Platform (Epic 13) with GPU mode switching and default ML Mode at boot
-- LiteLLM Inference Proxy (Epic 14) with three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+- LiteLLM Inference Proxy (Epic 14) with three-tier fallback + parallel external providers (Groq, Gemini, Mistral)
+- Tailscale Subnet Routing (Epic 15) for full home network access
+- NAS K3s Worker (Epic 16) for storage-adjacent workloads
+- Open-WebUI (Epic 17) ChatGPT-like interface connected to LiteLLM
+- Kubernetes Dashboard (Epic 18) for cluster visualization
+- Gitea (Epic 19) self-hosted Git service
+- DeepSeek-R1 14B (Epic 20) reasoning model support with R1-Mode
 
 Ready to add to sprint-status.yaml and begin implementation.

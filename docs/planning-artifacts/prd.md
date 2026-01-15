@@ -12,7 +12,7 @@ researchCount: 1
 brainstormingCount: 1
 projectDocsCount: 0
 date: '2025-12-27'
-lastUpdated: '2026-01-14'
+lastUpdated: '2026-01-15'
 author: 'Tom'
 project_name: 'home-lab'
 ---
@@ -20,9 +20,10 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-01-14
+**Date:** 2025-12-27 | **Last Updated:** 2026-01-15
 
 **Changelog:**
+- 2026-01-15: Added Phase 2+ requirements - Tailscale subnet routers (FR120-122, NFR71-72), Synology NAS K3s worker (FR123-125, NFR73-74), Open-WebUI chat interface (FR126-129, NFR75-76), Kubernetes Dashboard (FR130-133, NFR77-78), Gitea self-hosted Git (FR134-137, NFR79-80), DeepSeek-R1 14B reasoning mode (FR138-141, NFR81-82), LiteLLM external providers Groq/Google/Mistral (FR142-145, NFR83-84), Blog article completion (FR146-148, NFR85)
 - 2026-01-14: Added ML Mode default at boot for k3s-gpu-worker (FR119, NFR70) - systemd service auto-activates vLLM after k3s agent ready
 - 2026-01-14: Added LiteLLM Inference Proxy (Story 14.x) - Three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud). Paperless-AI uses unified LiteLLM endpoint. Added FR113-118, NFR65-69.
 - 2026-01-13: Added Story 12.10 (vLLM GPU Integration for Paperless-AI) - vLLM serves qwen2.5:14b on GPU, Paperless-AI uses OpenAI-compatible endpoint, Ollama downgraded to slim models, k3s-worker-02 RAM reduced. Added FR109-112, NFR63-64. Epic 12 reopened.
@@ -591,6 +592,59 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - FR69: Dev containers mount persistent 10GB volumes for workspace data
 - FR70: Dev containers isolated via NetworkPolicy (accessible only via nginx proxy)
 
+### Tailscale Subnet Router
+
+- FR120: k3s-master configured as Tailscale subnet router advertising 192.168.2.0/24 to Tailscale network
+- FR121: k3s-gpu-worker configured as Tailscale subnet router advertising 192.168.0.0/24 to Tailscale network
+- FR122: Tailscale ACLs configured to allow subnet route access for authorized users
+
+### Synology NAS K3s Worker
+
+- FR123: K3s worker VM deployed on Synology DS920+ using Virtual Machine Manager
+- FR124: NAS worker node labeled for lightweight/storage-adjacent workloads only
+- FR125: NAS worker node tainted to prevent general workload scheduling
+
+### Open-WebUI Application
+
+- FR126: Open-WebUI deployed in `apps` namespace with persistent storage for chat history
+- FR127: Open-WebUI configured to use LiteLLM as backend for unified model access
+- FR128: Open-WebUI accessible via ingress at `chat.home.jetzinger.com` with HTTPS
+- FR129: Open-WebUI supports switching between local models (vLLM, Ollama) and external providers (Groq, Google, Mistral)
+
+### Kubernetes Dashboard
+
+- FR130: Kubernetes Dashboard deployed in `infra` namespace
+- FR131: Dashboard accessible via ingress at `dashboard.home.jetzinger.com` with HTTPS
+- FR132: Dashboard authentication via bearer token or Tailscale identity
+- FR133: Dashboard provides read-only view of all namespaces, pods, and resources
+
+### Gitea Self-Hosted Git
+
+- FR134: Gitea deployed in `dev` namespace with PostgreSQL backend
+- FR135: Gitea accessible via ingress at `git.home.jetzinger.com` with HTTPS
+- FR136: Gitea persists repositories and data to NFS storage
+- FR137: Gitea configured for single-user operation with SSH key authentication
+
+### DeepSeek-R1 14B Reasoning Mode
+
+- FR138: DeepSeek-R1 14B model deployed via vLLM on GPU worker for reasoning tasks
+- FR139: R1-Mode added as third GPU mode alongside ML-Mode and Gaming-Mode
+- FR140: Mode switching script updated to support R1-Mode (scales vLLM to DeepSeek-R1 model)
+- FR141: LiteLLM configured with DeepSeek-R1 as reasoning-tier model
+
+### LiteLLM External Providers
+
+- FR142: LiteLLM configured with Groq free tier as parallel model option (not fallback)
+- FR143: LiteLLM configured with Google AI Studio (Gemini) free tier as parallel model option
+- FR144: LiteLLM configured with Mistral API free tier as parallel model option
+- FR145: API keys for external providers stored securely via Kubernetes secrets
+
+### Blog Article Completion (Epic 9)
+
+- FR146: Technical blog post published covering Phase 1 MVP and new feature additions
+- FR147: Blog post includes architecture diagrams, ADR references, and Grafana screenshots
+- FR148: Blog post documents AI-assisted engineering workflow used throughout project
+
 ## Non-Functional Requirements
 
 ### Reliability
@@ -713,4 +767,43 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - NFR55: Tailscale mesh establishes full connectivity within 60 seconds of node boot
 - NFR56: Pod-to-pod communication works across different physical subnets (192.168.0.x ↔ 192.168.2.x) via Tailscale
 - NFR57: MTU configured at 1280 bytes to prevent VXLAN packet fragmentation over Tailscale
+
+### Tailscale Subnet Router
+
+- NFR71: Subnet routes advertised within 60 seconds of node boot
+- NFR72: Subnet router failover: if one router goes down, network segment remains accessible via direct Tailscale connection
+
+### Synology NAS K3s Worker
+
+- NFR73: NAS worker VM allocated maximum 2 vCPU, 4GB RAM to preserve NAS primary functions
+- NFR74: NAS worker node joins cluster within 3 minutes of VM boot
+
+### Open-WebUI Application
+
+- NFR75: Open-WebUI web interface loads within 3 seconds
+- NFR76: Chat history persisted to NFS storage surviving pod restarts
+
+### Kubernetes Dashboard
+
+- NFR77: Dashboard loads cluster overview within 5 seconds
+- NFR78: Dashboard access restricted to Tailscale network only
+
+### Gitea Self-Hosted Git
+
+- NFR79: Gitea repository operations (clone, push, pull) complete within 10 seconds for typical repos
+- NFR80: Gitea web interface loads within 3 seconds
+
+### DeepSeek-R1 14B Reasoning Mode
+
+- NFR81: R1-Mode model loading completes within 90 seconds
+- NFR82: DeepSeek-R1 achieves 30+ tokens/second on RTX 3060 for reasoning tasks
+
+### LiteLLM External Providers
+
+- NFR83: External provider failover activates within 5 seconds when local models unavailable
+- NFR84: Rate limiting configured to stay within free tier quotas per provider
+
+### Blog Article Completion (Epic 9)
+
+- NFR85: Blog post published to dev.to or equivalent platform within 2 weeks of Epic completion
 

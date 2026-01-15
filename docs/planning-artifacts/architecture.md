@@ -2,8 +2,8 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
-lastModified: '2026-01-14'
-updateReason: 'FR119/NFR70: Default ML Mode at boot for k3s-gpu-worker. systemd service auto-activates vLLM after k3s agent ready. Manual override via gpu-mode gaming available.'
+lastModified: '2026-01-15'
+updateReason: 'Phase 2+ requirements: Tailscale subnet routers (FR120-122), NAS K3s worker (FR123-125), Open-WebUI (FR126-129), Kubernetes Dashboard (FR130-133), Gitea (FR134-137), DeepSeek-R1 R1-Mode (FR138-141), LiteLLM external providers (FR142-145). Total: FR120-148, NFR71-85.'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -23,7 +23,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements:** 119 FRs across 16 capability areas
+**Functional Requirements:** 148 FRs across 24 capability areas
 - Cluster Operations (6): K3s lifecycle, node management
 - Workload Management (7): Deployments, Helm, ingress
 - Storage Management (5): NFS, PVCs, dynamic provisioning
@@ -39,8 +39,16 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Gaming Platform (6): Steam, Proton, mode switching, fallback routing, default ML Mode at boot
 - Multi-Subnet Networking (4): Tailscale mesh, Flannel over VPN
 - LiteLLM Inference Proxy (6): Three-tier fallback, Prometheus metrics
+- **Tailscale Subnet Router (3): Subnet route advertising, ACL configuration**
+- **Synology NAS K3s Worker (3): VMM deployment, node labeling, taints**
+- **Open-WebUI (4): LiteLLM backend, model switching, chat history**
+- **Kubernetes Dashboard (4): Cluster visualization, authentication**
+- **Gitea Self-Hosted Git (4): PostgreSQL backend, SSH auth, NFS storage**
+- **DeepSeek-R1 Reasoning Mode (4): R1-Mode, model switching, LiteLLM integration**
+- **LiteLLM External Providers (4): Groq, Google AI, Mistral free tiers as parallel model options**
+- **Blog Article (3): Portfolio documentation, Epic 9 completion**
 
-**Non-Functional Requirements:** 70 NFRs
+**Non-Functional Requirements:** 85 NFRs
 - Reliability: 95% uptime, 5-min recovery, automatic pod rescheduling
 - Security: TLS 1.2+, Tailscale-only access, encrypted secrets
 - Performance: 30s Ollama response, 5s dashboard load
@@ -822,6 +830,540 @@ Connect: VS Code → Remote SSH → nginx-proxy:port → container
 Destroy: kubectl delete -f dev-container-{name}.yaml (workspace PVC persists)
 ```
 
+### Tailscale Subnet Router Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Primary Router** | **k3s-master (192.168.2.0/24)** | **FR120: Expose main cluster subnet to Tailscale network** |
+| **Secondary Router** | **k3s-gpu-worker (192.168.0.0/24)** | **FR121: Expose GPU worker subnet for cross-network access** |
+| **ACL Management** | **Tailscale Admin Console** | **FR122: Centralized access control for subnet routes** |
+| **Failover** | **Direct Tailscale per-node** | **NFR72: Individual node access survives router failure** |
+
+**Subnet Route Configuration:**
+```bash
+# On k3s-master (192.168.2.20):
+sudo tailscale up --advertise-routes=192.168.2.0/24 --accept-routes
+
+# On k3s-gpu-worker (192.168.0.25):
+sudo tailscale up --advertise-routes=192.168.0.0/24 --accept-routes
+```
+
+**Network Topology with Subnet Routing:**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Tailscale Network (External Access)                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Remote Device (laptop, phone)                                              │
+│       │                                                                     │
+│       ├──► k3s-master (subnet router) ──► 192.168.2.0/24                   │
+│       │         └── Synology NAS, k3s-worker-01, k3s-worker-02              │
+│       │                                                                     │
+│       └──► k3s-gpu-worker (subnet router) ──► 192.168.0.0/24               │
+│                 └── Intel NUC local network devices                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Tailscale ACL Configuration (FR122):**
+```json
+{
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["tag:admin"],
+      "dst": ["192.168.2.0/24:*", "192.168.0.0/24:*"]
+    }
+  ],
+  "tagOwners": {
+    "tag:admin": ["autogroup:admin"]
+  }
+}
+```
+
+**NFR Compliance:**
+- NFR71: Routes advertised within 60 seconds via `tailscale up` at boot
+- NFR72: Each node individually accessible via Tailscale even if subnet router fails
+
+### Synology NAS K3s Worker Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Virtualization** | **Synology Virtual Machine Manager** | **FR123: Native hypervisor on DS920+, no additional software** |
+| **VM Resources** | **2 vCPU, 4GB RAM** | **NFR73: Preserve NAS primary functions (file serving, Docker)** |
+| **OS Image** | **Ubuntu 22.04 LTS** | **Consistent with existing K3s workers** |
+| **Node Role** | **Lightweight workloads only** | **FR124-125: Labeled and tainted for specific scheduling** |
+| **Storage** | **Local VM disk (20GB)** | **K3s binaries; workload data on NFS** |
+
+**VM Specification:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Synology DS920+ (Intel Celeron J4125, 20GB RAM)               │
+├─────────────────────────────────────────────────────────────────┤
+│  Host Services:                                                 │
+│  ├── DSM (Synology OS)                                         │
+│  ├── NFS Server (primary function)                             │
+│  ├── Container Manager (Docker)                                │
+│  └── Virtual Machine Manager                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  K3s Worker VM:                                                │
+│  ├── Name: k3s-nas-worker                                      │
+│  ├── IP: 192.168.2.23 (static)                                 │
+│  ├── vCPU: 2 cores                                             │
+│  ├── RAM: 4GB                                                  │
+│  ├── Disk: 20GB (thin provisioned)                             │
+│  └── Network: vmbr0 (bridged to LAN)                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Node Labels and Taints (FR124-125):**
+```yaml
+# Node configuration after join
+kubectl label node k3s-nas-worker \
+  node.kubernetes.io/role=nas-worker \
+  workload-type=lightweight
+
+kubectl taint node k3s-nas-worker \
+  nas-worker=true:NoSchedule
+```
+
+**Suitable Workloads:**
+- Lightweight monitoring agents
+- Log collectors (Promtail)
+- Storage-adjacent services (NFS-related utilities)
+- NOT suitable: CPU-intensive, memory-intensive, or GPU workloads
+
+**NFR Compliance:**
+- NFR73: 2 vCPU + 4GB leaves 2 cores + 15GB for NAS operations
+- NFR74: K3s agent starts within 3 minutes; VM boot adds ~60 seconds
+
+### Open-WebUI Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Deployment** | **Helm chart (open-webui/open-webui)** | **FR126: Official chart, production-ready** |
+| **Namespace** | **`apps`** | **General application, not ML-specific** |
+| **Backend** | **LiteLLM unified endpoint** | **FR127: Single API for all models (local + external)** |
+| **Storage** | **NFS PVC (5GB)** | **FR126, NFR76: Persistent chat history** |
+| **Ingress** | **chat.home.jetzinger.com** | **FR128: HTTPS via cert-manager** |
+
+**Integration Architecture:**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Open-WebUI (apps namespace)                                                │
+│  Endpoint: https://chat.home.jetzinger.com                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  User Interface:                                                            │
+│  ├── ChatGPT-like conversation UI                                          │
+│  ├── Model selector dropdown (FR129)                                        │
+│  ├── Chat history with search                                               │
+│  └── Multi-user support (single user for home lab)                         │
+│                                                                             │
+│  Backend Connection:                                                        │
+│  └── LiteLLM Proxy (http://litellm.ml.svc.cluster.local:4000/v1)           │
+│       │                                                                     │
+│       ├── Local Models:                                                     │
+│       │   ├── vLLM: qwen2.5:14b (GPU, primary)                             │
+│       │   ├── vLLM: deepseek-r1:14b (GPU, R1-Mode)                         │
+│       │   └── Ollama: qwen2.5:3b (CPU, fallback)                           │
+│       │                                                                     │
+│       └── External Providers:                                               │
+│           ├── Groq: llama-3.3-70b-versatile (fast, free tier)              │
+│           ├── Google: gemini-1.5-flash (free tier)                         │
+│           └── Mistral: mistral-small (free tier)                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Helm Values:**
+```yaml
+# applications/open-webui/values-homelab.yaml
+replicaCount: 1
+
+env:
+  OPENAI_API_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
+  OPENAI_API_KEY: "not-needed-for-litellm"
+  WEBUI_AUTH: "false"  # Single user, Tailscale provides auth
+  ENABLE_SIGNUP: "false"
+
+persistence:
+  enabled: true
+  storageClass: "nfs-client"
+  size: 5Gi
+
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: chat.home.jetzinger.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: chat-tls
+      hosts:
+        - chat.home.jetzinger.com
+```
+
+**NFR Compliance:**
+- NFR75: Open-WebUI loads within 3 seconds (lightweight frontend)
+- NFR76: Chat history on NFS survives pod restarts
+
+### Kubernetes Dashboard Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Dashboard** | **Official Kubernetes Dashboard v2.7+** | **FR130: Lightweight, official K8s project** |
+| **Namespace** | **`infra`** | **Infrastructure tooling** |
+| **Authentication** | **Bearer token + Tailscale** | **FR132: Token for K8s API, Tailscale for network access** |
+| **Access Mode** | **Read-only ServiceAccount** | **FR133: View-only for safety** |
+| **Ingress** | **dashboard.home.jetzinger.com** | **FR131: HTTPS via cert-manager** |
+
+**Deployment Architecture:**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Kubernetes Dashboard (infra namespace)                                     │
+│  Endpoint: https://dashboard.home.jetzinger.com                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Components:                                                                │
+│  ├── kubernetes-dashboard Deployment                                        │
+│  ├── dashboard-metrics-scraper (optional)                                   │
+│  └── ServiceAccount: dashboard-viewer (read-only)                          │
+│                                                                             │
+│  Access Flow:                                                               │
+│  Tailscale VPN → Traefik Ingress → Dashboard → K8s API (via SA token)      │
+│                                                                             │
+│  Capabilities (FR133):                                                      │
+│  ├── View all namespaces                                                    │
+│  ├── List pods, deployments, services                                       │
+│  ├── View logs (read-only)                                                  │
+│  ├── View events and resource status                                        │
+│  └── NO create/delete/edit operations                                       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**ServiceAccount Configuration:**
+```yaml
+# Read-only ClusterRole binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dashboard-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view  # Built-in read-only role
+subjects:
+  - kind: ServiceAccount
+    name: dashboard-viewer
+    namespace: infra
+```
+
+**NFR Compliance:**
+- NFR77: Dashboard loads within 5 seconds (lightweight UI)
+- NFR78: Tailscale-only access enforced via network (no public ingress)
+
+### Gitea Self-Hosted Git Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Deployment** | **Gitea Helm chart (gitea/gitea)** | **FR134: Official chart, production-ready** |
+| **Namespace** | **`dev`** | **Development tooling** |
+| **Database** | **PostgreSQL (existing cluster)** | **FR134: Leverage existing PostgreSQL deployment** |
+| **Storage** | **NFS PVC (50GB)** | **FR136: Repositories persist on Synology** |
+| **Authentication** | **SSH keys + local accounts** | **FR137: Single-user, SSH for git operations** |
+| **Ingress** | **git.home.jetzinger.com** | **FR135: HTTPS for web UI** |
+| **SSH Access** | **NodePort or LoadBalancer** | **Git SSH on port 22 or 2222** |
+
+**Integration Architecture:**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Gitea (dev namespace)                                                      │
+│  Web: https://git.home.jetzinger.com                                       │
+│  SSH: git@git.home.jetzinger.com:2222                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Components:                                                                │
+│  ├── Gitea Server (StatefulSet)                                            │
+│  │   ├── Web UI: Repository browsing, issues, PRs                          │
+│  │   └── SSH Server: Git clone/push/pull                                   │
+│  ├── PostgreSQL Connection                                                  │
+│  │   └── Database: gitea @ postgresql.data.svc.cluster.local               │
+│  └── NFS PVC: /data/git/repositories                                       │
+│                                                                             │
+│  Use Cases:                                                                 │
+│  ├── Mirror external repos for offline access                               │
+│  ├── Private repos not suitable for GitHub                                  │
+│  ├── Local CI/CD integration (future)                                       │
+│  └── Backup of critical repositories                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Helm Values:**
+```yaml
+# applications/gitea/values-homelab.yaml
+gitea:
+  admin:
+    username: tom
+    email: tom@home.jetzinger.com
+
+postgresql:
+  enabled: false  # Use external PostgreSQL
+
+database:
+  builtIn:
+    postgresql:
+      enabled: false
+  external:
+    host: postgresql.data.svc.cluster.local
+    port: 5432
+    database: gitea
+    user: gitea
+    existingSecret: gitea-db-secret
+
+persistence:
+  enabled: true
+  storageClass: "nfs-client"
+  size: 50Gi
+
+service:
+  ssh:
+    type: LoadBalancer  # Or NodePort
+    port: 2222
+
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: git.home.jetzinger.com
+      paths:
+        - path: /
+          pathType: Prefix
+```
+
+**NFR Compliance:**
+- NFR79: Git operations complete within 10 seconds (local network, NFS storage)
+- NFR80: Web interface loads within 3 seconds
+
+### DeepSeek-R1 14B Reasoning Mode Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Model** | **DeepSeek-R1 14B (distilled)** | **FR138: Reasoning-focused, fits 12GB VRAM** |
+| **Deployment** | **vLLM on GPU worker** | **FR138: Same infrastructure as Qwen 2.5 14B** |
+| **Mode Name** | **R1-Mode** | **FR139: Third GPU mode alongside ML-Mode and Gaming-Mode** |
+| **Switching** | **gpu-mode script** | **FR140: Extend existing mode switching** |
+| **LiteLLM** | **reasoning-tier model** | **FR141: Dedicated routing for reasoning tasks** |
+
+**Three GPU Modes:**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  GPU Mode Switching (k3s-gpu-worker)                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                     │
+│  │  ML-Mode    │    │  R1-Mode    │    │ Gaming-Mode │                     │
+│  │  (default)  │    │  (reasoning)│    │  (Steam)    │                     │
+│  ├─────────────┤    ├─────────────┤    ├─────────────┤                     │
+│  │ Qwen 2.5 14B│    │ DeepSeek-R1 │    │ GPU to Host │                     │
+│  │ ~8-9GB VRAM │    │ ~8-10GB VRAM│    │ vLLM off    │                     │
+│  │ General use │    │ Complex     │    │ Full 12GB   │                     │
+│  │ Fast (35t/s)│    │ reasoning   │    │ for games   │                     │
+│  └─────────────┘    └─────────────┘    └─────────────┘                     │
+│        │                  │                  │                              │
+│        └──────────────────┼──────────────────┘                              │
+│                           │                                                 │
+│                    gpu-mode script                                          │
+│                    /usr/local/bin/gpu-mode                                  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Extended gpu-mode Script (FR140):**
+```bash
+#!/bin/bash
+# /usr/local/bin/gpu-mode
+
+VLLM_DEPLOYMENT="vllm"
+NAMESPACE="ml"
+
+case "$1" in
+  ml)
+    # Default mode: Qwen 2.5 14B for general use
+    kubectl set env deployment/$VLLM_DEPLOYMENT -n $NAMESPACE \
+      MODEL_NAME="Qwen/Qwen2.5-14B-Instruct-AWQ"
+    kubectl scale deployment/$VLLM_DEPLOYMENT --replicas=1 -n $NAMESPACE
+    echo "ML Mode: Qwen 2.5 14B loaded for general inference"
+    ;;
+  r1)
+    # Reasoning mode: DeepSeek-R1 14B for complex tasks
+    kubectl set env deployment/$VLLM_DEPLOYMENT -n $NAMESPACE \
+      MODEL_NAME="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
+    kubectl scale deployment/$VLLM_DEPLOYMENT --replicas=1 -n $NAMESPACE
+    echo "R1 Mode: DeepSeek-R1 14B loaded for reasoning tasks"
+    ;;
+  gaming)
+    # Gaming mode: Release GPU for Steam
+    kubectl scale deployment/$VLLM_DEPLOYMENT --replicas=0 -n $NAMESPACE
+    echo "Gaming Mode: vLLM scaled to 0, GPU available for Steam"
+    ;;
+  status)
+    REPLICAS=$(kubectl get deployment/$VLLM_DEPLOYMENT -n $NAMESPACE -o jsonpath='{.spec.replicas}')
+    MODEL=$(kubectl get deployment/$VLLM_DEPLOYMENT -n $NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="MODEL_NAME")].value}')
+    echo "Replicas: $REPLICAS, Model: $MODEL"
+    ;;
+  *)
+    echo "Usage: gpu-mode {ml|r1|gaming|status}"
+    exit 1
+    ;;
+esac
+```
+
+**LiteLLM Configuration (FR141):**
+```yaml
+# Extended model_list for R1-Mode
+model_list:
+  - model_name: "default"  # General inference
+    litellm_params:
+      model: "openai/Qwen/Qwen2.5-14B-Instruct-AWQ"
+      api_base: "http://vllm-api.ml.svc.cluster.local:8000/v1"
+
+  - model_name: "reasoning"  # Complex reasoning tasks
+    litellm_params:
+      model: "openai/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
+      api_base: "http://vllm-api.ml.svc.cluster.local:8000/v1"
+```
+
+**NFR Compliance:**
+- NFR81: Model loading completes within 90 seconds (similar to Qwen 2.5 14B)
+- NFR82: DeepSeek-R1 achieves 30+ tokens/second on RTX 3060
+
+### LiteLLM External Providers Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Groq** | **llama-3.3-70b-versatile** | **FR142: Fast inference, generous free tier (6000 req/day), parallel model** |
+| **Google AI** | **gemini-1.5-flash** | **FR143: Free tier, good for general tasks, parallel model** |
+| **Mistral** | **mistral-small-latest** | **FR144: Free tier, European provider, parallel model** |
+| **Secrets** | **Kubernetes Secrets** | **FR145: Secure API key storage** |
+| **Rate Limiting** | **LiteLLM built-in** | **NFR84: Stay within free tier quotas** |
+| **Integration** | **Parallel models (not fallback)** | **External providers are independent model choices, NOT part of fallback chain** |
+
+**Architecture: Fallback Chain + Parallel Models:**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  LiteLLM Hybrid Architecture                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  FALLBACK CHAIN (automatic failover for "default" model):                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ vLLM (GPU) ──▶ Ollama (CPU) ──▶ OpenAI (paid, emergency)           │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  PARALLEL MODELS (explicit selection by application):                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ groq/llama-3.3-70b-versatile    (fast, 6000 req/day free)          │   │
+│  │ gemini/gemini-1.5-flash         (1500 req/day free)                │   │
+│  │ mistral/mistral-small-latest    (free tier)                        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  Usage Examples:                                                            │
+│  • Request "default" model → uses fallback chain                           │
+│  • Request "groq/llama-3.3-70b" → direct to Groq                          │
+│  • Request "gemini/gemini-1.5-flash" → direct to Google AI                │
+│  • Open-WebUI can offer all models in dropdown                             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**LiteLLM Configuration:**
+```yaml
+# applications/litellm/config.yaml (extended)
+model_list:
+  # === FALLBACK CHAIN (model_name: "default") ===
+  # Tier 1: Local GPU (primary)
+  - model_name: "default"
+    litellm_params:
+      model: "openai/Qwen/Qwen2.5-14B-Instruct-AWQ"
+      api_base: "http://vllm-api.ml.svc.cluster.local:8000/v1"
+      api_key: "not-needed"
+
+  # Tier 2: Local CPU (fallback)
+  - model_name: "default"
+    litellm_params:
+      model: "ollama/qwen2.5:3b"
+      api_base: "http://ollama.ml.svc.cluster.local:11434"
+
+  # Tier 3: Paid (emergency only)
+  - model_name: "default"
+    litellm_params:
+      model: "gpt-4o-mini"
+      api_key: "os.environ/OPENAI_API_KEY"
+
+  # === PARALLEL MODELS (independent, explicit selection) ===
+  # Groq - Fast inference, free tier
+  - model_name: "groq/llama-3.3-70b-versatile"
+    litellm_params:
+      model: "groq/llama-3.3-70b-versatile"
+      api_key: "os.environ/GROQ_API_KEY"
+
+  - model_name: "groq/mixtral-8x7b-32768"
+    litellm_params:
+      model: "groq/mixtral-8x7b-32768"
+      api_key: "os.environ/GROQ_API_KEY"
+
+  # Google AI - Gemini models, free tier
+  - model_name: "gemini/gemini-1.5-flash"
+    litellm_params:
+      model: "gemini/gemini-1.5-flash"
+      api_key: "os.environ/GOOGLE_AI_API_KEY"
+
+  - model_name: "gemini/gemini-1.5-pro"
+    litellm_params:
+      model: "gemini/gemini-1.5-pro"
+      api_key: "os.environ/GOOGLE_AI_API_KEY"
+
+  # Mistral - European provider, free tier
+  - model_name: "mistral/mistral-small-latest"
+    litellm_params:
+      model: "mistral/mistral-small-latest"
+      api_key: "os.environ/MISTRAL_API_KEY"
+
+router_settings:
+  routing_strategy: "simple-shuffle"
+  num_retries: 3
+  timeout: 30
+  fallbacks: [{"default": ["default"]}]  # Only "default" has fallback
+
+# Rate limiting to stay within free tiers
+litellm_settings:
+  max_budget: 0  # No spend limit (free tiers)
+  budget_duration: "1d"
+```
+
+**Kubernetes Secret (FR145):**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: litellm-api-keys
+  namespace: ml
+type: Opaque
+stringData:
+  GROQ_API_KEY: "gsk_..."
+  GOOGLE_AI_API_KEY: "AIza..."
+  MISTRAL_API_KEY: "..."
+  OPENAI_API_KEY: "sk-..."  # Emergency fallback for "default" model
+```
+
+**NFR Compliance:**
+- NFR83: External provider requests route within 5 seconds
+- NFR84: Rate limiting configured per provider to stay within free tiers
+
 ### Backup & Recovery Architecture
 
 | Decision | Choice | Rationale |
@@ -1106,8 +1648,8 @@ Synology: /volume1/k8s-data/
 
 ### Requirements Coverage ✅
 
-**Functional Requirements:** 119/119 covered
-**Non-Functional Requirements:** 70/70 covered
+**Functional Requirements:** 148/148 covered
+**Non-Functional Requirements:** 85/85 covered
 
 All requirements have explicit architectural support documented in Core Architectural Decisions and Project Structure sections.
 
@@ -1128,6 +1670,14 @@ All requirements have explicit architectural support documented in Core Architec
 - **FR109-112: vLLM GPU integration for Paperless-AI, OpenAI-compatible endpoint, Ollama slim models, k3s-worker-02 resource reduction — covered by AI/ML Architecture + AI Document Classification Architecture (Story 12.10)**
 - **FR113-118: LiteLLM Inference Proxy with three-tier fallback (vLLM → Ollama → OpenAI), Paperless-AI integration, OpenAI API key secret, Prometheus metrics — covered by LiteLLM Inference Proxy Architecture (Epic 14)**
 - **FR119: k3s-gpu-worker boots into ML Mode by default via systemd service — covered by Dual-Use GPU Architecture (Default Boot Behavior)**
+- **FR120-122: Tailscale Subnet Routers for 192.168.2.0/24 and 192.168.0.0/24 — covered by Tailscale Subnet Router Architecture**
+- **FR123-125: Synology NAS K3s Worker VM with labels/taints — covered by Synology NAS K3s Worker Architecture**
+- **FR126-129: Open-WebUI with LiteLLM backend, model switching — covered by Open-WebUI Architecture**
+- **FR130-133: Kubernetes Dashboard with read-only access — covered by Kubernetes Dashboard Architecture**
+- **FR134-137: Gitea self-hosted Git with PostgreSQL — covered by Gitea Self-Hosted Git Architecture**
+- **FR138-141: DeepSeek-R1 14B R1-Mode, gpu-mode script extension — covered by DeepSeek-R1 14B Reasoning Mode Architecture**
+- **FR142-145: LiteLLM External Providers (Groq, Google, Mistral) — covered by LiteLLM External Providers Architecture**
+- **FR146-148: Blog Article completion (Epic 9) — portfolio documentation requirement**
 - NFR50-54: Gaming Platform performance requirements — covered by Dual-Use GPU Architecture
 - NFR55-57: Multi-Subnet networking requirements — covered by Multi-Subnet GPU Worker Network Architecture
 - **NFR58: Qwen 2.5 14B JSON output quality (95%+) — covered by AI Document Classification Architecture (Story 12.8)**
@@ -1136,6 +1686,14 @@ All requirements have explicit architectural support documented in Core Architec
 - **NFR63-64: vLLM GPU performance (<5s classification latency, 35-40 tok/s throughput) — covered by AI Document Classification Architecture (Story 12.10)**
 - **NFR65-69: LiteLLM failover latency (<5s), proxy overhead (<100ms), degraded operation during Gaming Mode, health endpoint response time — covered by LiteLLM Inference Proxy Architecture (Epic 14)**
 - **NFR70: ML Mode auto-activates within 5 minutes of k3s-gpu-worker boot — covered by Dual-Use GPU Architecture (Default Boot Behavior)**
+- **NFR71-72: Tailscale Subnet Router route advertisement and failover — covered by Tailscale Subnet Router Architecture**
+- **NFR73-74: NAS Worker VM resources and join time — covered by Synology NAS K3s Worker Architecture**
+- **NFR75-76: Open-WebUI load time and persistent chat history — covered by Open-WebUI Architecture**
+- **NFR77-78: Kubernetes Dashboard load time and Tailscale-only access — covered by Kubernetes Dashboard Architecture**
+- **NFR79-80: Gitea operation speed and web interface load time — covered by Gitea Self-Hosted Git Architecture**
+- **NFR81-82: DeepSeek-R1 model loading and inference speed — covered by DeepSeek-R1 14B Reasoning Mode Architecture**
+- **NFR83-84: External provider failover and rate limiting — covered by LiteLLM External Providers Architecture**
+- **NFR85: Blog Article publication timeline — portfolio documentation requirement**
 
 ### Implementation Readiness ✅
 
@@ -1200,10 +1758,10 @@ This architecture is ready for implementation because:
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 18 core architectural decisions made (updated for Epic 14: LiteLLM Inference Proxy with three-tier fallback)
+- 25 core architectural decisions made (updated 2026-01-15: +7 new architecture sections)
 - 6 implementation pattern categories defined
 - 8 namespace boundaries established
-- 118 functional + 69 non-functional requirements supported
+- 148 functional + 85 non-functional requirements supported
 
 **AI Agent Implementation Guide**
 - Technology stack with Helm chart references

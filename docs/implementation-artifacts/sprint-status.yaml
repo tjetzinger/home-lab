@@ -1,4 +1,4 @@
-# generated: 2026-01-14
+# generated: 2026-01-15
 # project: home-lab
 # tracking_system: file-system
 # story_location: docs/implementation-artifacts
@@ -32,7 +32,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-01-14
+generated: 2026-01-15
 project: home-lab
 tracking_system: file-system
 story_location: docs/implementation-artifacts
@@ -108,12 +108,13 @@ development_status:
   epic-8-retrospective: optional
 
   # Epic 9: Portfolio & Public Showcase
-  epic-9: in-progress
+  epic-9: done
   9-1-structure-public-github-repository: done
   9-2-create-architecture-decision-records: done
   9-3-capture-and-document-grafana-screenshots: done
-  9-4-write-and-publish-first-technical-blog-post: ready-for-dev
+  9-4-write-and-publish-first-technical-blog-post: done
   9-5-document-all-deployed-services: done
+  9-6-write-comprehensive-technical-blog-post: done
   epic-9-retrospective: optional
 
   # Epic 10: Document Management System (Paperless-ngx Ecosystem)
@@ -170,4 +171,45 @@ development_status:
   14-3-integrate-paperless-ai-with-litellm: done
   14-4-configure-prometheus-metrics-and-monitoring: done
   14-5-validate-failover-and-performance: done
+  14-6-configure-external-provider-parallel-models: done
   epic-14-retrospective: optional
+
+  # Epic 15: Network Access Enhancement (Tailscale Subnet Router)
+  epic-15: backlog
+  15-1-configure-k3s-master-as-subnet-router: backlog
+  15-2-configure-k3s-gpu-worker-as-subnet-router: backlog
+  15-3-configure-tailscale-acls-for-subnet-access: backlog
+  epic-15-retrospective: optional
+
+  # Epic 16: NAS Worker Node (Synology DS920+)
+  epic-16: backlog
+  16-1-deploy-k3s-worker-vm-on-synology-nas: backlog
+  16-2-label-and-taint-nas-worker-node: backlog
+  epic-16-retrospective: optional
+
+  # Epic 17: ChatGPT-like Interface (Open-WebUI)
+  epic-17: backlog
+  17-1-deploy-open-webui-with-persistent-storage: backlog
+  17-2-configure-open-webui-with-litellm-backend: backlog
+  17-3-configure-open-webui-ingress: backlog
+  epic-17-retrospective: optional
+
+  # Epic 18: Cluster Visualization Dashboard (Kubernetes Dashboard)
+  epic-18: backlog
+  18-1-deploy-kubernetes-dashboard: backlog
+  18-2-configure-dashboard-ingress-and-authentication: backlog
+  epic-18-retrospective: optional
+
+  # Epic 19: Self-Hosted Git Service (Gitea)
+  epic-19: backlog
+  19-1-deploy-gitea-with-postgresql-backend: backlog
+  19-2-configure-gitea-storage-and-ingress: backlog
+  19-3-configure-gitea-single-user-ssh-access: backlog
+  epic-19-retrospective: optional
+
+  # Epic 20: Reasoning Model Support (DeepSeek-R1 14B)
+  epic-20: backlog
+  20-1-deploy-deepseek-r1-14b-via-vllm: backlog
+  20-2-implement-r1-mode-in-gpu-mode-script: backlog
+  20-3-configure-litellm-with-deepseek-r1: backlog
+  epic-20-retrospective: optional

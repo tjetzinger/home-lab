@@ -1,5 +1,5 @@
 # LiteLLM Configuration ConfigMap
-# Story: 14.4 - Configure Prometheus Metrics and Monitoring
+# Story: 14.6 - Configure External Provider Parallel Models
 # Epic: 14 - LiteLLM Inference Proxy
 #
 # FRs:
@@ -8,6 +8,10 @@
 # - FR116: Automatic failover to Ollama when vLLM health check fails
 # - FR117: OpenAI API key stored as Kubernetes secret
 # - FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
+# - FR142: Groq free tier as parallel model option (llama-3.3-70b-versatile, mixtral-8x7b-32768)
+# - FR143: Google AI Studio (Gemini) free tier as parallel model option
+# - FR144: Mistral API free tier as parallel model option
+# - FR145: API keys for external providers stored via Kubernetes secrets
 #
 # NFRs:
 # - NFR65: Failover detection within 5 seconds
@@ -15,8 +19,12 @@
 # - NFR67: Document processing continues (degraded) via fallback chain
 # - NFR68: OpenAI only used when both vLLM and Ollama unavailable
 # - NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
+# - NFR83: External provider requests complete <5 seconds
+# - NFR84: Rate limiting configured for free tier quotas
 #
-# Three-tier fallback chain: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+# Architecture:
+# - Fallback chain: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud) - automatic failover
+# - Parallel models: Groq, Gemini, Mistral - explicit selection, independent of fallback
 
 apiVersion: v1
 kind: ConfigMap
@@ -62,6 +70,59 @@ data:
         litellm_params:
           model: gpt-4o-mini  # Cost-effective for document classification
           api_key: os.environ/OPENAI_API_KEY
+          timeout: 30
+        model_info:
+          mode: chat
+
+      # ============================================================
+      # PARALLEL MODELS (Story 14.6 - FR142, FR143, FR144)
+      # These are NOT part of the fallback chain - explicit selection only
+      # Usage: Request "groq/llama-3.3-70b-versatile" directly
+      # ============================================================
+
+      # Groq Models (FR142) - Fast inference, 6000 req/day free tier
+      # Rate limit: ~4 req/min sustained, monitor via Prometheus for daily quota
+      - model_name: groq/llama-3.3-70b-versatile
+        litellm_params:
+          model: groq/llama-3.3-70b-versatile
+          api_key: os.environ/GROQ_API_KEY
+          timeout: 30
+        model_info:
+          mode: chat
+
+      - model_name: groq/mixtral-8x7b-32768
+        litellm_params:
+          model: groq/mixtral-8x7b-32768
+          api_key: os.environ/GROQ_API_KEY
+          timeout: 30
+        model_info:
+          mode: chat
+
+      # Google AI Studio / Gemini Models (FR143) - 1500 req/day free tier
+      # Rate limit: ~1 req/min sustained, monitor via Prometheus for daily quota
+      # Note: gemini-1.5 models deprecated April 2025, using gemini-2.x
+      - model_name: gemini/gemini-2.0-flash
+        litellm_params:
+          model: gemini/gemini-2.0-flash
+          api_key: os.environ/GEMINI_API_KEY
+          timeout: 30
+        model_info:
+          mode: chat
+
+      - model_name: gemini/gemini-2.5-flash
+        litellm_params:
+          model: gemini/gemini-2.5-flash
+          api_key: os.environ/GEMINI_API_KEY
+          timeout: 60
+        model_info:
+          mode: chat
+
+      # Mistral Models (FR144) - European provider, free tier available
+      # Rate limit: varies by tier, monitor via Prometheus for quota compliance
+      - model_name: mistral/mistral-small-latest
+        litellm_params:
+          model: mistral/mistral-small-latest
+          api_key: os.environ/MISTRAL_API_KEY
           timeout: 30
         model_info:
           mode: chat
