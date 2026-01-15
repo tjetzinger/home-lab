@@ -201,8 +201,8 @@ development_status:
   epic-18-retrospective: optional
 
   # Epic 19: Self-Hosted Git Service (Gitea)
-  epic-19: backlog
-  19-1-deploy-gitea-with-postgresql-backend: backlog
+  epic-19: in-progress
+  19-1-deploy-gitea-with-postgresql-backend: done
   19-2-configure-gitea-storage-and-ingress: backlog
   19-3-configure-gitea-single-user-ssh-access: backlog
   epic-19-retrospective: optional

@@ -1,0 +1,137 @@
+# Gitea Helm values for home-lab
+# Story: 19.1 - Deploy Gitea with PostgreSQL Backend
+# Epic: 19 - Self-Hosted Git Service (Gitea)
+# Chart: gitea-charts/gitea
+#
+# FRs:
+# - FR134: Gitea deployed in dev namespace with PostgreSQL backend
+#
+# NFRs:
+# - NFR80: Gitea web interface loads within 3 seconds
+
+# Pod labels
+podLabels:
+  app.kubernetes.io/name: gitea
+  app.kubernetes.io/instance: gitea
+  app.kubernetes.io/part-of: home-lab
+
+# Image configuration
+image:
+  rootless: true
+
+# Deployment configuration
+replicaCount: 1
+
+# Service configuration
+service:
+  http:
+    type: ClusterIP
+    port: 3000
+  ssh:
+    type: ClusterIP
+    port: 22
+
+# Gitea configuration
+gitea:
+  admin:
+    # Admin user created on first startup
+    username: admin
+    password: gitea-admin-2026
+
+  config:
+    server:
+      DOMAIN: git.home.jetzinger.com
+      ROOT_URL: https://git.home.jetzinger.com/
+      SSH_DOMAIN: git.home.jetzinger.com
+      SSH_PORT: 22
+      LFS_START_SERVER: true
+
+    database:
+      DB_TYPE: postgres
+      HOST: postgres-postgresql.data.svc.cluster.local:5432
+      NAME: gitea
+      USER: gitea
+      PASSWD: gitea-homelab-2026
+
+    repository:
+      DEFAULT_BRANCH: main
+
+    service:
+      DISABLE_REGISTRATION: true
+      REQUIRE_SIGNIN_VIEW: true
+
+    log:
+      LEVEL: Info
+      MODE: console
+
+    cache:
+      ADAPTER: memory
+
+    session:
+      PROVIDER: memory
+
+    queue:
+      TYPE: level
+
+# Persistence configuration (FR136)
+persistence:
+  enabled: true
+  storageClass: nfs-client
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  annotations:
+    helm.sh/resource-policy: keep
+
+# Resource limits (aligned with NFR80 - fast interface)
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Disable embedded PostgreSQL (using external)
+postgresql:
+  enabled: false
+
+# Disable embedded PostgreSQL-HA
+postgresql-ha:
+  enabled: false
+
+# Disable embedded Redis/Valkey (using memory cache)
+redis-cluster:
+  enabled: false
+
+valkey-cluster:
+  enabled: false
+
+# Disable Memcached
+memcached:
+  enabled: false
+
+# Init container configuration
+initContainers:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Security context for rootless
+podSecurityContext:
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  privileged: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
