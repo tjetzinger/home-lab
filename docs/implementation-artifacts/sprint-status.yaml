@@ -175,10 +175,10 @@ development_status:
   epic-14-retrospective: optional
 
   # Epic 15: Network Access Enhancement (Tailscale Subnet Router)
-  epic-15: in-progress
+  epic-15: done
   15-1-configure-k3s-master-as-subnet-router: done
   15-2-configure-k3s-gpu-worker-as-subnet-router: done
-  15-3-configure-tailscale-acls-for-subnet-access: backlog
+  15-3-configure-tailscale-acls-for-subnet-access: skipped
   epic-15-retrospective: optional
 
   # Epic 16: NAS Worker Node (Synology DS920+)
