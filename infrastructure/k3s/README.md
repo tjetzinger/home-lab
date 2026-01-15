@@ -246,7 +246,7 @@ This cluster is configured for remote access via Tailscale VPN:
 
 **Prerequisites:**
 - Tailscale installed and logged in
-- Subnet routing for 192.168.2.0/24 enabled (NAS is the subnet router)
+- Subnet routing for 192.168.2.0/24 enabled (k3s-master is the subnet router)
 
 **Verify Tailscale connectivity:**
 ```bash
@@ -263,6 +263,54 @@ ip route get 192.168.2.20
 kubectl get nodes
 ```
 
+### Subnet Router Configuration
+
+k3s-master is configured as a Tailscale subnet router, advertising the 192.168.2.0/24 network to all Tailscale clients. This allows remote access to any device on the home network without installing Tailscale on each device.
+
+**Current Subnet Routers:**
+
+| Node | Subnet | Purpose |
+|------|--------|---------|
+| k3s-master | 192.168.2.0/24 | Main cluster network (Proxmox VMs, NAS) |
+| k3s-gpu-worker | 192.168.0.0/24 | GPU worker network (Story 15.2) |
+
+**Configuration Commands (already applied):**
+```bash
+# On k3s-master - configure subnet route advertisement
+sudo tailscale set --advertise-routes=192.168.2.0/24 --accept-routes
+
+# Verify configuration
+tailscale debug prefs | grep -E "AdvertiseRoutes|RouteAll"
+```
+
+**Approving Subnet Routes:**
+1. Go to https://login.tailscale.com/admin/machines
+2. Find the machine advertising routes (e.g., k3s-master)
+3. Click on the machine to open settings
+4. Under "Subnet routes", approve the advertised route
+5. Save changes
+
+**Verify Route is Working:**
+```bash
+# Check route path
+ip route get 192.168.2.10
+
+# Should show: 192.168.2.10 dev tailscale0 ...
+
+# Trace route to verify path
+traceroute 192.168.2.21
+# Should show: hop 1 = k3s-master Tailscale IP (100.x.x.x)
+```
+
+**Troubleshooting Subnet Routes:**
+
+| Issue | Solution |
+|-------|----------|
+| Route not appearing | Check `tailscale debug prefs` for AdvertiseRoutes |
+| Route pending approval | Approve in Tailscale admin console |
+| Can't reach devices | Verify IP forwarding: `cat /proc/sys/net/ipv4/ip_forward` (should be 1) |
+| Health check warnings | Run `tailscale set --accept-routes` to accept other routes |
+
 ### Security Notes
 
 - The kubeconfig contains cluster credentials - treat as sensitive
@@ -278,3 +326,4 @@ kubectl get nodes
 - [Architecture Decision: architecture.md](../../docs/planning-artifacts/architecture.md)
 - [Story 1.1](../../docs/implementation-artifacts/1-1-create-k3s-control-plane.md)
 - [Story 1.4](../../docs/implementation-artifacts/1-4-configure-remote-kubectl-access.md)
+- [Story 15.1](../../docs/implementation-artifacts/15-1-configure-k3s-master-as-subnet-router.md)
