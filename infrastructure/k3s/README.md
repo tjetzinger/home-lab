@@ -265,21 +265,24 @@ kubectl get nodes
 
 ### Subnet Router Configuration
 
-k3s-master is configured as a Tailscale subnet router, advertising the 192.168.2.0/24 network to all Tailscale clients. This allows remote access to any device on the home network without installing Tailscale on each device.
+Both k3s-master and k3s-gpu-worker are configured as Tailscale subnet routers, advertising their respective local networks to all Tailscale clients. This allows remote access to any device on either network without installing Tailscale on each device.
 
 **Current Subnet Routers:**
 
-| Node | Subnet | Purpose |
-|------|--------|---------|
-| k3s-master | 192.168.2.0/24 | Main cluster network (Proxmox VMs, NAS) |
-| k3s-gpu-worker | 192.168.0.0/24 | GPU worker network (Story 15.2) |
+| Node | Subnet | Tailscale IP | Purpose |
+|------|--------|--------------|---------|
+| k3s-master | 192.168.2.0/24 | 100.84.89.67 | Main cluster network (Proxmox VMs, NAS) |
+| k3s-gpu-worker | 192.168.0.0/24 | 100.80.98.64 | GPU worker network (Intel NUC) |
 
 **Configuration Commands (already applied):**
 ```bash
 # On k3s-master - configure subnet route advertisement
 sudo tailscale set --advertise-routes=192.168.2.0/24 --accept-routes
 
-# Verify configuration
+# On k3s-gpu-worker - configure subnet route advertisement
+sudo tailscale set --advertise-routes=192.168.0.0/24 --accept-routes
+
+# Verify configuration on either node
 tailscale debug prefs | grep -E "AdvertiseRoutes|RouteAll"
 ```
 
@@ -327,3 +330,4 @@ traceroute 192.168.2.21
 - [Story 1.1](../../docs/implementation-artifacts/1-1-create-k3s-control-plane.md)
 - [Story 1.4](../../docs/implementation-artifacts/1-4-configure-remote-kubectl-access.md)
 - [Story 15.1](../../docs/implementation-artifacts/15-1-configure-k3s-master-as-subnet-router.md)
+- [Story 15.2](../../docs/implementation-artifacts/15-2-configure-k3s-gpu-worker-as-subnet-router.md)

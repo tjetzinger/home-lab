@@ -177,7 +177,7 @@ development_status:
   # Epic 15: Network Access Enhancement (Tailscale Subnet Router)
   epic-15: in-progress
   15-1-configure-k3s-master-as-subnet-router: done
-  15-2-configure-k3s-gpu-worker-as-subnet-router: backlog
+  15-2-configure-k3s-gpu-worker-as-subnet-router: done
   15-3-configure-tailscale-acls-for-subnet-access: backlog
   epic-15-retrospective: optional
 
