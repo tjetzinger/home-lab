@@ -182,8 +182,8 @@ development_status:
   epic-15-retrospective: optional
 
   # Epic 16: NAS Worker Node (Synology DS920+)
-  epic-16: backlog
-  16-1-deploy-k3s-worker-vm-on-synology-nas: backlog
+  epic-16: in-progress
+  16-1-deploy-k3s-worker-vm-on-synology-nas: done
   16-2-label-and-taint-nas-worker-node: backlog
   epic-16-retrospective: optional
 

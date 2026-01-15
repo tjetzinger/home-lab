@@ -195,11 +195,13 @@ sudo cat /var/lib/rancher/k3s/server/node-token
 
 ## Network Layout
 
-| Node | IP | Role |
-|------|-----|------|
-| k3s-master | 192.168.2.20 | Control Plane |
-| k3s-worker-01 | 192.168.2.21 | Worker (Story 1.2) |
-| k3s-worker-02 | 192.168.2.22 | Worker (Story 1.3) |
+| Node | IP | Tailscale IP | Role |
+|------|-----|--------------|------|
+| k3s-master | 192.168.2.20 | 100.84.89.67 | Control Plane + Subnet Router |
+| k3s-worker-01 | 192.168.2.21 | 100.113.151.13 | Worker (Proxmox) |
+| k3s-worker-02 | 192.168.2.22 | 100.124.163.54 | Worker (Proxmox) |
+| k3s-nas-worker | 192.168.2.23 | 100.76.153.66 | Worker (Synology VMM) - Lightweight only |
+| k3s-gpu-worker | 192.168.0.25 | 100.80.98.64 | Worker (Intel NUC) + Subnet Router |
 
 ## Remote kubectl Access
 
