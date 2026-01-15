@@ -79,12 +79,35 @@ Chat history stored on NFS at `/app/backend/data`:
 
 ### LiteLLM Integration (Story 17.2)
 
-After Story 17.2, Open-WebUI will connect to LiteLLM:
+Open-WebUI connects to LiteLLM for unified model access:
+
 ```yaml
-env:
-  OPENAI_API_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
-  OPENAI_API_KEY: "sk-dummy"
+extraEnvVars:
+  - name: OPENAI_API_BASE_URL
+    value: "http://litellm.ml.svc.cluster.local:4000/v1"
+  - name: OPENAI_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: open-webui-secrets
+        key: OPENAI_API_KEY
 ```
+
+**Available Models via LiteLLM:**
+
+| Model | Type | Description |
+|-------|------|-------------|
+| `vllm-qwen` | Fallback Primary | Qwen2.5-7B on GPU (fast) |
+| `ollama-qwen` | Fallback Secondary | Qwen2.5:3b on CPU |
+| `openai-gpt4o` | Fallback Tertiary | GPT-4o-mini (cloud) |
+| `groq/llama-3.3-70b-versatile` | Parallel | Groq fast inference |
+| `groq/mixtral-8x7b-32768` | Parallel | MoE model, 32k context |
+| `gemini/gemini-2.0-flash` | Parallel | Google AI fast |
+| `gemini/gemini-2.5-flash` | Parallel | Google AI latest |
+| `mistral/mistral-small-latest` | Parallel | European provider |
+
+**Fallback Chain:** vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+
+When requesting `vllm-qwen`, LiteLLM automatically falls back to `ollama-qwen` if GPU unavailable, then to `openai-gpt4o` as last resort.
 
 ### Ingress (Story 17.3)
 

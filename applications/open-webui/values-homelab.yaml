@@ -73,9 +73,15 @@ extraEnvVars:
   # Enable OpenAI API for LiteLLM integration (Story 17.2)
   - name: ENABLE_OPENAI_API
     value: "true"
-  # Will be configured in Story 17.2:
-  # - name: OPENAI_API_BASE_URL
-  #   value: "http://litellm.ml.svc.cluster.local:4000/v1"
+  # LiteLLM endpoint (FR127 - Story 17.2)
+  - name: OPENAI_API_BASE_URL
+    value: "http://litellm.ml.svc.cluster.local:4000/v1"
+  # LiteLLM master key from secret (required for model access)
+  - name: OPENAI_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: open-webui-secrets
+        key: OPENAI_API_KEY
 
 # Node selector - allow scheduling on any worker
 nodeSelector: {}

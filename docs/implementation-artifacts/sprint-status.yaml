@@ -190,7 +190,7 @@ development_status:
   # Epic 17: ChatGPT-like Interface (Open-WebUI)
   epic-17: in-progress
   17-1-deploy-open-webui-with-persistent-storage: done
-  17-2-configure-open-webui-with-litellm-backend: backlog
+  17-2-configure-open-webui-with-litellm-backend: done
   17-3-configure-open-webui-ingress: backlog
   epic-17-retrospective: optional
 
