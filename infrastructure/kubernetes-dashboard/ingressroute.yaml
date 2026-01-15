@@ -1,0 +1,104 @@
+# Kubernetes Dashboard IngressRoute for Traefik
+# Story: 18.2 - Configure Dashboard Ingress and Authentication
+# Epic: 18 - Cluster Visualization Dashboard
+#
+# FRs:
+# - FR131: Dashboard accessible via ingress at dashboard.home.jetzinger.com with HTTPS
+# - FR132: Dashboard authentication via bearer token
+#
+# NFRs:
+# - NFR78: Dashboard access restricted to Tailscale network only
+---
+# Certificate for dashboard.home.jetzinger.com
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kubernetes-dashboard-tls
+  namespace: infra
+  labels:
+    app.kubernetes.io/name: kubernetes-dashboard
+    app.kubernetes.io/instance: kubernetes-dashboard
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: kubernetes-dashboard-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - dashboard.home.jetzinger.com
+---
+# HTTPS redirect middleware for infra namespace
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect
+  namespace: infra
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: home-lab
+spec:
+  redirectScheme:
+    permanent: true
+    scheme: https
+---
+# Tailscale-only IP allowlist middleware (NFR78)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: tailscale-only
+  namespace: infra
+  labels:
+    app.kubernetes.io/name: kubernetes-dashboard
+    app.kubernetes.io/instance: kubernetes-dashboard
+    app.kubernetes.io/part-of: home-lab
+spec:
+  ipAllowList:
+    sourceRange:
+      - 100.64.0.0/10  # Tailscale CGNAT range
+---
+# Main IngressRoute for HTTPS (FR131)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: kubernetes-dashboard-https
+  namespace: infra
+  labels:
+    app.kubernetes.io/name: kubernetes-dashboard
+    app.kubernetes.io/instance: kubernetes-dashboard
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`dashboard.home.jetzinger.com`)
+      services:
+        - name: kubernetes-dashboard-kong-proxy
+          port: 80
+  tls:
+    secretName: kubernetes-dashboard-tls
+---
+# HTTP to HTTPS redirect IngressRoute
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: kubernetes-dashboard-redirect
+  namespace: infra
+  labels:
+    app.kubernetes.io/name: kubernetes-dashboard
+    app.kubernetes.io/instance: kubernetes-dashboard-redirect
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`dashboard.home.jetzinger.com`)
+      middlewares:
+        - name: https-redirect
+          namespace: infra
+      services:
+        - name: kubernetes-dashboard-kong-proxy
+          port: 80

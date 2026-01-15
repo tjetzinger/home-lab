@@ -195,9 +195,9 @@ development_status:
   epic-17-retrospective: optional
 
   # Epic 18: Cluster Visualization Dashboard (Kubernetes Dashboard)
-  epic-18: in-progress
+  epic-18: done
   18-1-deploy-kubernetes-dashboard: done
-  18-2-configure-dashboard-ingress-and-authentication: backlog
+  18-2-configure-dashboard-ingress-and-authentication: done
   epic-18-retrospective: optional
 
   # Epic 19: Self-Hosted Git Service (Gitea)

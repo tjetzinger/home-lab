@@ -18,12 +18,36 @@ Kubernetes Dashboard provides a web-based UI for cluster visualization.
 ## Requirements Implemented
 
 - **FR130:** Kubernetes Dashboard deployed in `infra` namespace
+- **FR131:** Dashboard accessible via ingress at `dashboard.home.jetzinger.com` with HTTPS
+- **FR132:** Dashboard authentication via bearer token
 - **FR133:** Dashboard provides read-only view of all namespaces, pods, and resources
 - **NFR77:** Dashboard loads cluster overview within 5 seconds (measured: 0.159s)
+- **NFR78:** Dashboard access restricted to Tailscale network only
 
 ## Access
 
-### Port-Forward (Development)
+### HTTPS Access (Production)
+
+**URL:** https://dashboard.home.jetzinger.com
+
+**Requirements:**
+- Must be connected to Tailscale VPN (access restricted to Tailscale IPs only)
+- Bearer token for authentication
+
+```bash
+# 1. Connect to Tailscale VPN
+tailscale status
+
+# 2. Generate bearer token
+kubectl create token dashboard-viewer -n infra --duration=8760h
+
+# 3. Access dashboard
+open https://dashboard.home.jetzinger.com
+
+# 4. Select "Token" authentication and paste the token
+```
+
+### Port-Forward (Development/Fallback)
 
 ```bash
 # Start port-forward
@@ -66,6 +90,7 @@ The `dashboard-viewer` ServiceAccount uses the built-in `view` ClusterRole:
 |------|-------------|
 | `values-homelab.yaml` | Helm chart configuration |
 | `rbac.yaml` | ServiceAccount and ClusterRoleBinding |
+| `ingressroute.yaml` | Traefik IngressRoute, Certificate, and Middlewares |
 
 ## Helm Chart
 
@@ -105,4 +130,5 @@ kubectl auth can-i delete pods --as=system:serviceaccount:infra:dashboard-viewer
 
 ## Related Stories
 
-- **Story 18.2:** Configure Dashboard Ingress and Authentication (adds HTTPS access)
+- **Story 18.1:** Deploy Kubernetes Dashboard (initial deployment)
+- **Story 18.2:** Configure Dashboard Ingress and Authentication (HTTPS access, Tailscale restriction)
