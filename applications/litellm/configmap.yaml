@@ -50,7 +50,7 @@ data:
           model: openai/Qwen/Qwen2.5-7B-Instruct-AWQ
           api_base: http://vllm-api.ml.svc.cluster.local:8000/v1
           api_key: sk-none  # vLLM doesn't require auth, but LiteLLM needs a value
-          timeout: 3  # Short timeout for fast failover (NFR65: <5s detection)
+          timeout: 30  # Extended for streaming responses; failover still fast on connection errors
         model_info:
           mode: chat
 

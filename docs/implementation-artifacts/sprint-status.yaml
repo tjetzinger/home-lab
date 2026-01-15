@@ -188,10 +188,10 @@ development_status:
   epic-16-retrospective: optional
 
   # Epic 17: ChatGPT-like Interface (Open-WebUI)
-  epic-17: in-progress
+  epic-17: done
   17-1-deploy-open-webui-with-persistent-storage: done
   17-2-configure-open-webui-with-litellm-backend: done
-  17-3-configure-open-webui-ingress: backlog
+  17-3-configure-open-webui-ingress: done
   epic-17-retrospective: optional
 
   # Epic 18: Cluster Visualization Dashboard (Kubernetes Dashboard)

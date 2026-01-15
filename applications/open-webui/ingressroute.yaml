@@ -1,0 +1,68 @@
+# Open-WebUI IngressRoute for Traefik
+# Story: 17.3 - Configure Open-WebUI Ingress
+# FR128: Open-WebUI accessible via ingress at chat.home.jetzinger.com with HTTPS
+---
+# Certificate for TLS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: open-webui-tls
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/instance: open-webui
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: open-webui-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - chat.home.jetzinger.com
+---
+# Main IngressRoute for HTTPS
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: open-webui-ingress
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/instance: open-webui
+    app.kubernetes.io/component: chat-interface
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`chat.home.jetzinger.com`)
+      services:
+        - name: open-webui
+          port: 80
+  tls:
+    secretName: open-webui-tls
+---
+# HTTP to HTTPS redirect
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: open-webui-ingress-redirect
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/instance: open-webui-redirect
+    app.kubernetes.io/component: chat-interface
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`chat.home.jetzinger.com`)
+      middlewares:
+        - name: https-redirect
+          namespace: apps
+      services:
+        - name: open-webui
+          port: 80

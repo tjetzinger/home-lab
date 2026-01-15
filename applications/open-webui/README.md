@@ -111,15 +111,36 @@ When requesting `vllm-qwen`, LiteLLM automatically falls back to `ollama-qwen` i
 
 ### Ingress (Story 17.3)
 
-HTTPS access via `chat.home.jetzinger.com` configured in Story 17.3.
+HTTPS access via `chat.home.jetzinger.com`:
+
+```bash
+# Apply ingress resources
+kubectl apply -f ingressroute.yaml
+
+# Verify certificate
+kubectl get certificate -n apps open-webui-tls
+
+# Verify ingress routes
+kubectl get ingressroute -n apps | grep open-webui
+```
+
+**Ingress Components:**
+- Certificate: `open-webui-tls` (Let's Encrypt via cert-manager)
+- IngressRoute: `open-webui-ingress` (HTTPS on websecure entrypoint)
+- HTTP Redirect: `open-webui-ingress-redirect` (HTTP to HTTPS)
+
+**Access:**
+- URL: `https://chat.home.jetzinger.com`
+- HTTP automatically redirects to HTTPS (308)
+- Valid TLS certificate from Let's Encrypt
 
 ## Stories
 
 | Story | Description | Status |
 |-------|-------------|--------|
 | 17.1 | Deploy with persistent storage | Done |
-| 17.2 | Configure LiteLLM backend | Backlog |
-| 17.3 | Configure HTTPS ingress | Backlog |
+| 17.2 | Configure LiteLLM backend | Done |
+| 17.3 | Configure HTTPS ingress | Done |
 
 ## Requirements
 
