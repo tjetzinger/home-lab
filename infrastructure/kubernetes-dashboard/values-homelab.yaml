@@ -1,0 +1,67 @@
+# Kubernetes Dashboard Helm Values
+# Story: 18.1 - Deploy Kubernetes Dashboard
+# Epic: 18 - Cluster Visualization Dashboard
+#
+# FRs:
+# - FR130: Kubernetes Dashboard deployed in `infra` namespace
+# - FR133: Dashboard provides read-only view of all namespaces, pods, and resources
+#
+# NFRs:
+# - NFR77: Dashboard loads cluster overview within 5 seconds
+
+# Kong API Gateway (ingress handled by Traefik in Story 18.2)
+kong:
+  proxy:
+    http:
+      enabled: true
+    tls:
+      enabled: false  # TLS handled by Traefik ingress in Story 18.2
+
+# Dashboard web component
+app:
+  ingress:
+    enabled: false  # Will be configured via Traefik IngressRoute in Story 18.2
+
+  # Resource limits for lightweight deployment
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# API component
+api:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# Metrics scraper (optional but useful for resource graphs)
+metricsScraper:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Web component
+web:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Standard labels
+commonLabels:
+  app.kubernetes.io/part-of: home-lab
