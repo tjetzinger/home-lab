@@ -201,10 +201,10 @@ development_status:
   epic-18-retrospective: optional
 
   # Epic 19: Self-Hosted Git Service (Gitea)
-  epic-19: in-progress
+  epic-19: done
   19-1-deploy-gitea-with-postgresql-backend: done
-  19-2-configure-gitea-storage-and-ingress: backlog
-  19-3-configure-gitea-single-user-ssh-access: backlog
+  19-2-configure-gitea-storage-and-ingress: done
+  19-3-configure-gitea-single-user-ssh-access: done
   epic-19-retrospective: optional
 
   # Epic 20: Reasoning Model Support (DeepSeek-R1 14B)

@@ -5,8 +5,10 @@
 #
 # FRs:
 # - FR134: Gitea deployed in dev namespace with PostgreSQL backend
+# - FR137: Gitea configured for single-user operation with SSH key authentication
 #
 # NFRs:
+# - NFR79: Repository operations complete within 10 seconds
 # - NFR80: Gitea web interface loads within 3 seconds
 
 # Pod labels
@@ -28,8 +30,8 @@ service:
     type: ClusterIP
     port: 3000
   ssh:
-    type: ClusterIP
-    port: 22
+    type: ClusterIP  # Routed via Traefik IngressRouteTCP (FR137)
+    port: 2222       # Non-privileged port for SSH
 
 # Gitea configuration
 gitea:
@@ -43,7 +45,7 @@ gitea:
       DOMAIN: git.home.jetzinger.com
       ROOT_URL: https://git.home.jetzinger.com/
       SSH_DOMAIN: git.home.jetzinger.com
-      SSH_PORT: 22
+      SSH_PORT: 2222  # Must match service.ssh.port for clone URLs
       LFS_START_SERVER: true
 
     database:

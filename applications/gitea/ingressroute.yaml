@@ -1,0 +1,103 @@
+# Gitea IngressRoute for Traefik
+# Story: 19.2 - Configure Gitea Storage and Ingress
+# FR135: Gitea accessible via ingress at git.home.jetzinger.com with HTTPS
+---
+# Certificate for TLS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gitea-tls
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: gitea-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - git.home.jetzinger.com
+---
+# HTTPS redirect middleware for dev namespace
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: home-lab
+spec:
+  redirectScheme:
+    permanent: true
+    scheme: https
+---
+# Main IngressRoute for HTTPS
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gitea-ingress
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/component: git-service
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`git.home.jetzinger.com`)
+      services:
+        - name: gitea-http
+          port: 3000
+  tls:
+    secretName: gitea-tls
+---
+# HTTP to HTTPS redirect
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gitea-ingress-redirect
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea-redirect
+    app.kubernetes.io/component: git-service
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`git.home.jetzinger.com`)
+      middlewares:
+        - name: https-redirect
+          namespace: dev
+      services:
+        - name: gitea-http
+          port: 3000
+---
+# SSH routing via Traefik TCP
+# Enables: git clone git@git.home.jetzinger.com:admin/repo.git (with SSH config)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: gitea-ssh
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea-ssh
+    app.kubernetes.io/component: git-ssh
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - gitea-ssh
+  routes:
+    - match: HostSNI(`*`)
+      services:
+        - name: gitea-ssh
+          port: 2222

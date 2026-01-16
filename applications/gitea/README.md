@@ -50,10 +50,47 @@ kubectl get svc -n dev -l app.kubernetes.io/name=gitea
 
 ## Access
 
+### HTTPS Access (Recommended for Web)
+
+**Web Interface:** `https://git.home.jetzinger.com`
+**TLS Certificate:** Let's Encrypt (auto-renewed via cert-manager)
+
+```bash
+# Clone via HTTPS
+git clone https://git.home.jetzinger.com/admin/repo-name.git
+
+# Push via HTTPS (use credentials or access token)
+git push https://git.home.jetzinger.com/admin/repo-name.git
+```
+
+### SSH Access (Recommended for Git Operations)
+
+**SSH Endpoint:** `git.home.jetzinger.com:2222` (via Traefik IngressRouteTCP)
+**Authentication:** SSH key (add key in Gitea User Settings → SSH/GPG Keys)
+
+```bash
+# First time: Add SSH host key to known_hosts
+ssh-keyscan -p 2222 git.home.jetzinger.com >> ~/.ssh/known_hosts
+
+# Option 1: Clone with explicit port
+git clone ssh://git@git.home.jetzinger.com:2222/admin/repo-name.git
+
+# Option 2: Configure SSH for clean URLs (recommended)
+# Add to ~/.ssh/config:
+#   Host git.home.jetzinger.com
+#     Port 2222
+#     User git
+#
+# Then clone with standard Git URL format:
+git clone git@git.home.jetzinger.com:admin/repo-name.git
+```
+
+**Note:** SSH is routed through Traefik on port 2222, sharing the same IP as HTTPS (192.168.2.100).
+
 ### Internal Cluster Access
 
 **HTTP Service:** `gitea-http.dev.svc.cluster.local:3000`
-**SSH Service:** `gitea-ssh.dev.svc.cluster.local:22`
+**SSH Service:** `gitea-ssh.dev.svc.cluster.local:2222`
 
 ### Port Forward for Local Access
 
@@ -82,8 +119,9 @@ kubectl port-forward svc/gitea-http -n dev 3000:3000
 | Namespace | dev |
 | HTTP Service Type | ClusterIP |
 | HTTP Port | 3000 |
-| SSH Service Type | ClusterIP |
-| SSH Port | 22 |
+| SSH Service Type | ClusterIP (via Traefik TCP) |
+| SSH Port | 2222 |
+| SSH External IP | 192.168.2.100 (Traefik) |
 | Persistence | NFS-backed PVC (10Gi) |
 | Storage Class | nfs-client |
 | Database | PostgreSQL (external) |
@@ -126,6 +164,8 @@ GRANT ALL ON SCHEMA public TO gitea;
 ## Performance
 
 **Web Interface Load Time:** 0.247s (NFR80 requirement: < 3 seconds)
+**SSH Clone Time:** 0.761s (NFR79 requirement: < 10 seconds)
+**HTTPS Clone Time:** 0.6s (NFR79 requirement: < 10 seconds)
 
 ---
 
@@ -134,7 +174,9 @@ GRANT ALL ON SCHEMA public TO gitea;
 | File | Description |
 |------|-------------|
 | `values-homelab.yaml` | Helm values configuration |
+| `ingressroute.yaml` | Certificate, IngressRoutes (HTTPS + SSH TCP), and middleware |
 | `README.md` | This documentation |
+| `../../infrastructure/traefik/traefik-config.yaml` | Traefik HelmChartConfig for SSH port 2222 |
 
 ---
 
@@ -187,4 +229,7 @@ kubectl get pods -n infra -l app=nfs-subdir-external-provisioner
 
 ## Change Log
 
+- 2026-01-16: Migrated SSH from LoadBalancer to Traefik IngressRouteTCP (clean DNS URLs)
+- 2026-01-15: Configured SSH access via LoadBalancer at 192.168.2.102:2222 (Story 19.3)
+- 2026-01-15: Configured HTTPS ingress at git.home.jetzinger.com (Story 19.2)
 - 2026-01-15: Initial deployment with PostgreSQL backend (Story 19.1)
