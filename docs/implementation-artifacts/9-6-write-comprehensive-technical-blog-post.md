@@ -2,314 +2,290 @@
 
 Status: ready-for-dev
 
-<!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
-
 ## Story
 
 As a **portfolio audience member**,
 I want **to read a detailed technical blog post about the home-lab project**,
 so that **I can understand the implementation journey, technical decisions, and AI-assisted engineering workflow**.
 
+## Scope & Goals
+
+**Format:** One comprehensive post (~3,500-4,500 words)
+**Target:** ~3,800 words across 9 sections
+
+**Primary Audience:** Balanced for all audiences
+- Hiring managers: Skimmable, evidence-linked
+- Technical peers: Deep architecture details
+- Career changers: Relatable journey
+
+**Key Highlights (in order of emphasis):**
+1. GPU/ML inference stack (vLLM, LiteLLM, 3-tier fallback)
+2. Dual-use GPU mode switching (ML ↔ R1 ↔ Gaming)
+3. AI-assisted engineering (BMAD framework)
+4. Multi-subnet networking (Tailscale mesh)
+
 ## Acceptance Criteria
 
-1. **Given** the home-lab project has reached Phase 4 completion
+1. **Given** the home-lab project has completed all 20 epics
    **When** I write a comprehensive technical blog post (FR146)
-   **Then** the post covers:
-   - Project motivation and goals
-   - Phase 1 MVP architecture and implementation
-   - New feature additions (Tailscale subnet routing, NAS worker, Open-WebUI, etc.)
-   - Key technical challenges and solutions
-   - Lessons learned
+   **Then** the post covers all 4 highlights with technical depth
+   **And** the post is ~3,800 words across 9 sections
+   **And** the post is accessible to multiple audiences
 
 2. **Given** the blog post draft is complete
    **When** I add visual content (FR147)
-   **Then** the post includes:
-   - Architecture diagrams (from docs/planning-artifacts/)
-   - ADR references with links to key decisions
-   - Grafana dashboard screenshots showing real metrics
-   - Code snippets for key configurations
+   **Then** the post includes all 10 required visuals:
+   - Architecture diagram (from README)
+   - ML inference flow diagram (new)
+   - GPU mode state diagram (new)
+   - Cluster nodes table
+   - Tailscale mesh diagram (new)
+   - Grafana cluster overview (refreshed)
+   - Grafana GPU metrics (new/captured)
+   - BMAD workflow diagram (new)
+   - Epic completion chart (new)
+   - Code snippets (extracted)
 
 3. **Given** the blog post covers technical content
    **When** I document the AI-assisted workflow (FR148)
    **Then** the post explains:
-   - How BMAD framework was used for planning
-   - How Claude Code assisted with implementation
-   - Specific examples of AI-human collaboration
-   - Productivity gains and workflow improvements
+   - BMAD framework (PRD → Arch → Plan → Implement)
+   - Claude Code as systematic partner
+   - Specific examples (gap analysis, code review)
+   - Scale: 148 FRs tracked to implementation
 
 4. **Given** the blog post is complete
-   **When** I publish to dev.to or equivalent platform (NFR85)
+   **When** I publish to dev.to (NFR85)
    **Then** the post is publicly accessible
-   **And** it includes appropriate tags (kubernetes, homelab, ai, devops)
-   **And** publication occurs within 2 weeks of Epic completion
+   **And** includes tags: kubernetes, homelab, ai, devops, mlops
+   **And** shared on LinkedIn with professional context
+
+## Blog Post Outline
+
+```
+Section 1: Introduction (300 words)
+- Hook: "20 epics, 148 requirements, 1 AI pair programmer"
+- Career context (brief - link to full story)
+- What makes this different
+
+Section 2: Platform Overview (400 words)
+- 5-node cluster architecture
+- The journey: 3 nodes → full ML platform
+- Scale achieved: 20 epics, 85 NFRs, 148 FRs
+
+Section 3: ML Inference Stack (700 words) ⭐ HIGHLIGHT
+- Architecture: LiteLLM → vLLM → Ollama → OpenAI
+- Three-tier fallback with automatic routing
+- DeepSeek-R1 reasoning model support
+- Real performance: 35-40 tokens/sec on RTX 3060
+
+Section 4: Dual-Use GPU: ML Meets Gaming (500 words) ⭐ HIGHLIGHT
+- The problem: 12GB VRAM, can't run both
+- Solution: gpu-mode script (ml/r1/gaming)
+- Graceful degradation to CPU fallback
+- Boot-time automation via systemd
+
+Section 5: Multi-Subnet Networking (400 words) ⭐ HIGHLIGHT
+- Challenge: GPU worker on different subnet
+- Solution: Tailscale mesh on all nodes
+- K3s config: --flannel-iface tailscale0
+- Subnet routing for full home network access
+
+Section 6: AI-Assisted Engineering (600 words) ⭐ HIGHLIGHT
+- BMAD framework: PRD → Architecture → Planning → Implementation
+- Claude Code as systematic partner (not code generator)
+- Examples: gap analysis, code review catching issues
+- 148 FRs tracked from requirement to implementation
+
+Section 7: Key Learnings (400 words)
+- What worked brilliantly
+- What I'd do differently
+- The surprise: Kubernetes ecosystem maturity
+
+Section 8: For Hiring Managers (300 words)
+- Skills demonstrated (with links to evidence)
+- Why automotive experience translates
+- Call to action
+
+Section 9: What's Next + Links (200 words)
+- Future directions
+- Repository, ADRs, Visual Tour links
+```
+
+## Required Visuals
+
+| # | Visual | Status | Action |
+|---|--------|--------|--------|
+| 1 | Architecture diagram (full) | ✅ Ready | Export from README |
+| 2 | ML inference flow diagram | ❌ Create | LiteLLM routing visualization |
+| 3 | GPU mode diagram | ❌ Create | ml/r1/gaming state transitions |
+| 4 | Cluster nodes table | ✅ Ready | Copy from README |
+| 5 | Tailscale mesh diagram | ❌ Create | Physical ↔ Tailscale IP mapping |
+| 6 | Grafana cluster overview | ⚠️ Refresh | New screenshot from live cluster |
+| 7 | Grafana GPU metrics | ❓ Check | Screenshot or create dashboard |
+| 8 | BMAD workflow diagram | ❌ Create | 4-phase methodology visualization |
+| 9 | Epic completion chart | ❌ Create | 20 epics timeline/burndown |
+| 10 | Code snippets | ✅ Ready | Extract from repo |
+
+**Summary:** 4 ready, 1 refresh, 5 to create
 
 ## Tasks / Subtasks
 
-⚠️ **DRAFT TASKS** - Generated from requirements analysis. Will be validated and refined against actual codebase when dev-story runs.
+### Phase A: Preparation (before writing)
 
-### Task 1: Review Existing Blog Content (AC: 1)
-- [ ] 1.1: Review existing blog post `docs/blog-posts/01-from-automotive-to-kubernetes.md`
-  - Assess what's already covered (Phase 1 MVP, ~2,180 words)
-  - Identify gaps for Phase 4 features
-  - Determine if update vs. new post is appropriate
-- [ ] 1.2: Review Story 9.4 completion notes for context
-  - Story 9.4 created the initial blog draft
-  - Publication was paused "until after Phase 2"
-  - Blog post covers: automotive transition, technical approach, AI workflow
+- [ ] Task 1: Create Visual Assets (AC: #2)
+  - [ ] 1.1: Export architecture diagram from README as PNG/SVG
+  - [ ] 1.2: Create ML inference flow diagram (LiteLLM → vLLM → Ollama → OpenAI)
+  - [ ] 1.3: Create GPU mode state diagram (ml ↔ r1 ↔ gaming transitions)
+  - [ ] 1.4: Create Tailscale mesh network diagram (physical IPs ↔ Tailscale IPs)
+  - [ ] 1.5: Create BMAD workflow diagram (PRD → Arch → Plan → Implement)
+  - [ ] 1.6: Create epic completion timeline/chart (20 epics visualization)
 
-### Task 2: Create Blog Post Outline for Phase 4 Coverage (AC: 1)
-- [ ] 2.1: Draft outline for comprehensive Phase 4 blog post
-  - Section 1: Recap of Phase 1 MVP (summarize, link to detailed blog)
-  - Section 2: Phase 2 additions (Paperless-ngx ecosystem, dev containers, GPU/ML)
-  - Section 3: Phase 3 additions (Steam gaming platform, LiteLLM proxy)
-  - Section 4: Phase 4 features (Tailscale subnet, NAS worker, Open-WebUI, etc.)
-  - Section 5: AI-assisted engineering workflow (BMAD deep dive)
-  - Section 6: Key learnings and what's next
-- [ ] 2.2: Estimate total word count (target: 2,500-3,500 words)
+- [ ] Task 2: Capture Screenshots (AC: #2)
+  - [ ] 2.1: Refresh Grafana cluster overview screenshot
+  - [ ] 2.2: Capture GPU/vLLM metrics (or create dashboard first if needed)
+  - [ ] 2.3: Capture LiteLLM routing metrics if available
 
-### Task 3: Write Project Overview and Phase 2 Section (AC: 1)
-- [ ] 3.1: Write Phase 2 technical content
-  - Paperless-ngx ecosystem (OCR, AI classification, Office docs, email)
-  - Dev containers platform (SSH proxy, VS Code remote)
-  - GPU/ML infrastructure (Intel NUC + RTX 3060, Tailscale mesh, vLLM)
-  - Key decisions and ADR references
-- [ ] 3.2: Include specific metrics/outcomes
-  - Document processing throughput
-  - GPU inference performance (35-40 tokens/sec)
-  - Tailscale mesh connectivity times
+- [ ] Task 3: Gather Code Snippets (AC: #2)
+  - [ ] 3.1: Extract gpu-mode script key sections (mode switching logic)
+  - [ ] 3.2: Extract LiteLLM config.yaml (sanitized, no secrets)
+  - [ ] 3.3: Extract Tailscale k3s config flags
+  - [ ] 3.4: Extract relevant Helm values snippets
 
-### Task 4: Write Phase 3 and Phase 4 Sections (AC: 1)
-- [ ] 4.1: Write Phase 3 technical content
-  - Steam gaming platform with dual-use GPU
-  - Mode switching (ML Mode, Gaming Mode, R1 Mode)
-  - LiteLLM inference proxy with fallback chain
-- [ ] 4.2: Write Phase 4 technical content
-  - Tailscale subnet routing for full network access
-  - NAS worker node on Synology DS920+
-  - Open-WebUI for ChatGPT-like interface
-  - Kubernetes Dashboard for visualization
-  - Gitea for self-hosted Git
-  - DeepSeek-R1 14B reasoning model support
-- [ ] 4.3: Include external providers (Groq, Gemini, Mistral) as parallel models
+### Phase B: Writing
 
-### Task 5: Add Visual Content (AC: 2)
-- [ ] 5.1: Create/export architecture diagrams
-  - Update/reuse `docs/planning-artifacts/architecture.md` diagrams
-  - Create new diagrams for Phase 4 additions if needed
-  - Export as images suitable for blog platform
-- [ ] 5.2: Capture fresh Grafana screenshots
-  - Cluster overview dashboard
-  - GPU metrics (if available)
-  - Application-specific dashboards
-- [ ] 5.3: Add code snippets for key configurations
-  - LiteLLM config with fallback chain + parallel models
-  - Mode switching script excerpt
-  - Tailscale subnet router config
+- [ ] Task 4: Write Introduction + Platform Overview - Sections 1-2 (AC: #1)
+  - [ ] 4.1: Write hook ("20 epics, 148 requirements, 1 AI pair programmer")
+  - [ ] 4.2: Write brief career context with link to existing post
+  - [ ] 4.3: Write platform overview with 5-node architecture
+  - [ ] 4.4: Include scale metrics (20 epics, 85 NFRs, 148 FRs)
 
-### Task 6: Document AI-Assisted Workflow (AC: 3)
-- [ ] 6.1: Explain BMAD framework usage
-  - PRD → Architecture → Epics/Stories → Implementation
-  - 148 FRs, 85 NFRs, 96 stories across 20 epics
-  - Traceability from requirements to implementation
-- [ ] 6.2: Provide specific AI-human collaboration examples
-  - Story creation with gap analysis
-  - Code review workflow catching issues
-  - Architecture decisions driven by Claude Code analysis
-- [ ] 6.3: Quantify productivity gains
-  - Time from idea to implementation
-  - Documentation quality and completeness
-  - Reduced debugging cycles
+- [ ] Task 5: Write ML Inference Stack - Section 3 ⭐ (AC: #1)
+  - [ ] 5.1: Document 3-tier architecture with fallback chain
+  - [ ] 5.2: Explain DeepSeek-R1 reasoning model support
+  - [ ] 5.3: Add real performance numbers (35-40 tokens/sec)
+  - [ ] 5.4: Integrate ML inference diagram
 
-### Task 7: Review and Edit (AC: 1, 2, 3)
-- [ ] 7.1: Technical accuracy review
-  - Verify all technical claims against actual implementation
-  - Check ADR references are correct
-  - Validate metrics and performance numbers
-- [ ] 7.2: Grammar and style editing
-  - Professional tone for hiring manager audience
-  - Clear technical communication
-  - Consistent formatting
+- [ ] Task 6: Write Dual-Use GPU - Section 4 ⭐ (AC: #1)
+  - [ ] 6.1: Explain the problem (12GB VRAM constraint)
+  - [ ] 6.2: Document gpu-mode script solution
+  - [ ] 6.3: Explain graceful degradation to CPU fallback
+  - [ ] 6.4: Document boot-time automation (systemd service)
+  - [ ] 6.5: Integrate GPU mode diagram + code snippets
 
-### Task 8: Publish to dev.to (AC: 4)
-- [ ] 8.1: Prepare blog post for dev.to
-  - Convert markdown to dev.to format
-  - Upload images to appropriate hosting
-  - Add cover image
-- [ ] 8.2: Add appropriate tags
-  - kubernetes, homelab, ai, devops, platform-engineering
-  - Consider: claude, llm, automation
-- [ ] 8.3: Publish and verify accessibility
-  - Confirm public visibility
-  - Test all links work
-  - Note published URL in story
+- [ ] Task 7: Write Multi-Subnet Networking - Section 5 ⭐ (AC: #1)
+  - [ ] 7.1: Document the challenge (different subnets)
+  - [ ] 7.2: Explain Tailscale mesh solution
+  - [ ] 7.3: Document K3s config (--flannel-iface tailscale0)
+  - [ ] 7.4: Integrate Tailscale mesh diagram
 
-### Task 9: Share on Social Media (AC: 4)
-- [ ] 9.1: Share on LinkedIn with professional context
-  - Career transition narrative
-  - Skills demonstrated
-  - Call to action for hiring managers
-- [ ] 9.2: Share in relevant communities (optional)
-  - Reddit: r/kubernetes, r/homelab
-  - Hacker News (if appropriate)
-  - Dev.to community engagement
+- [ ] Task 8: Write AI-Assisted Engineering - Section 6 ⭐ (AC: #1, #3)
+  - [ ] 8.1: Explain BMAD framework (4 phases)
+  - [ ] 8.2: Position Claude Code as systematic partner
+  - [ ] 8.3: Provide specific examples (gap analysis, code review)
+  - [ ] 8.4: Include scale metrics (148 FRs tracked)
+  - [ ] 8.5: Integrate BMAD workflow diagram
+
+- [ ] Task 9: Write Learnings + Closing - Sections 7-9 (AC: #1)
+  - [ ] 9.1: Document key learnings (what worked brilliantly)
+  - [ ] 9.2: Document mistakes (what I'd do differently)
+  - [ ] 9.3: Write hiring manager section with evidence links
+  - [ ] 9.4: Write closing with future directions
+  - [ ] 9.5: Add all repository/documentation links
+
+### Phase C: Publication
+
+- [ ] Task 10: Review and Edit (AC: #1, #2, #3)
+  - [ ] 10.1: Technical accuracy review (verify claims against implementation)
+  - [ ] 10.2: Grammar and style editing (professional tone)
+  - [ ] 10.3: Verify all links work (GitHub, ADRs, Visual Tour)
+  - [ ] 10.4: Check word count target (~3,800 words)
+  - [ ] 10.5: Ensure balanced tone for all audiences
+
+- [ ] Task 11: Publish to dev.to (AC: #4)
+  - [ ] 11.1: Format for dev.to (frontmatter, markdown compatibility)
+  - [ ] 11.2: Upload/host images appropriately
+  - [ ] 11.3: Add cover image
+  - [ ] 11.4: Add tags: kubernetes, homelab, ai, devops, mlops
+  - [ ] 11.5: Publish and verify public accessibility
+
+- [ ] Task 12: Share and Promote (AC: #4)
+  - [ ] 12.1: Share on LinkedIn with professional context
+  - [ ] 12.2: Post to r/kubernetes, r/homelab (optional)
+  - [ ] 12.3: Update home-lab README with published link
+  - [ ] 12.4: Update PORTFOLIO.md with blog reference
 
 ## Gap Analysis
 
-_This section will be populated by dev-story when gap analysis runs._
+_To be populated when dev-story runs._
 
 ---
 
 ## Dev Notes
 
-### Previous Story Intelligence (Story 9.5)
+### Existing Assets
 
-**Key Learnings from Story 9.5:**
-- Story 9.5 completed all service documentation (12 component READMEs)
-- Created `docs/PORTFOLIO.md` as resume companion document
-- NFR26 (all services documented) and NFR27 (navigable by reviewer) validated
-- Documentation follows What/Why/Config/Access pattern
-- Hiring manager perspective: 10-minute review scenario validated
+**Blog Post (Phase 1):**
+- `docs/blog-posts/01-from-automotive-to-kubernetes.md` (~2,180 words)
+- Covers Phase 1 MVP, career context, AI workflow basics
+- Never published to dev.to (still shows TBD)
+- Can link to this for detailed career context
 
-**Files Created in Story 9.5:**
-- `docs/PORTFOLIO.md` - Resume companion with skills/tech summary
-- 5 infrastructure READMEs (cert-manager, metallb, traefik, prometheus, grafana)
-- Updated `README.md` with documentation navigation
+**Visual Assets:**
+- `docs/VISUAL_TOUR.md` - Existing screenshots (may need refresh)
+- `README.md` - Architecture diagram (just updated)
+- ADRs in `docs/adrs/` for decision references
 
-**Story 9.4 Context:**
-- Created initial blog post: `docs/blog-posts/01-from-automotive-to-kubernetes.md`
-- ~2,180 words covering Phase 1 MVP
-- Publication paused until "after Phase 2"
-- Target audience: hiring managers, technical interviewers, career changers
-
-**Pattern for Story 9.6:**
-- Story 9.6 extends the blog post to cover Phase 2-4 additions
-- Focus on AI-assisted engineering workflow (FR148) as differentiator
-- Visual content requirement (FR147) for architecture diagrams and Grafana screenshots
-- dev.to publication (NFR85) with 2-week deadline
+**Documentation:**
+- `docs/PORTFOLIO.md` - Skills/tech summary
+- `docs/planning-artifacts/architecture.md` - Technical architecture
+- `docs/planning-artifacts/epics.md` - All 20 epics with stories
 
 ### Technical Requirements
 
-**FR146: Technical blog post published covering Phase 1 MVP and new feature additions**
-- Comprehensive coverage of all 4 phases
-- Technical depth for engineering audience
-- Career transition narrative for hiring managers
+- **FR146:** Technical blog post covering all phases and features
+- **FR147:** Architecture diagrams, ADR references, Grafana screenshots
+- **FR148:** AI-assisted engineering workflow documentation
+- **NFR85:** Published to dev.to within 2 weeks of story completion
 
-**FR147: Blog post includes architecture diagrams, ADR references, and Grafana screenshots**
-- Diagrams from `docs/planning-artifacts/architecture.md`
-- ADR references: ADR-001 (LXC), ADR-002 (NFS), ADR-003 (Monitoring), ADR-004 (Observability)
-- Fresh Grafana screenshots from running cluster
-
-**FR148: Blog post documents AI-assisted engineering workflow used throughout project**
-- BMAD framework explanation (4-phase methodology)
-- Claude Code integration patterns
-- Specific examples of AI-human collaboration
-- Productivity metrics
-
-**NFR85: Blog post published to dev.to or equivalent platform within 2 weeks of Epic completion**
-- Publication deadline: 2 weeks after Epic 9 completes
-- Platform: dev.to (established precedent from Story 9.4)
-- Tags: kubernetes, homelab, ai, devops
-
-### Architecture Compliance
-
-**From [Source: architecture.md#Documentation]:**
-- Blog posts stored in `docs/blog-posts/`
-- Follow existing naming pattern: `NN-title-with-hyphens.md`
-- New post should be `02-comprehensive-platform-journey.md` or update existing
-
-**Repository Navigation:**
-- PORTFOLIO.md provides high-level summary
-- Blog posts provide narrative depth
-- ADRs provide decision rationale
-- Implementation stories provide detailed build documentation
-
-### Library / Framework Requirements
-
-**Not Applicable** - This is a documentation/content creation story. No code libraries required.
-
-**Tools Used:**
-- Markdown for blog post draft
-- dev.to for publication
-- Grafana for screenshot capture
-- Excalidraw/Mermaid for diagrams (if needed)
-
-### File Structure Requirements
+### File Structure
 
 **New Files to Create:**
-- `docs/blog-posts/02-comprehensive-platform-journey.md` (or update 01-*)
-  - Alternative: Update existing `01-from-automotive-to-kubernetes.md` with Phase 2-4 content
+- `docs/blog-posts/02-comprehensive-platform-journey.md` (draft)
+- `docs/diagrams/ml-inference-flow.png` (or svg)
+- `docs/diagrams/gpu-mode-states.png`
+- `docs/diagrams/tailscale-mesh.png`
+- `docs/diagrams/bmad-workflow.png`
+- `docs/diagrams/epic-completion.png`
 
-**Existing Files to Reference:**
-- `docs/blog-posts/01-from-automotive-to-kubernetes.md` - Existing blog draft
-- `docs/PORTFOLIO.md` - Skills/tech summary
-- `docs/VISUAL_TOUR.md` - Screenshots and diagrams
-- `docs/planning-artifacts/architecture.md` - Architecture diagrams
-- `docs/adrs/ADR-*.md` - Decision records
-
-**No Files to Modify** (except the blog post itself)
-
-### Testing Requirements
-
-**Validation Methods:**
-- Technical accuracy: Cross-reference with actual implementation
-- Hiring manager perspective: Does it demonstrate capability?
-- Publication checklist: dev.to formatting, images hosted, links working
-- Word count target: 2,500-3,500 words
-
-**Quality Checklist:**
-- [ ] All 4 phases covered with appropriate depth
-- [ ] Architecture diagrams included and accurate
-- [ ] Grafana screenshots show real metrics
-- [ ] BMAD workflow clearly explained
-- [ ] AI-human collaboration examples are specific
-- [ ] Professional tone appropriate for hiring managers
-- [ ] Tags appropriate for discoverability
-- [ ] Published within 2-week deadline (NFR85)
-
-### Project Context Reference
-
-**Epic 9 Status:**
-- Story 9.1: ✅ DONE - Structure Public GitHub Repository
-- Story 9.2: ✅ DONE - Create Architecture Decision Records (4 ADRs)
-- Story 9.3: ✅ DONE - Capture and Document Grafana Screenshots (VISUAL_TOUR.md)
-- Story 9.4: 🔄 READY-FOR-DEV - Write and Publish First Technical Blog Post (draft complete)
-- Story 9.5: ✅ DONE - Document All Deployed Services (PORTFOLIO.md, 12 READMEs)
-- Story 9.6: 📍 THIS STORY - Write Comprehensive Technical Blog Post (backlog → ready-for-dev)
-
-**Relationship to Story 9.4:**
-- Story 9.4 created the initial blog draft covering Phase 1 MVP
-- Story 9.6 extends coverage to Phase 2-4 additions
-- Story 9.6 emphasizes AI-assisted workflow (FR148) as key differentiator
-- Both stories contribute to NFR85 (publication requirement)
-
-**Phase 4 Features to Cover:**
-- Epic 15: Tailscale Subnet Router (FR120-122)
-- Epic 16: NAS K3s Worker (FR123-125)
-- Epic 17: Open-WebUI (FR126-129)
-- Epic 18: Kubernetes Dashboard (FR130-133)
-- Epic 19: Gitea (FR134-137)
-- Epic 20: DeepSeek-R1 14B (FR138-141)
-- Epic 14 Extension: External Providers (FR142-145)
+**Files to Update:**
+- `README.md` - Add published blog link
+- `docs/PORTFOLIO.md` - Reference new blog post
 
 ### References
 
-- [Source: docs/planning-artifacts/epics.md#Story 9.6, lines 2637-2691]
+- [Source: docs/planning-artifacts/epics.md#Story 9.6]
 - [Source: docs/planning-artifacts/prd.md#FR146, FR147, FR148, NFR85]
-- [Source: docs/implementation-artifacts/9-5-document-all-deployed-services.md - Previous story context]
-- [Source: docs/implementation-artifacts/9-4-write-and-publish-first-technical-blog-post.md - Blog draft story]
-- [Source: docs/blog-posts/01-from-automotive-to-kubernetes.md - Existing blog content]
-- [Source: docs/PORTFOLIO.md - Resume companion document]
-- [Source: docs/VISUAL_TOUR.md - Screenshots and diagrams]
+- [Source: docs/blog-posts/01-from-automotive-to-kubernetes.md]
+- [Source: docs/VISUAL_TOUR.md]
+- [Source: README.md - Architecture diagram]
+
+---
 
 ## Dev Agent Record
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+_To be filled during implementation_
 
 ### Debug Log References
 
+_To be filled during implementation_
+
 ### Completion Notes List
+
+_To be filled during implementation_
 
 ### File List
 
+_To be filled during implementation_
