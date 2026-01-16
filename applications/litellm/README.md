@@ -31,9 +31,42 @@ These models participate in automatic failover. Request `vllm-qwen` and if unava
 
 | Model Name | Backend | Timeout | Description |
 |------------|---------|---------|-------------|
-| `vllm-qwen` | vLLM (GPU) | 3s | Primary - Qwen2.5-7B on RTX 3060 |
+| `vllm-qwen` | vLLM (GPU) | 30s | Primary - Qwen2.5-7B on RTX 3060 |
 | `ollama-qwen` | Ollama (CPU) | 120s | Fallback - Qwen2.5:3b on CPU |
 | `openai-gpt4o` | OpenAI Cloud | 30s | Emergency - gpt-4o-mini |
+
+### Mode-Dependent Models (vLLM R1)
+The vLLM backend can serve different models depending on the active GPU mode. The `vllm-r1` model is only available when the GPU worker is in **R1-Mode**.
+
+| Model Name | Backend | Timeout | Description | GPU Mode Required |
+|------------|---------|---------|-------------|-------------------|
+| `vllm-r1` | vLLM (GPU) | 60s | DeepSeek-R1 7B reasoning model | R1-Mode |
+
+#### Mode-Dependent Availability
+
+| GPU Mode | `vllm-qwen` | `vllm-r1` |
+|----------|-------------|-----------|
+| ML-Mode | Available | ❌ HTTP 404 |
+| R1-Mode | ❌ HTTP 404 | Available |
+| Gaming-Mode | ❌ HTTP 503 | ❌ HTTP 503 |
+
+Check current mode: `ssh k3s-gpu-worker "gpu-mode status"`
+
+Switch modes: `ssh k3s-gpu-worker "gpu-mode ml"` or `gpu-mode r1` or `gpu-mode gaming`
+
+#### DeepSeek-R1 Response Format
+DeepSeek-R1 outputs its reasoning process in `<think>` tags before the final answer:
+
+```
+<think>
+Let me analyze this step by step...
+First, I need to consider...
+</think>
+
+The answer is...
+```
+
+Applications should parse or display these tags appropriately for reasoning transparency.
 
 ### Parallel Models
 These models are independent and must be requested explicitly by name. They do NOT participate in the fallback chain.
@@ -56,6 +89,19 @@ curl -X POST https://litellm.home.jetzinger.com/v1/chat/completions \
   -d '{
     "model": "vllm-qwen",
     "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+### Using R1 Reasoning Model
+```bash
+# First, ensure GPU is in R1-Mode: ssh k3s-gpu-worker "gpu-mode r1"
+# Request reasoning model (outputs <think> tags with chain-of-thought)
+curl -X POST https://litellm.home.jetzinger.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "vllm-r1",
+    "messages": [{"role": "user", "content": "Solve this step by step: If a train travels 120km in 2 hours, what is its average speed?"}],
+    "max_tokens": 500
   }'
 ```
 

@@ -46,7 +46,7 @@ data:
   # Three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
   # Service DNS: litellm.ml.svc.cluster.local:4000
   CUSTOM_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
-  LLM_MODEL: "vllm-qwen"
+  LLM_MODEL: "vllm-r1"
 
   # Previous direct vLLM configuration (superseded by LiteLLM)
   # CUSTOM_BASE_URL: "http://vllm-api.ml.svc.cluster.local:8000/v1"

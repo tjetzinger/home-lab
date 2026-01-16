@@ -210,6 +210,6 @@ development_status:
   # Epic 20: Reasoning Model Support (DeepSeek-R1 14B)
   epic-20: in-progress
   20-1-deploy-deepseek-r1-14b-via-vllm: done
-  20-2-implement-r1-mode-in-gpu-mode-script: backlog
-  20-3-configure-litellm-with-deepseek-r1: backlog
+  20-2-implement-r1-mode-in-gpu-mode-script: review
+  20-3-configure-litellm-with-deepseek-r1: review
   epic-20-retrospective: optional

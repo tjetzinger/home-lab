@@ -82,6 +82,9 @@ extraEnvVars:
       secretKeyRef:
         name: open-webui-secrets
         key: OPENAI_API_KEY
+  # Default model selection - DeepSeek-R1 reasoning model (Story 20.3)
+  - name: DEFAULT_MODELS
+    value: "vllm-r1"
 
 # Node selector - allow scheduling on any worker
 nodeSelector: {}

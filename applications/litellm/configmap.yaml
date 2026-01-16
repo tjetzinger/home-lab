@@ -1,6 +1,8 @@
 # LiteLLM Configuration ConfigMap
 # Story: 14.6 - Configure External Provider Parallel Models
+# Story: 20.3 - Configure LiteLLM with DeepSeek-R1
 # Epic: 14 - LiteLLM Inference Proxy
+# Epic: 20 - Reasoning Model Support (DeepSeek-R1)
 #
 # FRs:
 # - FR113: LiteLLM proxy deployed in ml namespace providing unified OpenAI-compatible endpoint
@@ -8,6 +10,7 @@
 # - FR116: Automatic failover to Ollama when vLLM health check fails
 # - FR117: OpenAI API key stored as Kubernetes secret
 # - FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
+# - FR141: LiteLLM configured with DeepSeek-R1 as reasoning-tier model
 # - FR142: Groq free tier as parallel model option (llama-3.3-70b-versatile, mixtral-8x7b-32768)
 # - FR143: Google AI Studio (Gemini) free tier as parallel model option
 # - FR144: Mistral API free tier as parallel model option
@@ -51,6 +54,18 @@ data:
           api_base: http://vllm-api.ml.svc.cluster.local:8000/v1
           api_key: sk-none  # vLLM doesn't require auth, but LiteLLM needs a value
           timeout: 30  # Extended for streaming responses; failover still fast on connection errors
+        model_info:
+          mode: chat
+
+      # Tier 1b: vLLM DeepSeek-R1 (reasoning mode) - FR141
+      # Available only when gpu-mode is set to "r1"
+      # Outputs reasoning in <think> tags before final answer
+      - model_name: vllm-r1
+        litellm_params:
+          model: openai/casperhansen/deepseek-r1-distill-qwen-7b-awq
+          api_base: http://vllm-api.ml.svc.cluster.local:8000/v1
+          api_key: sk-none  # vLLM doesn't require auth, but LiteLLM needs a value
+          timeout: 60  # Extended for longer reasoning chains
         model_info:
           mode: chat
 

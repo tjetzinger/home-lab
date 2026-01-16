@@ -2,18 +2,25 @@
 # Set KUBECONFIG for kubectl access (required for non-interactive shells like SSH)
 export KUBECONFIG=/home/tt/.kube/config
 
-# gpu-mode - Switch between Gaming Mode and ML Mode on k3s-gpu-worker
+# gpu-mode - Switch between Gaming, ML, and R1 modes on k3s-gpu-worker
 #
 # Story: 13.2 - Configure Mode Switching Script
+# Story: 20.2 - Implement R1-Mode in GPU Mode Script
+#
 # FR97: Operator can switch between Gaming Mode and ML Mode via script
 # FR98: Gaming Mode scales vLLM pods to 0 and enables CPU fallback
 # FR99: ML Mode restores vLLM pods when gaming exits
+# FR139: R1-Mode added as third GPU mode alongside ML-Mode and Gaming-Mode
+# FR140: Mode switching script updated to support R1-Mode
+#
 # NFR51: Gaming Mode activation <30 seconds
 # NFR52: ML Mode restoration <2 minutes
+# NFR81: R1-Mode model loading completes within 90 seconds
 #
 # Usage:
 #   gpu-mode gaming   - Scale vLLM to 0, release GPU for Steam
-#   gpu-mode ml       - Scale vLLM to 1, restore ML inference
+#   gpu-mode ml       - Switch to Qwen model for general inference
+#   gpu-mode r1       - Switch to DeepSeek-R1 model for reasoning tasks
 #   gpu-mode status   - Show current mode and GPU status
 
 set -e
@@ -24,6 +31,13 @@ DEPLOYMENT="vllm-server"
 OLLAMA_DEPLOYMENT="ollama"
 TIMEOUT_GAMING=30   # NFR51: <30 seconds
 TIMEOUT_ML=120      # NFR52: <2 minutes
+TIMEOUT_R1=120      # NFR81: R1 model loading <90 seconds (+30s buffer)
+
+# Deployment manifests for model switching
+# These files are in the home-lab repo, synced to gpu-worker
+MANIFEST_DIR="/home/tt/Workspace/home-lab/applications/vllm"
+DEPLOYMENT_ML="${MANIFEST_DIR}/deployment.yaml"
+DEPLOYMENT_R1="${MANIFEST_DIR}/deployment-r1.yaml"
 
 # Colors for output
 RED='\033[0;31m'
@@ -75,6 +89,38 @@ get_gpu_memory() {
         nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null | head -1
     else
         echo "N/A"
+    fi
+}
+
+# Get current GPU mode from deployment label
+# Returns: "ml", "r1", or "gaming" (if scaled to 0)
+get_current_mode() {
+    local replicas
+    replicas=$(get_vllm_replicas)
+
+    # If scaled to 0, it's gaming mode
+    if [[ "$replicas" -eq 0 ]]; then
+        echo "gaming"
+        return
+    fi
+
+    # Check the gpu-mode label on the deployment
+    local mode_label
+    mode_label=$(kubectl get deployment "$DEPLOYMENT" -n "$NAMESPACE" -o jsonpath='{.metadata.labels.gpu-mode}' 2>/dev/null || echo "")
+
+    if [[ "$mode_label" == "r1" ]]; then
+        echo "r1"
+    elif [[ "$mode_label" == "ml" ]]; then
+        echo "ml"
+    else
+        # Fallback: check which model is configured
+        local model
+        model=$(kubectl get deployment "$DEPLOYMENT" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].args}' 2>/dev/null | grep -o 'deepseek-r1' || echo "")
+        if [[ -n "$model" ]]; then
+            echo "r1"
+        else
+            echo "ml"
+        fi
     fi
 }
 
@@ -153,29 +199,69 @@ gaming_mode() {
     fi
 }
 
-# ML Mode: Scale vLLM to 1
+# ML Mode: Scale vLLM to 1 (Qwen model)
 ml_mode() {
     local start_time
     start_time=$(date +%s)
 
-    log_info "Activating ML Mode..."
+    log_info "Activating ML Mode (Qwen model)..."
+
+    # Check if manifest exists
+    if [[ ! -f "$DEPLOYMENT_ML" ]]; then
+        log_error "ML deployment manifest not found: $DEPLOYMENT_ML"
+        return 1
+    fi
 
     # Check current state
+    local current_mode
+    current_mode=$(get_current_mode)
     local current_replicas
     current_replicas=$(get_vllm_replicas)
     local ready_replicas
     ready_replicas=$(get_vllm_ready)
 
-    if [[ "$current_replicas" -ge 1 ]] && [[ "$ready_replicas" -ge 1 ]]; then
-        log_warn "vLLM already running with ${ready_replicas} ready replica(s) - ML Mode already active"
+    # If already in ML mode and running, nothing to do
+    if [[ "$current_mode" == "ml" ]] && [[ "$current_replicas" -ge 1 ]] && [[ "${ready_replicas:-0}" -ge 1 ]]; then
+        log_warn "ML Mode already active with Qwen model"
         echo ""
-        echo -e "${GREEN}ML Mode: vLLM scaled to 1, GPU available for inference${NC}"
+        echo -e "${GREEN}ML Mode: Qwen running, GPU available for inference${NC}"
         return 0
     fi
 
-    # Scale up vLLM
-    log_info "Scaling vLLM to 1 replica..."
-    kubectl scale deployment "$DEPLOYMENT" -n "$NAMESPACE" --replicas=1
+    # Check if deployment is configured for R1 (even if scaled to 0)
+    local deployment_label
+    deployment_label=$(kubectl get deployment "$DEPLOYMENT" -n "$NAMESPACE" -o jsonpath='{.metadata.labels.gpu-mode}' 2>/dev/null || echo "")
+
+    # If deployment is configured for R1, need to apply ML deployment (model switch)
+    if [[ "$current_mode" == "r1" ]] || [[ "$deployment_label" == "r1" ]]; then
+        log_info "Switching from R1 to ML mode (model change required)..."
+
+        # Scale down first
+        if [[ "$current_replicas" -ge 1 ]]; then
+            log_info "Scaling down R1 deployment..."
+            kubectl scale deployment "$DEPLOYMENT" -n "$NAMESPACE" --replicas=0
+
+            # Wait for pods to terminate
+            local elapsed=0
+            while [[ $elapsed -lt 30 ]]; do
+                local pods
+                pods=$(kubectl get pods -n "$NAMESPACE" -l app=vllm-server --no-headers 2>/dev/null | wc -l)
+                if [[ "$pods" -eq 0 ]]; then
+                    break
+                fi
+                sleep 2
+                elapsed=$((elapsed + 2))
+            done
+        fi
+
+        # Apply ML deployment manifest
+        log_info "Applying ML deployment (Qwen model)..."
+        kubectl apply -f "$DEPLOYMENT_ML" -n "$NAMESPACE"
+    else
+        # Coming from gaming mode - just scale up (deployment already has Qwen config)
+        log_info "Scaling vLLM to 1 replica..."
+        kubectl scale deployment "$DEPLOYMENT" -n "$NAMESPACE" --replicas=1
+    fi
 
     # Wait for pod to be ready
     log_info "Waiting for vLLM pod to be ready (model loading may take ~60-90s)..."
@@ -218,7 +304,7 @@ ml_mode() {
         fi
 
         echo ""
-        echo -e "${GREEN}ML Mode: vLLM scaled to 1, GPU available for inference${NC}"
+        echo -e "${GREEN}ML Mode: Qwen running, GPU available for inference${NC}"
         echo -e "Completion time: ${duration}s (target: <${TIMEOUT_ML}s)"
 
         if [[ $duration -lt $TIMEOUT_ML ]]; then
@@ -228,6 +314,120 @@ ml_mode() {
         fi
     else
         log_error "vLLM pod not ready after ${TIMEOUT_ML}s timeout"
+        log_info "Check pod status: kubectl get pods -n $NAMESPACE -l app=vllm-server"
+        log_info "Check pod logs: kubectl logs -n $NAMESPACE -l app=vllm-server"
+        return 1
+    fi
+}
+
+# R1 Mode: Switch to DeepSeek-R1 reasoning model
+r1_mode() {
+    local start_time
+    start_time=$(date +%s)
+
+    log_info "Activating R1 Mode (DeepSeek-R1 reasoning model)..."
+
+    # Check if manifest exists
+    if [[ ! -f "$DEPLOYMENT_R1" ]]; then
+        log_error "R1 deployment manifest not found: $DEPLOYMENT_R1"
+        return 1
+    fi
+
+    # Get current mode
+    local current_mode
+    current_mode=$(get_current_mode)
+
+    if [[ "$current_mode" == "r1" ]]; then
+        local ready_replicas
+        ready_replicas=$(get_vllm_ready)
+        if [[ "${ready_replicas:-0}" -ge 1 ]]; then
+            log_warn "R1 Mode already active with DeepSeek-R1 model"
+            echo ""
+            echo -e "${GREEN}R1 Mode: DeepSeek-R1 running, GPU available for reasoning${NC}"
+            return 0
+        fi
+    fi
+
+    # Scale down first if running (to cleanly terminate old model)
+    local current_replicas
+    current_replicas=$(get_vllm_replicas)
+    if [[ "$current_replicas" -ge 1 ]]; then
+        log_info "Scaling down current vLLM deployment..."
+        kubectl scale deployment "$DEPLOYMENT" -n "$NAMESPACE" --replicas=0
+
+        # Wait for pods to terminate
+        local elapsed=0
+        while [[ $elapsed -lt 30 ]]; do
+            local pods
+            pods=$(kubectl get pods -n "$NAMESPACE" -l app=vllm-server --no-headers 2>/dev/null | wc -l)
+            if [[ "$pods" -eq 0 ]]; then
+                break
+            fi
+            sleep 2
+            elapsed=$((elapsed + 2))
+        done
+    fi
+
+    # Apply R1 deployment manifest
+    log_info "Applying R1 deployment (DeepSeek-R1 model)..."
+    kubectl apply -f "$DEPLOYMENT_R1" -n "$NAMESPACE"
+
+    # Wait for pod to be ready
+    log_info "Waiting for R1 model to load (may take ~90s)..."
+    local elapsed=0
+    while [[ $elapsed -lt $TIMEOUT_R1 ]]; do
+        local ready_replicas
+        ready_replicas=$(get_vllm_ready)
+        if [[ "${ready_replicas:-0}" -ge 1 ]]; then
+            break
+        fi
+
+        # Show progress
+        local pod_status
+        pod_status=$(kubectl get pods -n "$NAMESPACE" -l app=vllm-server --no-headers 2>/dev/null | awk '{print $3}' | head -1)
+        echo -ne "\r  Status: ${pod_status:-Pending} (${elapsed}s elapsed)    "
+
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+    echo "" # New line after progress
+
+    local end_time
+    end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    local ready_replicas
+    ready_replicas=$(get_vllm_ready)
+    if [[ "${ready_replicas:-0}" -ge 1 ]]; then
+        log_success "R1 model ready (DeepSeek-R1)"
+
+        # Check GPU memory
+        local gpu_mem
+        gpu_mem=$(get_gpu_memory)
+        log_info "GPU memory: ${gpu_mem} MiB (used/total)"
+
+        # Test health endpoint
+        log_info "Verifying vLLM health..."
+        if kubectl exec -n "$NAMESPACE" deploy/ollama -- curl -s -o /dev/null -w "%{http_code}" "http://vllm-api.${NAMESPACE}.svc.cluster.local:8000/health" --connect-timeout 5 2>/dev/null | grep -q "200"; then
+            log_success "vLLM health check: passed"
+        else
+            log_warn "vLLM health check: could not verify (may still be loading)"
+        fi
+
+        echo ""
+        echo -e "${GREEN}R1 Mode: DeepSeek-R1 running, GPU available for reasoning${NC}"
+        echo -e "Completion time: ${duration}s (target: <${TIMEOUT_R1}s)"
+
+        # NFR81: R1 model loading <90 seconds
+        if [[ $duration -lt 90 ]]; then
+            log_success "NFR81 met: Model loaded in ${duration}s < 90s"
+        elif [[ $duration -lt $TIMEOUT_R1 ]]; then
+            log_warn "NFR81 slightly exceeded: Model loaded in ${duration}s (target: <90s)"
+        else
+            log_warn "NFR81 exceeded: Model loaded in ${duration}s >= ${TIMEOUT_R1}s"
+        fi
+    else
+        log_error "R1 model not ready after ${TIMEOUT_R1}s timeout"
         log_info "Check pod status: kubectl get pods -n $NAMESPACE -l app=vllm-server"
         log_info "Check pod logs: kubectl logs -n $NAMESPACE -l app=vllm-server"
         return 1
@@ -244,16 +444,41 @@ show_status() {
     replicas=$(get_vllm_replicas)
     local ready
     ready=$(get_vllm_ready)
+    local current_mode
+    current_mode=$(get_current_mode)
 
     echo -e "${BLUE}vLLM Deployment:${NC}"
     echo "  Replicas: $replicas (Ready: ${ready:-0})"
 
-    if [[ "$replicas" -eq 0 ]]; then
-        echo -e "  Mode: ${YELLOW}Gaming Mode${NC} (vLLM scaled to 0)"
-    elif [[ "${ready:-0}" -ge 1 ]]; then
-        echo -e "  Mode: ${GREEN}ML Mode${NC} (vLLM running)"
-    else
-        echo -e "  Mode: ${YELLOW}Transitioning${NC} (vLLM starting)"
+    # Show mode with model name
+    case "$current_mode" in
+        gaming)
+            echo -e "  Mode: ${YELLOW}Gaming Mode${NC} (vLLM scaled to 0)"
+            ;;
+        r1)
+            if [[ "${ready:-0}" -ge 1 ]]; then
+                echo -e "  Mode: ${GREEN}R1 Mode${NC} (DeepSeek-R1 reasoning model)"
+            else
+                echo -e "  Mode: ${YELLOW}R1 Mode${NC} (DeepSeek-R1 loading...)"
+            fi
+            ;;
+        ml)
+            if [[ "${ready:-0}" -ge 1 ]]; then
+                echo -e "  Mode: ${GREEN}ML Mode${NC} (Qwen general model)"
+            else
+                echo -e "  Mode: ${YELLOW}ML Mode${NC} (Qwen loading...)"
+            fi
+            ;;
+        *)
+            echo -e "  Mode: ${YELLOW}Unknown${NC}"
+            ;;
+    esac
+
+    # Show current model (if running)
+    if [[ "$replicas" -ge 1 ]]; then
+        local model_name
+        model_name=$(kubectl get deployment "$DEPLOYMENT" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].args[1]}' 2>/dev/null || echo "unknown")
+        echo "  Model: $model_name"
     fi
 
     # vLLM pods
@@ -309,20 +534,25 @@ case "${1:-}" in
     ml)
         ml_mode
         ;;
+    r1)
+        r1_mode
+        ;;
     status)
         show_status
         ;;
     *)
-        echo "Usage: gpu-mode {gaming|ml|status}"
+        echo "Usage: gpu-mode {gaming|ml|r1|status}"
         echo ""
         echo "Commands:"
         echo "  gaming  - Activate Gaming Mode (scale vLLM to 0, release GPU)"
-        echo "  ml      - Activate ML Mode (scale vLLM to 1, restore inference)"
+        echo "  ml      - Activate ML Mode (Qwen model for general inference)"
+        echo "  r1      - Activate R1 Mode (DeepSeek-R1 for reasoning tasks)"
         echo "  status  - Show current mode and GPU status"
         echo ""
         echo "Examples:"
         echo "  gpu-mode gaming   # Before playing Steam games"
-        echo "  gpu-mode ml       # After gaming, restore ML inference"
+        echo "  gpu-mode ml       # General ML inference with Qwen"
+        echo "  gpu-mode r1       # Chain-of-thought reasoning with DeepSeek-R1"
         echo "  gpu-mode status   # Check current state"
         exit 1
         ;;
