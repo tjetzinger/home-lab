@@ -1,5 +1,5 @@
 [Unit]
-Description=Set GPU to R1 Mode at boot (DeepSeek-R1 reasoning model)
+Description=Set GPU to ML Mode at boot (Qwen general model)
 Documentation=https://github.com/tjetzinger/home-lab
 # Start after display manager so login isn't blocked
 After=graphical.target k3s-agent.service
@@ -13,7 +13,7 @@ Environment="KUBECONFIG=/home/tt/.kube/config"
 # Wait for k3s to be fully ready (kubectl accessible) before switching mode
 # Check every 2s instead of 5s for faster boot (max 2 min wait)
 ExecStartPre=/bin/bash -c 'for i in {1..60}; do /usr/local/bin/kubectl get nodes &>/dev/null && exit 0; sleep 2; done; exit 1'
-ExecStart=/usr/local/bin/gpu-mode r1
+ExecStart=/usr/local/bin/gpu-mode ml
 TimeoutStartSec=300
 StandardOutput=journal
 StandardError=journal

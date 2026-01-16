@@ -2,9 +2,9 @@
 
 A production-ready Kubernetes home lab running on Proxmox VE, demonstrating platform engineering skills through hands-on infrastructure operation. This project bridges my automotive systems engineering background with modern cloud-native technologies, showcasing the ability to design, deploy, and maintain production workloads on Kubernetes.
 
-**Status:** ✅ Operational
-**Cluster:** 3-node K3s v1.34.3+k3s1
-**Workloads:** PostgreSQL, Ollama (LLM inference), n8n, Nginx
+**Status:** ✅ Operational (20 epics complete)
+**Cluster:** 5-node K3s v1.34.3+k3s1 (including GPU worker)
+**Workloads:** Full ML inference stack, Document management, Workflow automation, Git hosting
 **Observability:** Prometheus, Grafana, Loki, Alertmanager
 
 ---
@@ -28,33 +28,67 @@ After years working on IVI systems (In-Vehicle Infotainment) and LBS Navigation 
 ### High-Level Design
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Tailscale VPN                     │
-│              (Remote Access Layer)                  │
-└────────────────────┬────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────┐
-│              Traefik Ingress                        │
-│         (TLS Termination, Routing)                  │
-└─────┬──────────────┬─────────────┬──────────────────┘
-      │              │             │
-┌─────▼─────┐  ┌────▼────┐  ┌─────▼──────┐
-│ Grafana   │  │  n8n    │  │  Ollama    │
-│ Prometheus│  │         │  │  (LLM)     │
-└───────────┘  └────┬────┘  └────────────┘
-                    │
-              ┌─────▼─────┐
-              │ PostgreSQL│
-              │  (NFS)    │
-              └───────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Tailscale VPN                                  │
+│                      (Remote Access Layer)                               │
+└────────────────────────────┬────────────────────────────────────────────┘
+                             │
+┌────────────────────────────▼────────────────────────────────────────────┐
+│                      Traefik Ingress                                     │
+│                 (TLS Termination, Routing)                               │
+└───┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬────────┘
+    │         │         │         │         │         │         │
+┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐
+│Grafana│ │Open-  │ │Paper- │ │ Gitea │ │  n8n  │ │Stirling│ │ K8s   │
+│       │ │WebUI  │ │less   │ │       │ │       │ │  PDF  │ │Dashbd │
+└───────┘ └───┬───┘ └───┬───┘ └───────┘ └───┬───┘ └───────┘ └───────┘
+              │         │                   │
+         ┌────▼─────────▼───────────────────▼────┐
+         │           LiteLLM Proxy               │
+         │    (Unified OpenAI-compatible API)    │
+         └────┬─────────────┬───────────────┬────┘
+              │             │               │
+         ┌────▼────┐  ┌─────▼─────┐  ┌──────▼──────┐
+         │  vLLM   │  │  Ollama   │  │   OpenAI    │
+         │  (GPU)  │  │  (CPU)    │  │   (Cloud)   │
+         │ Primary │  │ Fallback  │  │  Emergency  │
+         └────┬────┘  └───────────┘  └─────────────┘
+              │
+    ┌─────────▼─────────┐
+    │   RTX 3060 eGPU   │
+    │   (12GB VRAM)     │
+    │  k3s-gpu-worker   │
+    └───────────────────┘
+              │
+         ┌────▼────┐
+         │ Postgres│──────┐
+         │  (NFS)  │      │
+         └─────────┘      │
+                          │
+              ┌───────────▼───────────┐
+              │    Synology DS920+    │
+              │   (NFS + k3s-nas VM)  │
+              └───────────────────────┘
 ```
+
+### Cluster Nodes
+
+| Node | Role | Specs | Purpose |
+|------|------|-------|---------|
+| `k3s-master` | Control plane | 192.168.2.20 | API server, etcd, scheduler |
+| `k3s-worker-01` | CPU worker | 192.168.2.21 | General workloads |
+| `k3s-worker-02` | CPU worker | 192.168.2.22 | General workloads |
+| `k3s-gpu-worker` | GPU worker | Intel NUC + RTX 3060 eGPU (12GB) | ML inference (vLLM) |
+| `k3s-nas-worker` | NAS worker | Synology DS920+ VM | Storage-adjacent workloads |
 
 ### Technology Stack
 
 | Layer | Technology | Decision Rationale |
 |-------|-----------|-------------------|
 | **Orchestration** | K3s v1.34.3 | Lightweight, production-ready K8s. Half the memory of k0s, built-in storage/ingress. See [ADR-001](docs/adrs/ADR-001-kubernetes-distribution-selection.md) |
-| **Compute** | 3x Ubuntu 22.04 LTS VMs on Proxmox | LTS stability, 5-year support window, proven KVM hypervisor |
+| **Compute** | 5x nodes (VMs + bare metal) | Mixed: Proxmox VMs, Intel NUC with eGPU, Synology NAS VM |
+| **GPU Inference** | vLLM + NVIDIA Container Toolkit | High-performance LLM serving with AWQ quantization |
+| **LLM Proxy** | LiteLLM | Unified OpenAI-compatible API with automatic failover |
 | **Storage** | NFS from Synology DS920+ | Existing NAS asset, CSI driver maturity, snapshot support |
 | **Ingress** | Traefik (K3s bundled) | Zero-config LB, native K8s integration, automatic cert renewal |
 | **TLS** | cert-manager + Let's Encrypt | Industry standard, automated renewal, staging/prod environments |
@@ -65,10 +99,41 @@ After years working on IVI systems (In-Vehicle Infotainment) and LBS Navigation 
 **Key Design Decisions:**
 - **No public exposure**: Tailscale VPN-only access (security > convenience)
 - **External storage**: NFS over in-cluster solutions (leverage existing NAS investment, snapshots)
+- **Three-tier ML inference**: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud) with automatic failover
 - **Helm for apps**: Values files over `--set` flags (version control, repeatability)
 - **ADR documentation**: Every architectural choice captured with context and alternatives
 
 See [docs/adrs/](docs/adrs/) for detailed decision records.
+
+---
+
+## ML Inference Stack
+
+The cluster runs a sophisticated ML inference platform with automatic failover:
+
+```
+LiteLLM Proxy → vLLM (GPU, primary) → Ollama (CPU, fallback) → OpenAI (cloud, emergency)
+```
+
+**GPU Modes** (switchable on k3s-gpu-worker):
+- `ml` - Qwen 2.5 7B AWQ (general inference, 8K context)
+- `r1` - DeepSeek-R1 7B AWQ (reasoning tasks with chain-of-thought)
+- `gaming` - vLLM scaled to 0, GPU released for Steam
+
+```bash
+# Check current mode
+ssh k3s-gpu-worker "gpu-mode status"
+
+# Switch modes
+ssh k3s-gpu-worker "gpu-mode ml"      # General inference
+ssh k3s-gpu-worker "gpu-mode r1"      # Reasoning model
+ssh k3s-gpu-worker "gpu-mode gaming"  # Release GPU
+```
+
+**Consumers:**
+- **Open-WebUI**: ChatGPT-like interface at https://chat.home.jetzinger.com
+- **Paperless-AI**: Document classification and RAG queries
+- **n8n**: Workflow automation with LLM integration
 
 ---
 
@@ -80,6 +145,7 @@ See [docs/adrs/](docs/adrs/) for detailed decision records.
 - Network: Static IPs assigned, nodes can reach each other
 - Optional: Tailscale account for remote access
 - Optional: NFS server for persistent storage
+- Optional: NVIDIA GPU for ML inference
 
 **Time to working cluster:** ~90 minutes (tested)
 
@@ -191,8 +257,6 @@ kubectl get certificate -A
 curl https://grafana.home.jetzinger.com
 ```
 
-**Next steps:** Deploy applications (PostgreSQL, Ollama, n8n) per [Epic 5](docs/implementation-artifacts/) and [Epic 6](docs/implementation-artifacts/) stories.
-
 ---
 
 ## Repository Structure
@@ -207,35 +271,46 @@ home-lab/
 │   └── traefik/             # Ingress controller config (K3s bundled)
 │
 ├── applications/            # Workload deployments
-│   ├── postgres/            # PostgreSQL Helm values (Bitnami chart)
-│   ├── ollama/              # LLM inference engine Helm values
-│   ├── n8n/                 # Workflow automation Helm values
-│   └── nginx/               # Development reverse proxy
+│   ├── vllm/                # GPU inference engine (Qwen, DeepSeek-R1)
+│   ├── litellm/             # LLM proxy with fallback chain
+│   ├── ollama/              # CPU fallback inference
+│   ├── open-webui/          # ChatGPT-like interface
+│   ├── paperless/           # Document management (Paperless-ngx)
+│   ├── paperless-ai/        # AI-powered document classification
+│   ├── gitea/               # Self-hosted Git
+│   ├── postgres/            # PostgreSQL database
+│   ├── n8n/                 # Workflow automation
+│   ├── stirling-pdf/        # PDF tools
+│   ├── gotenberg/           # Document conversion
+│   ├── tika/                # Content extraction
+│   ├── nginx/               # Development reverse proxy
+│   └── dev-containers/      # Remote development environments
 │
 ├── monitoring/              # Observability stack
 │   ├── prometheus/          # kube-prometheus-stack Helm values
 │   ├── grafana/             # Grafana dashboards and datasources
 │   └── loki/                # Log aggregation Helm values
 │
+├── scripts/                 # Automation and utilities
+│   └── gpu-worker/          # GPU mode switching scripts
+│
 ├── docs/                    # Documentation
-│   ├── VISUAL_TOUR.md       # 📸 Grafana screenshots & architecture diagrams
+│   ├── VISUAL_TOUR.md       # Grafana screenshots & architecture diagrams
 │   ├── adrs/                # Architecture Decision Records
 │   ├── runbooks/            # Operational procedures
-│   ├── diagrams/            # Architecture diagrams and screenshots
 │   ├── planning-artifacts/  # PRD, architecture, epics
 │   └── implementation-artifacts/  # Story files, sprint status
 │
-└── scripts/                 # Automation and utilities
-    └── (future: backup, health checks, etc.)
+└── _bmad/                   # BMAD AI workflow framework
 ```
 
 **Key Files:**
-- `docs/VISUAL_TOUR.md` - Grafana dashboard screenshots and architecture diagrams (visual proof of operational infrastructure)
-- `infrastructure/*/values-homelab.yaml` - Helm chart customizations for this cluster
-- `docs/adrs/ADR-*.md` - Architectural decisions with context and trade-offs
-- `docs/runbooks/*.md` - Operational procedures for maintenance tasks
-- `docs/implementation-artifacts/*.md` - Story-by-story implementation details
-- `CLAUDE.md` - Project instructions for AI-assisted development workflow
+- `docs/VISUAL_TOUR.md` - Grafana dashboard screenshots and architecture diagrams
+- `infrastructure/*/values-homelab.yaml` - Helm chart customizations
+- `docs/adrs/ADR-*.md` - Architectural decisions with trade-offs
+- `docs/runbooks/*.md` - Operational procedures
+- `docs/implementation-artifacts/*.md` - Story-by-story implementation
+- `CLAUDE.md` - AI-assisted development instructions
 
 ---
 
@@ -244,7 +319,7 @@ home-lab/
 ### Monitoring and Alerts
 
 - **Metrics:** Prometheus scraping all cluster components, custom ServiceMonitors for apps
-- **Dashboards:** Grafana with K8s cluster overview, node metrics, pod resources
+- **Dashboards:** Grafana with K8s cluster overview, node metrics, pod resources, GPU utilization
 - **Logs:** Loki aggregating logs from all namespaces, queryable via Grafana
 - **Alerts:** Alertmanager configured for P1 scenarios (disk full, pod crashes, certificate expiry)
 - **Notifications:** Mobile push alerts via ntfy.sh for critical issues
@@ -265,7 +340,7 @@ See runbooks: [cluster-backup.md](docs/runbooks/cluster-backup.md), [cluster-res
 - **K3s upgrades:** Tested procedure with rollback plan (see [k3s-upgrade.md](docs/runbooks/k3s-upgrade.md))
 - **OS patching:** Automatic security updates via unattended-upgrades
 - **Certificate renewal:** Automated via cert-manager, manual renewal documented
-- **Runbooks:** Comprehensive procedures for all P1 maintenance scenarios
+- **GPU mode switching:** Documented procedure for ML ↔ Gaming mode transitions
 
 See [Epic 8](docs/implementation-artifacts/) stories for operational procedures.
 
@@ -284,35 +359,15 @@ This project demonstrates systematic AI-assisted infrastructure development usin
 - **Follows project conventions**: Adheres to patterns defined in `CLAUDE.md` and architecture docs
 - **Maintains conversation context**: Long-running sessions with automatic summarization
 
-**How I used it:**
-```bash
-# Example: Deploy PostgreSQL with full context awareness
-claude: "Deploy PostgreSQL following the architecture spec"
-# Claude reads: architecture.md, PRD requirements, Helm patterns
-# Claude creates: values-homelab.yaml, deployment docs, backup procedures
-# Claude validates: Against NFR requirements, existing patterns
-```
-
 ### BMAD Methodology: Structured Implementation
 
 BMAD is a multi-agent AI workflow framework that enforces systematic software delivery. Located in `_bmad/`, it orchestrates the entire development lifecycle:
 
-**Phase 1: Discovery**
-- Product requirements (PRD)
-- User journeys and personas
-- Success criteria definition
+**Phase 1: Discovery** → Product requirements, user journeys, success criteria
+**Phase 2: Architecture** → Technology selection, component design, ADRs
+**Phase 3: Planning** → Epics, user stories, complexity estimation
+**Phase 4: Implementation** → Story execution with gap analysis and code review
 
-**Phase 2: Architecture**
-- Technology selection with trade-off analysis
-- Component design and integration patterns
-- Decision capture as ADRs
-
-**Phase 3: Planning**
-- Break down into epics (major capabilities)
-- Decompose epics into user stories
-- Estimate complexity and dependencies
-
-**Phase 4: Implementation** *(This is where the magic happens)*
 ```bash
 # Workflow for each story:
 1. /create-story          # Generate story file from epic
@@ -321,86 +376,29 @@ BMAD is a multi-agent AI workflow framework that enforces systematic software de
 4. Document & iterate     # Update ADRs, runbooks
 ```
 
-**Example: Story 5.1 (Deploy PostgreSQL)**
-1. **Story creation**: BMAD reads PRD + Architecture, generates comprehensive story file with tasks
-2. **Gap analysis**: Scans codebase, validates assumptions, refines tasks based on reality
-3. **Implementation**: Creates Helm values, tests deployment, validates backup/restore
-4. **Documentation**: Updates runbooks, ADRs, validates against NFR requirements
-5. **Code review**: Adversarial agent finds issues (missing resource limits, backup validation gaps)
-6. **Iteration**: Fix issues, re-validate, mark story complete
-
-### Why This Approach Works
-
-**Systematic, Not Ad-Hoc:**
-Every decision is documented (ADRs), every procedure has a runbook, every story maps to requirements. No "we should probably document this later" technical debt.
-
-**Quality Built-In:**
-- Gap analysis catches incorrect assumptions before implementation
-- Code review finds security issues, missing tests, non-compliance
-- Every story has acceptance criteria validated before marking done
-
-**Transferable Skills:**
-This isn't "AI did everything." It's learning to:
-- Structure problems for AI collaboration
-- Review AI-generated solutions critically
-- Maintain quality standards with AI assistance
-- Document architectural thinking systematically
-
-**Evidence of Capability:**
-Look at any story file in `docs/implementation-artifacts/`:
-- Comprehensive context (requirements, architecture, previous learnings)
-- Gap analysis results (what exists vs. what's needed)
-- Detailed dev notes (libraries, patterns, trade-offs)
-- Change log and completion validation
-
-This demonstrates **systems thinking** and **engineering discipline** - exactly what platform engineering roles require.
-
-### Repository as Evidence
-
-Every file in this repo tells part of the story:
-
-- **`docs/planning-artifacts/`**: Shows requirements analysis and planning rigor
-- **`docs/adrs/`**: Demonstrates architectural thinking and decision-making
-- **`docs/implementation-artifacts/`**: Proves systematic execution and quality validation
-- **`docs/runbooks/`**: Exhibits operational maturity and maintenance planning
-- **`infrastructure/` + `applications/`**: Real, working code following consistent patterns
-
 **For hiring managers:** This isn't a tutorial follow-along. It's a methodology-driven project that produces production-quality infrastructure with systematic documentation. The AI accelerated delivery, but the engineering judgment, architectural decisions, and operational discipline are human.
 
 ---
 
-## Engineering Learnings
+## Current Workloads
 
-### Trade-offs and Decisions
-
-**K3s vs. k0s vs. kubeadm:**
-Chose K3s for lower resource overhead (critical for home lab), built-in components (Traefik, local storage), and production pedigree (Rancher/SUSE). Trade-off: Less flexibility in component choice vs. kubeadm. Worth it for the operational simplicity.
-
-**NFS vs. Longhorn vs. Rook/Ceph:**
-Chose external NFS to leverage existing Synology NAS with mature snapshot capabilities. Trade-off: Performance lower than Longhorn, but snapshots and capacity management offloaded to proven NAS. Avoided Rook/Ceph complexity overkill for single-site home lab.
-
-**MetalLB Layer 2 vs. BGP:**
-Chose Layer 2 mode for simplicity in home network without router BGP support. Trade-off: Single active LB (no HA), but acceptable for non-critical home workloads. Would use BGP in enterprise with proper routing infrastructure.
-
-**Traefik (bundled) vs. nginx-ingress:**
-Kept K3s bundled Traefik to reduce components and leverage zero-config LB integration. Trade-off: Less community momentum than nginx-ingress, but excellent K8s native integration and automatic Let's Encrypt.
-
-**AI-Assisted Development:**
-Used Claude Code with BMAD methodology for systematic implementation. Every story planned, implemented, reviewed, and documented. Trade-off: More upfront planning time, but significantly higher quality and completeness. The discipline of ADRs and runbooks forces deeper understanding.
-
-### What Went Well
-
-- **Systematic approach:** BMAD workflow (epics → stories → implementation) kept project organized and prevented scope creep
-- **Documentation-first:** Writing ADRs and runbooks as I built forced clarity on decisions and procedures
-- **Git as source of truth:** Never lost configuration, easy rollback, reproducible deployments
-- **Real production practices:** Treating home lab like prod infrastructure built transferable habits
-
-### What I'd Do Differently
-
-- **Earlier monitoring:** Should have deployed observability stack before apps. Debugging without metrics/logs was painful.
-- **Terraform for VMs:** Manual Proxmox VM creation was tedious. Would automate with Terraform next time.
-- **Sealed Secrets:** Currently using plain Kubernetes secrets. Would implement SealedSecrets or external secret management earlier.
-- **Resource limits:** Several pod OOMKills in early days. Now enforce resource requests/limits in all deployments.
+| Application | Purpose | Namespace | URL |
+|------------|---------|-----------|-----|
+| **Grafana** | Metrics visualization | monitoring | https://grafana.home.jetzinger.com |
+| **Open-WebUI** | ChatGPT-like interface | apps | https://chat.home.jetzinger.com |
+| **Paperless-ngx** | Document management | docs | https://paperless.home.jetzinger.com |
+| **Paperless-AI** | AI document classification | docs | https://paperless-ai.home.jetzinger.com |
+| **Gitea** | Self-hosted Git | apps | https://git.home.jetzinger.com |
+| **n8n** | Workflow automation | apps | https://n8n.home.jetzinger.com |
+| **Stirling-PDF** | PDF tools | docs | https://pdf.home.jetzinger.com |
+| **K8s Dashboard** | Cluster visualization | kubernetes-dashboard | https://dashboard.home.jetzinger.com |
+| **LiteLLM** | LLM proxy | ml | https://litellm.home.jetzinger.com |
+| **vLLM** | GPU inference | ml | ClusterIP only |
+| **Ollama** | CPU inference | ml | ClusterIP only |
+| **PostgreSQL** | Relational database | data | ClusterIP only |
+| **Prometheus** | Metrics collection | monitoring | ClusterIP only |
+| **Alertmanager** | Alert routing | monitoring | ClusterIP only |
+| **Loki** | Log aggregation | monitoring | ClusterIP only |
 
 ---
 
@@ -408,48 +406,25 @@ Used Claude Code with BMAD methodology for systematic implementation. Every stor
 
 ### Documentation
 
-- **Portfolio Summary (Resume Companion):** [docs/PORTFOLIO.md](docs/PORTFOLIO.md) - High-level project summary, skills demonstrated, technologies used
-- **Visual Tour (Screenshots & Diagrams):** [docs/VISUAL_TOUR.md](docs/VISUAL_TOUR.md) - Grafana dashboards and architecture diagrams
-- **Architecture Decision Records:** [docs/adrs/](docs/adrs/) - Technical choices with trade-off analysis
-- **Operational Runbooks:** [docs/runbooks/](docs/runbooks/) - P1 scenario procedures
-- **Implementation Stories:** [docs/implementation-artifacts/](docs/implementation-artifacts/) - Story-by-story build documentation
+- **Portfolio Summary:** [docs/PORTFOLIO.md](docs/PORTFOLIO.md) - High-level project summary
+- **Visual Tour:** [docs/VISUAL_TOUR.md](docs/VISUAL_TOUR.md) - Screenshots and diagrams
+- **Architecture Decision Records:** [docs/adrs/](docs/adrs/) - Technical choices
+- **Operational Runbooks:** [docs/runbooks/](docs/runbooks/) - P1 procedures
+- **Implementation Stories:** [docs/implementation-artifacts/](docs/implementation-artifacts/) - Build documentation
 - **PRD and Planning:** [docs/planning-artifacts/](docs/planning-artifacts/) - Requirements and architecture
-- **Component READMEs:**
-  - Infrastructure: [K3s](infrastructure/k3s/README.md) | [NFS](infrastructure/nfs/README.md) | [MetalLB](infrastructure/metallb/README.md) | [Traefik](infrastructure/traefik/README.md) | [cert-manager](infrastructure/cert-manager/README.md)
-  - Applications: [PostgreSQL](applications/postgres/README.md) | [Ollama](applications/ollama/README.md) | [n8n](applications/n8n/README.md) | [Nginx](applications/nginx/README.md)
-  - Monitoring: [Prometheus](monitoring/prometheus/README.md) | [Grafana](monitoring/grafana/README.md) | [Loki](monitoring/loki/README.md)
 
 ### External Resources
 
-- **Blog Posts:** [docs/blog-posts/](docs/blog-posts/) - Technical write-ups and career narrative
-  - [From Automotive Software to Kubernetes: Building a Production-Grade K3s Home Lab](docs/blog-posts/01-from-automotive-to-kubernetes.md)
+- **Blog Posts:** [docs/blog-posts/](docs/blog-posts/) - Technical write-ups
 - **LinkedIn:** [linkedin.com/in/tjetzinger](https://www.linkedin.com/in/tjetzinger/)
 
 ### Key Technologies
 
 - [K3s Documentation](https://docs.k3s.io/)
+- [vLLM Documentation](https://docs.vllm.ai/)
+- [LiteLLM Documentation](https://docs.litellm.ai/)
 - [Helm Charts](https://helm.sh/)
 - [kube-prometheus-stack](https://github.com/prometheus-operator/kube-prometheus)
-- [Traefik Ingress](https://doc.traefik.io/traefik/providers/kubernetes-ingress/)
-- [cert-manager](https://cert-manager.io/)
-- [MetalLB](https://metallb.universe.tf/)
-
----
-
-## Current Workloads
-
-| Application | Purpose | Status | URL |
-|------------|---------|--------|-----|
-| **Grafana** | Metrics visualization | ✅ Running | https://grafana.home.jetzinger.com |
-| **Prometheus** | Metrics collection | ✅ Running | ClusterIP only |
-| **Alertmanager** | Alert routing | ✅ Running | ClusterIP only |
-| **Loki** | Log aggregation | ✅ Running | ClusterIP only |
-| **PostgreSQL** | Relational database | ✅ Running | ClusterIP only |
-| **Ollama** | LLM inference | ✅ Running | https://ollama.home.jetzinger.com |
-| **n8n** | Workflow automation | ✅ Running | https://n8n.home.jetzinger.com |
-| **Nginx** | Dev reverse proxy | ✅ Running | https://nginx.home.jetzinger.com |
-
-**Future:** Paperless-ngx document management (planned)
 
 ---
 

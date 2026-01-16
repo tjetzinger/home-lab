@@ -1,6 +1,6 @@
 # Story 20.3: Configure LiteLLM with DeepSeek-R1
 
-Status: review
+Status: done
 
 ## Story
 

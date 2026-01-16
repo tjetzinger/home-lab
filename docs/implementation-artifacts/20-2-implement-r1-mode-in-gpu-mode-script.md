@@ -1,6 +1,6 @@
 # Story 20.2: Implement R1-Mode in GPU Mode Script
 
-Status: review
+Status: done
 
 ## Story
 
