@@ -1,0 +1,120 @@
+# vLLM Deployment for DeepSeek-R1 7B (Reasoning Mode)
+# Namespace: ml
+#
+# Story: 20.1 - Deploy DeepSeek-R1 via vLLM
+# FR: FR138 - DeepSeek-R1 model deployed via vLLM on GPU worker
+# NFR: NFR81 - Model loading completes within 90 seconds (achieved: ~90s)
+# NFR: NFR82 - DeepSeek-R1 achieves 30+ tokens/second (achieved: ~55 tok/s)
+#
+# GPU Worker: Intel NUC + RTX 3060 eGPU (12GB VRAM)
+# Model: casperhansen/deepseek-r1-distill-qwen-7b-awq (4-bit AWQ, ~5.2GB VRAM)
+# Note: 14B model requires ~9.4GB VRAM (too large for 12GB GPU with KV cache)
+# Benchmark: 8.5GB total VRAM usage, 3135 GPU blocks for KV cache
+# Context: 8192 tokens (safe for 12GB VRAM with KV cache)
+#
+# Usage: This deployment is used when gpu-mode switches to R1 mode.
+# The gpu-mode script (Story 20.2) will manage switching between
+# deployment.yaml (Qwen) and deployment-r1.yaml (DeepSeek-R1).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: vllm-server
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+    gpu-mode: r1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server
+  strategy:
+    type: Recreate  # GPU workloads need exclusive access
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+        app.kubernetes.io/name: vllm
+        app.kubernetes.io/instance: vllm-server
+        app.kubernetes.io/part-of: home-lab
+        app.kubernetes.io/component: llm-inference
+        gpu-mode: r1
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        nvidia.com/gpu: "true"
+      tolerations:
+        - key: gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.5.5
+          args:
+            - --model
+            - casperhansen/deepseek-r1-distill-qwen-7b-awq
+            - --tokenizer
+            - deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+            - --quantization
+            - awq_marlin
+            - --gpu-memory-utilization
+            - "0.90"
+            - --max-model-len
+            - "8192"
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8000"
+            - --enforce-eager
+            - --trust-remote-code
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "1"
+              memory: 8Gi
+              nvidia.com/gpu: 1
+            limits:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+            - name: shm
+              mountPath: /dev/shm
+          env:
+            - name: HUGGING_FACE_HUB_TOKEN
+              value: ""  # Optional: Set via secret if using gated models
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 120  # R1 7B loads in ~90s (allow buffer)
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 90   # R1 7B loads in ~90s
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12      # 90 + (12*10) = 210s max wait
+      volumes:
+        - name: model-cache
+          hostPath:
+            path: /var/lib/vllm/huggingface
+            type: DirectoryOrCreate
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi

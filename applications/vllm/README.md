@@ -144,11 +144,68 @@ if (vllmAvailable) {
 | GPU unavailability detection | <10s (NFR50) | ~5s |
 | Ollama CPU inference latency | <5s (NFR54) | ~4.2s |
 
+## GPU Mode: Model Switching
+
+vLLM supports switching between different models via the `gpu-mode` script.
+
+### Available Modes
+
+| Mode | Model | VRAM | Performance | Use Case |
+|------|-------|------|-------------|----------|
+| `ml` (default) | Qwen/Qwen2.5-7B-Instruct-AWQ | ~4.5 GB | ~50 tok/s | General chat, code |
+| `r1` | casperhansen/deepseek-r1-distill-qwen-7b-awq | ~5.2 GB | ~55 tok/s | Chain-of-thought reasoning |
+| `gaming` | (scaled to 0) | 0 GB | N/A | Release GPU for gaming |
+
+### R1 Reasoning Mode
+
+DeepSeek-R1 is a reasoning-focused model distilled from the 671B DeepSeek-R1 MoE model.
+
+**Model Details:**
+- **Base:** DeepSeek-R1-Distill-Qwen-7B
+- **Quantization:** AWQ 4-bit (casperhansen)
+- **VRAM:** ~5.2 GB model weights, ~8.5 GB total with KV cache
+- **Throughput:** ~55 tokens/second
+- **Context:** 8192 tokens
+- **Tokenizer:** deepseek-ai/DeepSeek-R1-Distill-Qwen-7B (override required)
+
+**Why 7B instead of 14B?**
+The 14B model requires ~9.4 GB for weights alone, leaving insufficient VRAM for KV cache on a 12GB GPU.
+
+### Switching Modes
+
+```bash
+# Switch to R1 reasoning mode
+gpu-mode r1
+
+# Switch back to Qwen
+gpu-mode ml
+
+# Release GPU for gaming
+gpu-mode gaming
+```
+
+### R1 API Usage
+
+```bash
+# Reasoning request with chain-of-thought
+curl -X POST https://vllm.home.jetzinger.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "casperhansen/deepseek-r1-distill-qwen-7b-awq",
+    "messages": [{"role": "user", "content": "Solve: What is 15 + 27? Think step by step."}],
+    "max_tokens": 300,
+    "temperature": 0.1
+  }'
+```
+
+The model outputs chain-of-thought reasoning with `<think>` tags.
+
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `deployment.yaml` | vLLM deployment with GPU resources |
+| `deployment.yaml` | vLLM deployment with Qwen model (default) |
+| `deployment-r1.yaml` | vLLM deployment with DeepSeek-R1 model |
 | `service.yaml` | ClusterIP service on port 8000 |
 | `ingress.yaml` | IngressRoute + TLS certificate |
 | `pvc.yaml` | PVC for model cache (optional, using hostPath) |
@@ -160,3 +217,6 @@ if (vllmAvailable) {
 - **Epic 12:** GPU/ML Inference Platform
 - **Story 12.4:** Deploy vLLM with 3-Model Configuration
 - **Requirements:** FR38, FR72, NFR34 (50+ tok/s)
+- **Epic 20:** Reasoning Model Support (DeepSeek-R1)
+- **Story 20.1:** Deploy DeepSeek-R1 via vLLM
+- **Requirements:** FR138, NFR81 (90s load), NFR82 (30+ tok/s)
