@@ -346,6 +346,40 @@ See [Epic 8](docs/implementation-artifacts/) stories for operational procedures.
 
 ---
 
+## Implementation Journey: 20 Epics
+
+This project was built incrementally across 20 epics, each delivering specific infrastructure capabilities. All planning and implementation artifacts are available in [docs/](docs/).
+
+| Epic | Name | Outcome |
+|------|------|---------|
+| **1** | Foundation - K3s Cluster | Multi-node K3s cluster with Tailscale remote access |
+| **2** | Storage & Persistence | NFS storage provisioning from Synology NAS |
+| **3** | Ingress, TLS & Exposure | HTTPS services via `*.home.jetzinger.com` with Let's Encrypt |
+| **4** | Observability Stack | Prometheus, Grafana, Loki, Alertmanager with mobile alerts |
+| **5** | PostgreSQL Database | Production PostgreSQL with backup/restore capability |
+| **6** | AI Inference Platform | Ollama LLM inference + n8n workflow automation |
+| **7** | Development Proxy | Nginx proxy for local development servers |
+| **8** | Cluster Operations | K3s upgrades, backup/restore, maintenance procedures |
+| **9** | Portfolio & Showcase | Public GitHub repo, ADRs, technical blog posts |
+| **10** | Document Management | Paperless-ngx with OCR, Tika, Gotenberg, Stirling-PDF |
+| **11** | Dev Containers | Remote development via VS Code + Claude Code |
+| **12** | GPU/ML Platform | Intel NUC + RTX 3060 eGPU with vLLM/Qwen 2.5 |
+| **13** | Steam Gaming | Dual-use GPU: ML inference ↔ Steam gaming mode switching |
+| **14** | LiteLLM Proxy | Three-tier fallback: vLLM → Ollama → OpenAI + external providers |
+| **15** | Network Enhancement | Tailscale subnet routing for full home network access |
+| **16** | NAS Worker Node | Lightweight K3s worker VM on Synology DS920+ |
+| **17** | Open-WebUI | ChatGPT-like interface for all LLM models |
+| **18** | K8s Dashboard | Cluster visualization and resource monitoring |
+| **19** | Self-Hosted Git | Gitea with PostgreSQL backend and SSH access |
+| **20** | Reasoning Models | DeepSeek-R1 7B with R1-Mode for chain-of-thought reasoning |
+
+**Detailed Documentation:**
+- **Epic definitions:** [docs/planning-artifacts/epics.md](docs/planning-artifacts/epics.md)
+- **Story files:** [docs/implementation-artifacts/](docs/implementation-artifacts/)
+- **Sprint status:** [docs/implementation-artifacts/sprint-status.yaml](docs/implementation-artifacts/sprint-status.yaml)
+
+---
+
 ## Development Methodology
 
 This project demonstrates systematic AI-assisted infrastructure development using **Claude Code** and the **BMAD (Build-Measure-Achieve-Document)** methodology. Every component was implemented through structured planning, execution, and documentation cycles.
