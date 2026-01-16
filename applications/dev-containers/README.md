@@ -155,9 +155,11 @@ Dev containers are isolated via Kubernetes NetworkPolicy (`dev-container-isolati
 - Ollama (ml namespace, port 11434)
 - n8n (apps namespace, port 5678)
 
+**Allowed (External):**
+- Internet access (HTTP/HTTPS/SSH) for npm, pip, git, etc.
+
 **Blocked:**
 - Inter-container communication (Belego ↔ Pilates)
-- External internet access
 - All other cluster services not explicitly allowed
 
 **Verification:**

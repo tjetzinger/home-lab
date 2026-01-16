@@ -15,7 +15,7 @@
 #   - Allow PostgreSQL access (data namespace, port 5432)
 #   - Allow Ollama access (ml namespace, port 11434)
 #   - Allow n8n access (apps namespace, port 5678)
-#   - Deny all other egress by default
+#   - Allow internet access (HTTP/HTTPS for package installation)
 #
 # Prerequisites:
 #   - Namespace labels: kubectl label namespace <ns> name=<ns>
@@ -91,3 +91,19 @@ spec:
     ports:
     - protocol: TCP
       port: 5678
+
+  # Allow internet access (HTTP/HTTPS for npm, pip, git, etc.)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          - 10.0.0.0/8      # Exclude private ranges (cluster internal)
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 22   # Git SSH
+    - protocol: TCP
+      port: 80   # HTTP
+    - protocol: TCP
+      port: 443  # HTTPS
