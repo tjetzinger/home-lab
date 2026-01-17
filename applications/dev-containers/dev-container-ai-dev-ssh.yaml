@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dev-container-ai-dev-ssh
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: dev-container
+    app.kubernetes.io/instance: dev-container-ai-dev
+    app.kubernetes.io/component: development
+    app.kubernetes.io/part-of: home-lab
+data:
+  authorized_keys: |
+    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAEUKKKwN8Pip2JPICt7HGERL/zdhgqxQPSu9jIHYITf tt@x1
+    ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNCqI69c9lvJGJlFcRrCXTGZaVX0e1ATF/0AosnxtAmtQlTrJ6e8gR81Et1MThcq8ZIX+bnPd7/I52g0+23STvc= #t23
+    ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDxXgUIHG0GfEuC+SPOF/MkAXzgUhNIJv0D1N6zXb3UfJHqAQhCkDVNXWBUIeGutNy7nkQ5MVsJB6FxPHaZtFt0= #t9

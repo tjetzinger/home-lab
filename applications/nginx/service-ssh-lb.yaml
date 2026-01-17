@@ -6,7 +6,7 @@
 # FR: FR61 - Connect VS Code via Nginx proxy
 #
 # Purpose: External LoadBalancer for SSH access to dev containers via nginx proxy
-# Ports: 2222 (Belego), 2223 (Pilates)
+# Ports: 2222 (Belego), 2223 (Pilates), 2224 (AI-Dev)
 # Note: Uses MetalLB to get external IP
 ---
 apiVersion: v1
@@ -31,6 +31,10 @@ spec:
     targetPort: 2223
     protocol: TCP
     name: ssh-pilates
+  - port: 2224
+    targetPort: 2224
+    protocol: TCP
+    name: ssh-ai-dev
   selector:
     app.kubernetes.io/name: nginx
     app.kubernetes.io/instance: nginx-proxy

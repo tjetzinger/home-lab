@@ -49,6 +49,7 @@ data:
         map $server_port $ssh_backend {
             2222 dev-container-belego-svc.dev.svc.cluster.local:22;
             2223 dev-container-pilates-svc.dev.svc.cluster.local:22;
+            2224 dev-container-ai-dev-svc.dev.svc.cluster.local:22;
         }
 
         # SSH proxy for Belego on port 2222
@@ -62,6 +63,14 @@ data:
         # SSH proxy for Pilates on port 2223
         server {
             listen 2223;
+            proxy_pass $ssh_backend;
+            proxy_connect_timeout 10s;
+            proxy_timeout 300s;
+        }
+
+        # SSH proxy for AI-Dev on port 2224
+        server {
+            listen 2224;
             proxy_pass $ssh_backend;
             proxy_connect_timeout 10s;
             proxy_timeout 300s;

@@ -62,6 +62,7 @@ SSH access is provided through the nginx proxy LoadBalancer (Story 11.4).
 |-----------|------|----|
 | Belego | 2222 | 192.168.2.101 |
 | Pilates | 2223 | 192.168.2.101 |
+| AI-Dev | 2224 | 192.168.2.101 |
 
 **Connect via SSH:**
 ```bash
@@ -70,6 +71,9 @@ ssh -p 2222 dev@192.168.2.101
 
 # Pilates
 ssh -p 2223 dev@192.168.2.101
+
+# AI-Dev
+ssh -p 2224 dev@192.168.2.101
 ```
 
 **VS Code SSH Config (~/.ssh/config):**
@@ -82,6 +86,11 @@ Host dev-belego
 Host dev-pilates
     HostName 192.168.2.101
     Port 2223
+    User dev
+
+Host dev-ai-dev
+    HostName 192.168.2.101
+    Port 2224
     User dev
 ```
 
@@ -144,6 +153,8 @@ applications/dev-containers/
 ├── dev-container-belego-ssh.yaml     # Belego SSH ConfigMap
 ├── dev-container-pilates.yaml        # Pilates container deployment
 ├── dev-container-pilates-ssh.yaml    # Pilates SSH ConfigMap
+├── dev-container-ai-dev.yaml         # AI-Dev container deployment
+├── dev-container-ai-dev-ssh.yaml     # AI-Dev SSH ConfigMap
 ├── networkpolicy.yaml                # Container isolation policy
 └── README.md                         # This file
 ```
@@ -154,6 +165,7 @@ applications/dev-containers/
 |-----------|-----------|------|-------------|---------|
 | dev-container-belego | dev | k3s-master | dev-container-belego-svc:22 | local-path PVC (20Gi) |
 | dev-container-pilates | dev | k3s-worker-01 | dev-container-pilates-svc:22 | local-path PVC (20Gi) |
+| dev-container-ai-dev | dev | k3s-worker-01 | dev-container-ai-dev-svc:22 | local-path PVC (10Gi) |
 
 ## Architecture Notes
 

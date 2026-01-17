@@ -1,0 +1,142 @@
+# Dev Container Deployment - AI-Dev
+#
+# Storage: local-path (persistent, fast local SSD) - 10Gi
+# Note: Staging container for AI/ML customization. User will customize via SSH
+#       then optionally replace belego/pilates containers later.
+#
+# Prerequisites:
+#   1. Build and push image: docker build -t dev-container-base:latest ./base-image/
+#   2. Create SSH ConfigMap with authorized_keys
+#   3. Apply this manifest
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dev-workspace-ai-dev
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: dev-container
+    app.kubernetes.io/instance: dev-container-ai-dev
+    app.kubernetes.io/component: development
+    app.kubernetes.io/part-of: home-lab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dev-container-ai-dev
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: dev-container
+    app.kubernetes.io/instance: dev-container-ai-dev
+    app.kubernetes.io/component: development
+    app.kubernetes.io/part-of: home-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dev-container
+      app.kubernetes.io/instance: dev-container-ai-dev
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dev-container
+        app.kubernetes.io/instance: dev-container-ai-dev
+        app.kubernetes.io/component: development
+        app.kubernetes.io/part-of: home-lab
+    spec:
+      # Pin to k3s-worker-01 where dev-container-base image is available
+      nodeSelector:
+        kubernetes.io/hostname: k3s-worker-01
+      containers:
+        - name: dev-container
+          # Image should be available locally on nodes or in a registry
+          image: dev-container-base:latest
+          imagePullPolicy: IfNotPresent
+          # Fix SSH key ownership (ConfigMap mounts as root) then start sshd
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              cp /tmp/ssh-keys/authorized_keys /home/dev/.ssh/authorized_keys
+              chown dev:dev /home/dev/.ssh/authorized_keys
+              chmod 600 /home/dev/.ssh/authorized_keys
+              exec /usr/sbin/sshd -D
+          ports:
+            - name: ssh
+              containerPort: 22
+              protocol: TCP
+          resources:
+            # FR68: 2 CPU cores, 4GB RAM per container
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          volumeMounts:
+            # Persistent workspace for git repos
+            - name: workspace
+              mountPath: /home/dev/workspace
+            # SSH authorized_keys (mounted to temp, copied with correct ownership at startup)
+            - name: ssh-keys
+              mountPath: /tmp/ssh-keys
+              readOnly: true
+            # Build artifacts on fast ephemeral storage (FR69)
+            - name: build-cache
+              mountPath: /home/dev/.cache
+            - name: npm-cache
+              mountPath: /home/dev/.npm
+          securityContext:
+            runAsUser: 0  # Root needed for sshd
+          readinessProbe:
+            tcpSocket:
+              port: ssh
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: ssh
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        # Persistent local SSD storage (survives pod restarts)
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: dev-workspace-ai-dev
+        # SSH keys from ConfigMap
+        - name: ssh-keys
+          configMap:
+            name: dev-container-ai-dev-ssh
+            defaultMode: 0600
+        # Ephemeral storage for builds (emptyDir)
+        - name: build-cache
+          emptyDir: {}
+        - name: npm-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dev-container-ai-dev-svc
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: dev-container
+    app.kubernetes.io/instance: dev-container-ai-dev
+    app.kubernetes.io/component: development
+    app.kubernetes.io/part-of: home-lab
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: dev-container
+    app.kubernetes.io/instance: dev-container-ai-dev
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: 22
+      protocol: TCP
