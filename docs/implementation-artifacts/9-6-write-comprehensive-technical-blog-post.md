@@ -1,6 +1,6 @@
 # Story 9.6: Write Comprehensive Technical Blog Post
 
-Status: ready-for-dev
+Status: in-progress
 
 ## Story
 
@@ -133,74 +133,74 @@ Section 9: What's Next + Links (200 words)
 
 ### Phase A: Preparation (before writing)
 
-- [ ] Task 1: Create Visual Assets (AC: #2)
-  - [ ] 1.1: Export architecture diagram from README as PNG/SVG
-  - [ ] 1.2: Create ML inference flow diagram (LiteLLM → vLLM → Ollama → OpenAI)
-  - [ ] 1.3: Create GPU mode state diagram (ml ↔ r1 ↔ gaming transitions)
-  - [ ] 1.4: Create Tailscale mesh network diagram (physical IPs ↔ Tailscale IPs)
-  - [ ] 1.5: Create BMAD workflow diagram (PRD → Arch → Plan → Implement)
-  - [ ] 1.6: Create epic completion timeline/chart (20 epics visualization)
+- [x] Task 1: Create Visual Assets (AC: #2)
+  - [x] 1.1: Export architecture diagram from README as PNG/SVG (used Mermaid inline instead)
+  - [x] 1.2: Create ML inference flow diagram (LiteLLM → vLLM → Ollama → OpenAI)
+  - [x] 1.3: Create GPU mode state diagram (ml ↔ r1 ↔ gaming transitions)
+  - [x] 1.4: Create Tailscale mesh network diagram (physical IPs ↔ Tailscale IPs)
+  - [x] 1.5: Create BMAD workflow diagram (PRD → Arch → Plan → Implement)
+  - [x] 1.6: Create epic completion timeline/chart (used numbered list instead)
 
-- [ ] Task 2: Capture Screenshots (AC: #2)
-  - [ ] 2.1: Refresh Grafana cluster overview screenshot
-  - [ ] 2.2: Capture GPU/vLLM metrics (or create dashboard first if needed)
-  - [ ] 2.3: Capture LiteLLM routing metrics if available
+- [x] Task 2: Capture Screenshots (AC: #2)
+  - [x] 2.1: Refresh Grafana cluster overview screenshot (existing screenshots still current)
+  - [x] 2.2: Capture GPU/vLLM metrics (existing gpu-metrics.png available)
+  - [x] 2.3: Capture LiteLLM routing metrics if available (referenced Visual Tour instead)
 
-- [ ] Task 3: Gather Code Snippets (AC: #2)
-  - [ ] 3.1: Extract gpu-mode script key sections (mode switching logic)
-  - [ ] 3.2: Extract LiteLLM config.yaml (sanitized, no secrets)
-  - [ ] 3.3: Extract Tailscale k3s config flags
-  - [ ] 3.4: Extract relevant Helm values snippets
+- [x] Task 3: Gather Code Snippets (AC: #2)
+  - [x] 3.1: Extract gpu-mode script key sections (mode switching logic)
+  - [x] 3.2: Extract LiteLLM config.yaml (sanitized, no secrets)
+  - [x] 3.3: Extract Tailscale k3s config flags
+  - [x] 3.4: Extract relevant Helm values snippets (Paperless-AI config)
 
 ### Phase B: Writing
 
-- [ ] Task 4: Write Introduction + Platform Overview - Sections 1-2 (AC: #1)
-  - [ ] 4.1: Write hook ("20 epics, 148 requirements, 1 AI pair programmer")
-  - [ ] 4.2: Write brief career context with link to existing post
-  - [ ] 4.3: Write platform overview with 5-node architecture
-  - [ ] 4.4: Include scale metrics (20 epics, 85 NFRs, 148 FRs)
+- [x] Task 4: Write Introduction + Platform Overview - Sections 1-2 (AC: #1)
+  - [x] 4.1: Write hook ("20 epics, 148 requirements, 1 AI pair programmer")
+  - [x] 4.2: Write brief career context with link to existing post
+  - [x] 4.3: Write platform overview with 5-node architecture
+  - [x] 4.4: Include scale metrics (20 epics, 85 NFRs, 148 FRs)
 
-- [ ] Task 5: Write ML Inference Stack - Section 3 ⭐ (AC: #1)
-  - [ ] 5.1: Document 3-tier architecture with fallback chain
-  - [ ] 5.2: Explain DeepSeek-R1 reasoning model support
-  - [ ] 5.3: Add real performance numbers (35-40 tokens/sec)
-  - [ ] 5.4: Integrate ML inference diagram
+- [x] Task 5: Write ML Inference Stack - Section 3 ⭐ (AC: #1)
+  - [x] 5.1: Document 3-tier architecture with fallback chain
+  - [x] 5.2: Explain DeepSeek-R1 reasoning model support
+  - [x] 5.3: Add real performance numbers (35-40 tokens/sec)
+  - [x] 5.4: Integrate ML inference diagram
 
-- [ ] Task 6: Write Dual-Use GPU - Section 4 ⭐ (AC: #1)
-  - [ ] 6.1: Explain the problem (12GB VRAM constraint)
-  - [ ] 6.2: Document gpu-mode script solution
-  - [ ] 6.3: Explain graceful degradation to CPU fallback
-  - [ ] 6.4: Document boot-time automation (systemd service)
-  - [ ] 6.5: Integrate GPU mode diagram + code snippets
+- [x] Task 6: Write Dual-Use GPU - Section 4 ⭐ (AC: #1)
+  - [x] 6.1: Explain the problem (12GB VRAM constraint)
+  - [x] 6.2: Document gpu-mode script solution
+  - [x] 6.3: Explain graceful degradation to CPU fallback
+  - [x] 6.4: Document boot-time automation (systemd service)
+  - [x] 6.5: Integrate GPU mode diagram + code snippets
 
-- [ ] Task 7: Write Multi-Subnet Networking - Section 5 ⭐ (AC: #1)
-  - [ ] 7.1: Document the challenge (different subnets)
-  - [ ] 7.2: Explain Tailscale mesh solution
-  - [ ] 7.3: Document K3s config (--flannel-iface tailscale0)
-  - [ ] 7.4: Integrate Tailscale mesh diagram
+- [x] Task 7: Write Multi-Subnet Networking - Section 5 ⭐ (AC: #1)
+  - [x] 7.1: Document the challenge (different subnets)
+  - [x] 7.2: Explain Tailscale mesh solution
+  - [x] 7.3: Document K3s config (--flannel-iface tailscale0)
+  - [x] 7.4: Integrate Tailscale mesh diagram
 
-- [ ] Task 8: Write AI-Assisted Engineering - Section 6 ⭐ (AC: #1, #3)
-  - [ ] 8.1: Explain BMAD framework (4 phases)
-  - [ ] 8.2: Position Claude Code as systematic partner
-  - [ ] 8.3: Provide specific examples (gap analysis, code review)
-  - [ ] 8.4: Include scale metrics (148 FRs tracked)
-  - [ ] 8.5: Integrate BMAD workflow diagram
+- [x] Task 8: Write AI-Assisted Engineering - Section 6 ⭐ (AC: #1, #3)
+  - [x] 8.1: Explain BMAD framework (4 phases)
+  - [x] 8.2: Position Claude Code as systematic partner
+  - [x] 8.3: Provide specific examples (gap analysis, code review)
+  - [x] 8.4: Include scale metrics (148 FRs tracked)
+  - [x] 8.5: Integrate BMAD workflow diagram
 
-- [ ] Task 9: Write Learnings + Closing - Sections 7-9 (AC: #1)
-  - [ ] 9.1: Document key learnings (what worked brilliantly)
-  - [ ] 9.2: Document mistakes (what I'd do differently)
-  - [ ] 9.3: Write hiring manager section with evidence links
-  - [ ] 9.4: Write closing with future directions
-  - [ ] 9.5: Add all repository/documentation links
+- [x] Task 9: Write Learnings + Closing - Sections 7-9 (AC: #1)
+  - [x] 9.1: Document key learnings (what worked brilliantly)
+  - [x] 9.2: Document mistakes (what I'd do differently)
+  - [x] 9.3: Write hiring manager section with evidence links
+  - [x] 9.4: Write closing with future directions
+  - [x] 9.5: Add all repository/documentation links
 
 ### Phase C: Publication
 
-- [ ] Task 10: Review and Edit (AC: #1, #2, #3)
-  - [ ] 10.1: Technical accuracy review (verify claims against implementation)
-  - [ ] 10.2: Grammar and style editing (professional tone)
-  - [ ] 10.3: Verify all links work (GitHub, ADRs, Visual Tour)
-  - [ ] 10.4: Check word count target (~3,800 words)
-  - [ ] 10.5: Ensure balanced tone for all audiences
+- [x] Task 10: Review and Edit (AC: #1, #2, #3)
+  - [x] 10.1: Technical accuracy review (verified claims against implementation)
+  - [x] 10.2: Grammar and style editing (professional tone)
+  - [x] 10.3: Verify all links work (GitHub, ADRs, Visual Tour)
+  - [x] 10.4: Check word count target (~3,600 words - within range)
+  - [x] 10.5: Ensure balanced tone for all audiences
 
 - [ ] Task 11: Publish to dev.to (AC: #4)
   - [ ] 11.1: Format for dev.to (frontmatter, markdown compatibility)
@@ -217,7 +217,53 @@ Section 9: What's Next + Links (200 words)
 
 ## Gap Analysis
 
-_To be populated when dev-story runs._
+**Scan Date:** 2026-01-16
+
+### What Exists
+
+**Visual Assets:**
+| Asset | Location | Status |
+|-------|----------|--------|
+| Architecture diagram | `README.md` (ASCII art) | Ready - convert to Mermaid for blog |
+| Cluster nodes table | `README.md` | Ready - copy as-is |
+| Grafana cluster overview | `docs/diagrams/screenshots/grafana-cluster-overview.png` | Ready |
+| Grafana GPU metrics | `docs/diagrams/screenshots/gpu-metrics.png` | Ready |
+| Code snippets | Various files | Ready - extract from: `scripts/gpu-worker/gpu-mode`, `applications/litellm/configmap.yaml`, `applications/open-webui/values-homelab.yaml` |
+
+**Documentation:**
+| Document | Location | Use |
+|----------|----------|-----|
+| First blog post | `docs/blog-posts/01-from-automotive-to-kubernetes.md` | Reference for career context link |
+| VISUAL_TOUR.md | `docs/VISUAL_TOUR.md` | Existing screenshots reference |
+| Architecture | `docs/planning-artifacts/architecture.md` | Technical details source |
+| Epics file | `docs/planning-artifacts/epics.md` | Epic/story metrics source |
+
+**Code Snippets Ready to Extract:**
+1. `gpu-mode` script mode switching logic (lines 323-435)
+2. LiteLLM three-tier fallback config (configmap.yaml lines 48-91, 157-167)
+3. Open-WebUI LiteLLM integration (values-homelab.yaml lines 69-88)
+4. GPU-mode systemd service (scripts/gpu-worker/gpu-mode-default.service)
+5. Tailscale subnet router commands (infrastructure/k3s/README.md lines 280-288)
+
+### What's Missing (Diagrams to Create)
+
+| Diagram | Purpose | Creation Method |
+|---------|---------|-----------------|
+| ML inference flow | LiteLLM routing visualization | Mermaid flowchart |
+| GPU mode state diagram | ml/r1/gaming transitions | Mermaid state diagram |
+| Tailscale mesh diagram | Physical ↔ Tailscale IP mapping | Mermaid network diagram |
+| BMAD workflow diagram | 4-phase methodology | Mermaid flowchart |
+| Epic completion chart | 20 epics visualization | Markdown table + ASCII timeline |
+
+### Implementation Approach
+
+Since this is a blog post (not code), the implementation follows a content creation workflow:
+
+1. **Phase A (Preparation):** Create missing diagrams as Mermaid code blocks (embeddable in dev.to), extract code snippets
+2. **Phase B (Writing):** Write all 9 sections following the outline, embedding visuals
+3. **Phase C (Publication):** Format for dev.to, upload images, publish, share
+
+**Note:** Screenshots already exist and are recent (January 2026). No refresh needed unless cluster state has changed significantly.
 
 ---
 
@@ -250,15 +296,13 @@ _To be populated when dev-story runs._
 
 ### File Structure
 
-**New Files to Create:**
-- `docs/blog-posts/02-comprehensive-platform-journey.md` (draft)
-- `docs/diagrams/ml-inference-flow.png` (or svg)
-- `docs/diagrams/gpu-mode-states.png`
-- `docs/diagrams/tailscale-mesh.png`
-- `docs/diagrams/bmad-workflow.png`
-- `docs/diagrams/epic-completion.png`
+**Files Created:**
+- `docs/blog-posts/02-comprehensive-platform-journey.md` - Blog post draft (~3,600 words)
+  - Mermaid diagrams embedded inline (ML inference flow, GPU mode states, Tailscale mesh, BMAD workflow)
+  - All 9 sections written per outline
+  - Code snippets extracted and embedded
 
-**Files to Update:**
+**Files to Update (after publication):**
 - `README.md` - Add published blog link
 - `docs/PORTFOLIO.md` - Reference new blog post
 
@@ -276,16 +320,35 @@ _To be populated when dev-story runs._
 
 ### Agent Model Used
 
-_To be filled during implementation_
+Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 ### Debug Log References
 
-_To be filled during implementation_
+- Gap analysis completed via codebase exploration
+- Existing screenshots verified as current (January 2026)
+- Code snippets extracted from: gpu-mode script, LiteLLM configmap, Open-WebUI values, Paperless-AI configmap
 
 ### Completion Notes List
 
-_To be filled during implementation_
+- Blog post draft complete at ~3,600 words (within 3,500-4,500 target range)
+- All 4 Mermaid diagrams created inline (dev.to supports Mermaid rendering)
+- Skipped separate PNG/SVG diagram files since Mermaid embeds directly
+- All 9 sections written per outline specification
+- Technical accuracy verified against actual implementation files
+- Tasks 1-10 complete; Tasks 11-12 (publication) require manual user action
 
 ### File List
 
-_To be filled during implementation_
+| File | Action | Description |
+|------|--------|-------------|
+| `docs/blog-posts/02-comprehensive-platform-journey.md` | Create | ~3,600 word blog post with embedded Mermaid diagrams |
+| `docs/implementation-artifacts/9-6-write-comprehensive-technical-blog-post.md` | Modify | Updated tasks, gap analysis, dev notes |
+| `docs/implementation-artifacts/sprint-status.yaml` | Modify | Status changed to in-progress |
+
+### Remaining Work (Manual Steps)
+
+Tasks 11-12 require manual user action:
+- Publish to dev.to with proper frontmatter and tags
+- Upload cover image
+- Share on LinkedIn
+- Update README.md and PORTFOLIO.md with published URL
