@@ -1,0 +1,43 @@
+# AI Dev Container Image
+# Extends base dev container with AI/ML tools
+#
+# Template image for all dev containers (belego, pilates, etc.)
+# Tools installed in /opt/ and /usr/local/ so they remain available
+# when /home/dev is mounted as PVC for user data persistence
+#
+# Includes:
+# - Bun runtime (system-wide)
+# - OpenCode CLI (system-wide)
+# - exa-mcp-server, agent-browser (system-wide npm)
+
+FROM dev-container-base:latest
+
+# Install required packages
+RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*
+
+# Install Bun system-wide
+ENV BUN_INSTALL=/opt/bun
+RUN curl -fsSL https://bun.sh/install | bash && \
+    ln -s /opt/bun/bin/bun /usr/local/bin/bun && \
+    ln -s /opt/bun/bin/bunx /usr/local/bin/bunx
+
+# Install OpenCode system-wide
+RUN curl -fsSL https://opencode.ai/install | bash && \
+    mv /root/.opencode /opt/opencode && \
+    ln -s /opt/opencode/bin/opencode /usr/local/bin/opencode
+
+# Install exa-mcp-server and agent-browser globally (system npm)
+RUN npm install -g exa-mcp-server agent-browser
+
+# Create skeleton home directory structure for new PVCs
+RUN mkdir -p /etc/skel/.ssh /etc/skel/workspace && \
+    chmod 700 /etc/skel/.ssh
+
+# Add paths to skeleton bashrc (copied to /home/dev on first boot)
+RUN echo '' >> /etc/skel/.bashrc && \
+    echo '# AI Dev Container paths' >> /etc/skel/.bashrc && \
+    echo 'export BUN_INSTALL=/opt/bun' >> /etc/skel/.bashrc && \
+    echo 'export PATH="/opt/bun/bin:/opt/opencode/bin:$PATH"' >> /etc/skel/.bashrc
+
+# Default command (same as base)
+CMD ["/usr/sbin/sshd", "-D"]

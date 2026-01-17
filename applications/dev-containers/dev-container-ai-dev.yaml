@@ -1,18 +1,21 @@
-# Dev Container Deployment - AI-Dev
+# Dev Container Deployment - AI-Dev (Template Container)
 #
-# Storage: local-path (persistent, fast local SSD) - 10Gi
-# Note: Staging container for AI/ML customization. User will customize via SSH
-#       then optionally replace belego/pilates containers later.
+# This is the TEMPLATE container for all dev containers.
+# Configuration changes here are copied to new containers via init container.
+#
+# Storage: local-path PVC mounted at /home/dev (entire home directory persisted)
+# Image: dev-container-ai:latest (AI tools pre-installed system-wide)
 #
 # Prerequisites:
-#   1. Build and push image: docker build -t dev-container-base:latest ./base-image/
-#   2. Create SSH ConfigMap with authorized_keys
-#   3. Apply this manifest
+#   1. Build image: docker build -f Dockerfile.ai -t dev-container-ai:latest ./base-image/
+#   2. Push image to k3s nodes
+#   3. Create SSH ConfigMap with authorized_keys
+#   4. Apply this manifest
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: dev-workspace-ai-dev
+  name: dev-home-ai-dev
   namespace: dev
   labels:
     app.kubernetes.io/name: dev-container
@@ -25,7 +28,7 @@ spec:
   storageClassName: local-path
   resources:
     requests:
-      storage: 10Gi
+      storage: 20Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -56,15 +59,17 @@ spec:
         kubernetes.io/hostname: k3s-worker-01
       containers:
         - name: dev-container
-          # Image should be available locally on nodes or in a registry
-          image: dev-container-base:latest
+          image: dev-container-ai:latest
           imagePullPolicy: IfNotPresent
-          # Fix SSH key ownership (ConfigMap mounts as root) then start sshd
           command: ["/bin/sh", "-c"]
           args:
             - |
+              # Ensure .ssh directory exists with correct permissions
+              mkdir -p /home/dev/.ssh
+              chmod 700 /home/dev/.ssh
+              # Copy SSH keys from ConfigMap
               cp /tmp/ssh-keys/authorized_keys /home/dev/.ssh/authorized_keys
-              chown dev:dev /home/dev/.ssh/authorized_keys
+              chown -R dev:dev /home/dev/.ssh
               chmod 600 /home/dev/.ssh/authorized_keys
               exec /usr/sbin/sshd -D
           ports:
@@ -72,7 +77,6 @@ spec:
               containerPort: 22
               protocol: TCP
           resources:
-            # FR68: 2 CPU cores, 4GB RAM per container
             requests:
               cpu: "500m"
               memory: "1Gi"
@@ -80,18 +84,13 @@ spec:
               cpu: "2000m"
               memory: "4Gi"
           volumeMounts:
-            # Persistent workspace for git repos
-            - name: workspace
-              mountPath: /home/dev/workspace
-            # SSH authorized_keys (mounted to temp, copied with correct ownership at startup)
+            # Entire home directory persisted (includes config, workspace, etc.)
+            - name: home
+              mountPath: /home/dev
+            # SSH authorized_keys from ConfigMap
             - name: ssh-keys
               mountPath: /tmp/ssh-keys
               readOnly: true
-            # Build artifacts on fast ephemeral storage (FR69)
-            - name: build-cache
-              mountPath: /home/dev/.cache
-            - name: npm-cache
-              mountPath: /home/dev/.npm
           securityContext:
             runAsUser: 0  # Root needed for sshd
           readinessProbe:
@@ -105,20 +104,15 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
       volumes:
-        # Persistent local SSD storage (survives pod restarts)
-        - name: workspace
+        # Persistent home directory (entire /home/dev)
+        - name: home
           persistentVolumeClaim:
-            claimName: dev-workspace-ai-dev
+            claimName: dev-home-ai-dev
         # SSH keys from ConfigMap
         - name: ssh-keys
           configMap:
             name: dev-container-ai-dev-ssh
             defaultMode: 0600
-        # Ephemeral storage for builds (emptyDir)
-        - name: build-cache
-          emptyDir: {}
-        - name: npm-cache
-          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

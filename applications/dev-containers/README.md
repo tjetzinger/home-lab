@@ -2,61 +2,65 @@
 
 Standardized development containers with SSH access for remote development using VS Code Remote-SSH or similar tools.
 
-## Components
+## Architecture Overview
 
-| Component | Description |
-|-----------|-------------|
-| `base-image/Dockerfile` | Ubuntu 22.04 base image with development tools |
-| `ssh-configmap.yaml` | Template for SSH authorized_keys |
-| `dev-container-template.yaml` | Kubernetes deployment template |
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        ai-dev (TEMPLATE)                         │
+│  PVC: dev-home-ai-dev mounted at /home/dev                       │
+│  Contains: .claude.json (MCP config), .bashrc, tools config      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                    (init container copies)
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        ▼                     ▼                     ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│    belego     │   │    pilates    │   │  (new devs)   │
+│ Own PVC copy  │   │ Own PVC copy  │   │ Own PVC copy  │
+└───────────────┘   └───────────────┘   └───────────────┘
+```
 
-## Base Image Contents
+**Key Points:**
+- **ai-dev** is the template - configure it once, all new containers inherit
+- Each container gets **own PVC** copied from ai-dev on first boot
+- Config changes to ai-dev propagate to new containers only
+- PVC mounted at `/home/dev` (entire home directory persisted)
 
-The dev container base image includes:
+## Images
 
-- **OS**: Ubuntu 22.04 LTS
-- **Node.js**: 20.x with npm
-- **Python**: 3.11 with pip
-- **kubectl**: Latest stable
-- **Helm**: 3.x
-- **Claude Code CLI**: `@anthropic-ai/claude-code`
-- **Utilities**: git, sudo, vim, curl, wget
-- **SSH Server**: OpenSSH with key-based authentication only
+| Image | Description |
+|-------|-------------|
+| `dev-container-base:latest` | Ubuntu 22.04 base with Node.js, Python, kubectl, helm, Claude CLI |
+| `dev-container-ai:latest` | Extends base with Bun, OpenCode, exa-mcp-server (system-wide) |
 
-## Building the Image
+### AI Image Contents
+
+The `dev-container-ai:latest` image includes everything in base plus:
+
+- **Bun**: Fast JavaScript runtime (`/opt/bun/`)
+- **OpenCode**: AI coding assistant (`/opt/opencode/`)
+- **exa-mcp-server**: Web search MCP (global npm)
+- **agent-browser**: Browser automation MCP (global npm)
+
+## Building Images
 
 ```bash
 cd applications/dev-containers/base-image
+
+# Build base image
 docker build -t dev-container-base:latest .
+
+# Build AI image
+docker build -f Dockerfile.ai -t dev-container-ai:latest .
+
+# Push to k3s nodes
+docker save dev-container-ai:latest | ssh k3s-worker-01 "sudo ctr -n k8s.io images import -"
 ```
 
-## Deploying a Dev Container
+## SSH Access
 
-### 1. Create SSH ConfigMap
-
-```bash
-# Create ConfigMap with your SSH public key
-kubectl create configmap dev-container-belego-ssh \
-  --from-file=authorized_keys=~/.ssh/id_ed25519.pub \
-  -n dev
-```
-
-### 2. Deploy the Container
-
-```bash
-# Copy and customize the template
-cp dev-container-template.yaml dev-container-belego.yaml
-
-# Replace INSTANCE with container name
-sed -i 's/INSTANCE/belego/g' dev-container-belego.yaml
-
-# Apply the manifest
-kubectl apply -f dev-container-belego.yaml
-```
-
-### 3. SSH Access
-
-SSH access is provided through the nginx proxy LoadBalancer (Story 11.4).
+SSH access is provided through the nginx proxy LoadBalancer.
 
 | Container | Port | IP |
 |-----------|------|----|
@@ -66,14 +70,9 @@ SSH access is provided through the nginx proxy LoadBalancer (Story 11.4).
 
 **Connect via SSH:**
 ```bash
-# Belego
-ssh -p 2222 dev@192.168.2.101
-
-# Pilates
-ssh -p 2223 dev@192.168.2.101
-
-# AI-Dev
-ssh -p 2224 dev@192.168.2.101
+ssh -p 2222 dev@192.168.2.101  # Belego
+ssh -p 2223 dev@192.168.2.101  # Pilates
+ssh -p 2224 dev@192.168.2.101  # AI-Dev (template)
 ```
 
 **VS Code SSH Config (~/.ssh/config):**
@@ -94,127 +93,140 @@ Host dev-ai-dev
     User dev
 ```
 
-**Port-forward (for testing):**
+## Template System
+
+### How It Works
+
+1. **ai-dev** is the template container with PVC at `/home/dev`
+2. Configure ai-dev once (MCP servers, API keys, tools, etc.)
+3. New containers use init container to copy from ai-dev PVC
+4. Each container gets independent copy - changes don't sync after creation
+
+### Updating the Template
+
 ```bash
-kubectl port-forward svc/dev-container-belego-svc 2222:22 -n dev
-ssh -p 2222 dev@localhost
+# SSH into ai-dev
+ssh -p 2224 dev@192.168.2.101
+
+# Make configuration changes (e.g., add MCP server)
+claude mcp add myserver -- npx -y my-mcp-server
+
+# Changes are now in ai-dev PVC
+# New containers will inherit these changes
 ```
 
-## Resource Limits
+### Creating New Dev Container
 
-Each container is configured with:
-- **CPU**: 500m request, 2000m limit (2 cores)
-- **Memory**: 1Gi request, 4Gi limit
-- **Storage**: 20Gi local-path PVC (persistent, ~66 MB/s write speed)
+1. Copy the template deployment:
+```bash
+cp dev-container-belego.yaml dev-container-newname.yaml
+sed -i 's/belego/newname/g' dev-container-newname.yaml
+```
+
+2. Create SSH ConfigMap:
+```bash
+kubectl create configmap dev-container-newname-ssh \
+  --from-file=authorized_keys=path/to/keys \
+  -n dev
+```
+
+3. Add nginx port mapping (in `applications/nginx/`):
+- `configmap.yaml`: Add port mapping
+- `service-ssh-lb.yaml`: Expose port
+
+4. Apply:
+```bash
+kubectl apply -f dev-container-newname.yaml
+```
 
 ## Storage Model
 
-Dev containers use **local-path** PersistentVolumeClaims for fast, persistent storage:
-
 | Aspect | Details |
 |--------|---------|
-| Type | local-path (K3s built-in, node-local SSD) |
-| Performance | ~66 MB/s (vs 11.6 MB/s NFS) |
-| Persistence | **Persistent** - data survives pod restarts |
-| Storage Location | `/var/lib/rancher/k3s/storage/` on the node |
-| Trade-off | Pod must stay on the same node to access data |
+| Mount Point | `/home/dev` (entire home directory) |
+| Type | local-path PVC |
+| Size | 20Gi per container |
+| Persistence | Survives pod restarts |
+| Location | `/var/lib/rancher/k3s/storage/` on node |
 
-**Why local-path?** Provides the same SSD performance as emptyDir but with persistence across pod restarts. Data is stored on the node's local disk at `/var/lib/rancher/k3s/storage/`.
+**What's Persisted:**
+- `~/.claude.json` - MCP server config with API keys
+- `~/.bashrc` - Shell configuration
+- `~/workspace/` - Git repos and projects
+- Tool configs (bun, npm, etc.)
 
-**Important:** If a node fails, data on that node is lost. For critical code, always use `git push` to back up to a remote repository.
+**What's NOT Persisted (in image):**
+- System tools (`/opt/bun`, `/opt/opencode`)
+- Global npm packages
 
-**Node Pinning:** Each container uses a `nodeSelector` to pin it to a specific node. This ensures the pod always runs on the same node where:
-1. The local dev-container-base image is available
-2. The PVC data is stored (local-path storage is node-bound)
+## Deployed Containers
 
-## Verification Commands
-
-After building, verify the image:
-
-```bash
-docker run --rm dev-container-base:latest node --version    # v20.x
-docker run --rm dev-container-base:latest python3 --version # Python 3.11.x
-docker run --rm dev-container-base:latest kubectl version --client
-docker run --rm dev-container-base:latest helm version
-docker run --rm dev-container-base:latest claude --version
-docker run --rm dev-container-base:latest git --version
-docker run --rm dev-container-base:latest ssh -V
-```
+| Container | Role | Node | PVC | SSH Port |
+|-----------|------|------|-----|----------|
+| dev-container-ai-dev | Template | k3s-worker-01 | dev-home-ai-dev (20Gi) | 2224 |
+| dev-container-belego | Dev | k3s-worker-01 | dev-home-belego (20Gi) | 2222 |
+| dev-container-pilates | Dev | k3s-worker-01 | dev-home-pilates (20Gi) | 2223 |
 
 ## Directory Structure
 
 ```
 applications/dev-containers/
 ├── base-image/
-│   └── Dockerfile                    # Dev container base image
-├── dev-container-template.yaml       # Template for new containers
-├── ssh-configmap.yaml                # SSH authorized_keys template
-├── dev-container-belego.yaml         # Belego container deployment
-├── dev-container-belego-ssh.yaml     # Belego SSH ConfigMap
-├── dev-container-pilates.yaml        # Pilates container deployment
-├── dev-container-pilates-ssh.yaml    # Pilates SSH ConfigMap
-├── dev-container-ai-dev.yaml         # AI-Dev container deployment
+│   ├── Dockerfile                    # Base dev container image
+│   └── Dockerfile.ai                 # AI-enabled image (extends base)
+├── dev-container-ai-dev.yaml         # Template container (CONFIGURE HERE)
 ├── dev-container-ai-dev-ssh.yaml     # AI-Dev SSH ConfigMap
+├── dev-container-belego.yaml         # Belego deployment (copies from ai-dev)
+├── dev-container-belego-ssh.yaml     # Belego SSH ConfigMap
+├── dev-container-pilates.yaml        # Pilates deployment (copies from ai-dev)
+├── dev-container-pilates-ssh.yaml    # Pilates SSH ConfigMap
 ├── networkpolicy.yaml                # Container isolation policy
 └── README.md                         # This file
 ```
 
-## Deployed Containers
+## MCP Server Configuration
 
-| Container | Namespace | Node | SSH Service | Storage |
-|-----------|-----------|------|-------------|---------|
-| dev-container-belego | dev | k3s-master | dev-container-belego-svc:22 | local-path PVC (20Gi) |
-| dev-container-pilates | dev | k3s-worker-01 | dev-container-pilates-svc:22 | local-path PVC (20Gi) |
-| dev-container-ai-dev | dev | k3s-worker-01 | dev-container-ai-dev-svc:22 | local-path PVC (10Gi) |
+MCP servers are configured via `~/.claude.json` on the PVC. Configure once on ai-dev, inherited by new containers.
 
-## Architecture Notes
+**Current MCP Servers (ai-dev template):**
+- `exa` - Web search, code context, research (local npx)
+- `dialog-mcp` - Reddit research (remote HTTP)
 
-- **Namespace**: `dev` (shared with nginx proxy)
-- **Storage**: local-path PVC for workspace (fast, persistent), emptyDir for caches
-- **Security**: SSH key-based auth only, no password authentication
-- **Network**: NetworkPolicy isolation (Story 11.5)
+**Add new MCP server:**
+```bash
+ssh -p 2224 dev@192.168.2.101
+claude mcp add servername -e API_KEY=xxx -- npx -y package-name
+```
+
+## Resource Limits
+
+| Resource | Request | Limit |
+|----------|---------|-------|
+| CPU | 500m | 2000m |
+| Memory | 1Gi | 4Gi |
+| Storage | 20Gi | - |
 
 ## NetworkPolicy Isolation
 
-Dev containers are isolated via Kubernetes NetworkPolicy (`dev-container-isolation`):
+Dev containers are isolated via Kubernetes NetworkPolicy:
 
-**Ingress (Allowed):**
-- SSH (port 22) from nginx-proxy pods only
+**Allowed Ingress:** SSH (port 22) from nginx-proxy only
+**Allowed Egress:** DNS, PostgreSQL, Ollama, n8n, Internet (HTTP/HTTPS/SSH)
+**Blocked:** Inter-container communication
 
-**Egress (Allowed):**
-- DNS resolution (kube-system, port 53)
-- PostgreSQL (data namespace, port 5432)
-- Ollama (ml namespace, port 11434)
-- n8n (apps namespace, port 5678)
+## Troubleshooting
 
-**Allowed (External):**
-- Internet access (HTTP/HTTPS/SSH) for npm, pip, git, etc.
-
-**Blocked:**
-- Inter-container communication (Belego ↔ Pilates)
-- All other cluster services not explicitly allowed
-
-**Verification:**
+**Init container failed to copy template:**
 ```bash
-# Check NetworkPolicy
-kubectl get networkpolicy -n dev
-kubectl describe networkpolicy dev-container-isolation -n dev
-
-# Test from dev container
-kubectl exec deployment/dev-container-belego -n dev -- python3 -c "
-import socket
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.settimeout(5)
-s.connect(('postgres-postgresql.data.svc.cluster.local', 5432))
-print('PostgreSQL: SUCCESS')
-"
+kubectl logs deployment/dev-container-belego -n dev -c init-home
 ```
 
-## Related Stories
+**Check PVC contents:**
+```bash
+kubectl exec deployment/dev-container-ai-dev -n dev -- ls -la /home/dev/
+```
 
-- Story 11.1: Create Dev Container Base Image (this)
-- Story 11.2: Deploy Dev Containers for Belego and Pilates
-- Story 11.3: Configure Persistent Storage for Workspaces
-- Story 11.4: Configure Nginx SSH Proxy with Custom Domains
-- Story 11.5: Configure NetworkPolicy for Container Isolation
-- Story 11.6: Validate VS Code Remote-SSH Configuration
+**Rebuild template from scratch:**
+1. Delete PVC: `kubectl delete pvc dev-home-ai-dev -n dev`
+2. Re-apply deployment (will create empty PVC)
+3. SSH in and configure manually

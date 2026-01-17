@@ -1,17 +1,13 @@
 # Dev Container Deployment - Belego
 #
-# Storage: local-path (persistent, fast local SSD)
-# Note: Data persists across pod restarts on the same node
-#
-# Prerequisites:
-#   1. Build and push image: docker build -t dev-container-base:latest ./base-image/
-#   2. Create SSH ConfigMap with authorized_keys
-#   3. Apply this manifest
+# Uses ai-dev PVC as template for initial home directory setup
+# Storage: local-path PVC mounted at /home/dev
+# Image: dev-container-ai:latest
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: dev-workspace-belego
+  name: dev-home-belego
   namespace: dev
   labels:
     app.kubernetes.io/name: dev-container
@@ -50,20 +46,43 @@ spec:
         app.kubernetes.io/component: development
         app.kubernetes.io/part-of: home-lab
     spec:
-      # Pin to k3s-master where dev-container-base image is available
       nodeSelector:
-        kubernetes.io/hostname: k3s-master
-      containers:
-        - name: dev-container
-          # Image should be available locally on nodes or in a registry
-          image: dev-container-base:latest
+        kubernetes.io/hostname: k3s-worker-01
+      # Init container: copy template from ai-dev PVC if this PVC is empty
+      initContainers:
+        - name: init-home
+          image: dev-container-ai:latest
           imagePullPolicy: IfNotPresent
-          # Fix SSH key ownership (ConfigMap mounts as root) then start sshd
           command: ["/bin/sh", "-c"]
           args:
             - |
+              if [ ! -f /home/dev/.bashrc ]; then
+                echo "New PVC detected, copying template from ai-dev..."
+                cp -a /template/. /home/dev/
+                # Create workspace directory
+                mkdir -p /home/dev/workspace
+                chown -R 1000:1000 /home/dev
+                echo "Template copied successfully"
+              else
+                echo "Existing PVC detected, skipping template copy"
+              fi
+          volumeMounts:
+            - name: home
+              mountPath: /home/dev
+            - name: template
+              mountPath: /template
+              readOnly: true
+      containers:
+        - name: dev-container
+          image: dev-container-ai:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              mkdir -p /home/dev/.ssh
+              chmod 700 /home/dev/.ssh
               cp /tmp/ssh-keys/authorized_keys /home/dev/.ssh/authorized_keys
-              chown dev:dev /home/dev/.ssh/authorized_keys
+              chown -R dev:dev /home/dev/.ssh
               chmod 600 /home/dev/.ssh/authorized_keys
               exec /usr/sbin/sshd -D
           ports:
@@ -71,7 +90,6 @@ spec:
               containerPort: 22
               protocol: TCP
           resources:
-            # FR68: 2 CPU cores, 4GB RAM per container
             requests:
               cpu: "500m"
               memory: "1Gi"
@@ -79,20 +97,13 @@ spec:
               cpu: "2000m"
               memory: "4Gi"
           volumeMounts:
-            # Persistent workspace for git repos
-            - name: workspace
-              mountPath: /home/dev/workspace
-            # SSH authorized_keys (mounted to temp, copied with correct ownership at startup)
+            - name: home
+              mountPath: /home/dev
             - name: ssh-keys
               mountPath: /tmp/ssh-keys
               readOnly: true
-            # Build artifacts on fast ephemeral storage (FR69)
-            - name: build-cache
-              mountPath: /home/dev/.cache
-            - name: npm-cache
-              mountPath: /home/dev/.npm
           securityContext:
-            runAsUser: 0  # Root needed for sshd
+            runAsUser: 0
           readinessProbe:
             tcpSocket:
               port: ssh
@@ -104,20 +115,17 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
       volumes:
-        # Persistent local SSD storage (survives pod restarts)
-        - name: workspace
+        - name: home
           persistentVolumeClaim:
-            claimName: dev-workspace-belego
-        # SSH keys from ConfigMap
+            claimName: dev-home-belego
+        - name: template
+          persistentVolumeClaim:
+            claimName: dev-home-ai-dev
+            readOnly: true
         - name: ssh-keys
           configMap:
             name: dev-container-belego-ssh
             defaultMode: 0600
-        # Ephemeral storage for builds (emptyDir)
-        - name: build-cache
-          emptyDir: {}
-        - name: npm-cache
-          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
