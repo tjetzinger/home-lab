@@ -1,13 +1,30 @@
 # Dev Container Deployment - Belego
 #
-# Storage: emptyDir (ephemeral, fast local SSD)
-# Note: Data is NOT persistent - lost on pod restart
-# Use git to persist code changes
+# Storage: local-path (persistent, fast local SSD)
+# Note: Data persists across pod restarts on the same node
 #
 # Prerequisites:
 #   1. Build and push image: docker build -t dev-container-base:latest ./base-image/
 #   2. Create SSH ConfigMap with authorized_keys
 #   3. Apply this manifest
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dev-workspace-belego
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: dev-container
+    app.kubernetes.io/instance: dev-container-belego
+    app.kubernetes.io/component: development
+    app.kubernetes.io/part-of: home-lab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -33,6 +50,9 @@ spec:
         app.kubernetes.io/component: development
         app.kubernetes.io/part-of: home-lab
     spec:
+      # Pin to k3s-master where dev-container-base image is available
+      nodeSelector:
+        kubernetes.io/hostname: k3s-master
       containers:
         - name: dev-container
           # Image should be available locally on nodes or in a registry
@@ -84,9 +104,10 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
       volumes:
-        # Fast ephemeral storage for workspace (local SSD)
+        # Persistent local SSD storage (survives pod restarts)
         - name: workspace
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: dev-workspace-belego
         # SSH keys from ConfigMap
         - name: ssh-keys
           configMap:

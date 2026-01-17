@@ -96,20 +96,27 @@ ssh -p 2222 dev@localhost
 Each container is configured with:
 - **CPU**: 500m request, 2000m limit (2 cores)
 - **Memory**: 1Gi request, 4Gi limit
-- **Storage**: emptyDir (ephemeral, ~66 MB/s write speed)
+- **Storage**: 20Gi local-path PVC (persistent, ~66 MB/s write speed)
 
 ## Storage Model
 
-Dev containers use **emptyDir** for fast local storage:
+Dev containers use **local-path** PersistentVolumeClaims for fast, persistent storage:
 
 | Aspect | Details |
 |--------|---------|
-| Type | emptyDir (node-local SSD) |
+| Type | local-path (K3s built-in, node-local SSD) |
 | Performance | ~66 MB/s (vs 11.6 MB/s NFS) |
-| Persistence | **Ephemeral** - data lost on pod restart |
-| Best Practice | Use `git push` to persist code changes |
+| Persistence | **Persistent** - data survives pod restarts |
+| Storage Location | `/var/lib/rancher/k3s/storage/` on the node |
+| Trade-off | Pod must stay on the same node to access data |
 
-**Why emptyDir?** NFS storage was too slow for development workloads (npm install, git operations, file indexing). Local storage provides 5.7x better write performance.
+**Why local-path?** Provides the same SSD performance as emptyDir but with persistence across pod restarts. Data is stored on the node's local disk at `/var/lib/rancher/k3s/storage/`.
+
+**Important:** If a node fails, data on that node is lost. For critical code, always use `git push` to back up to a remote repository.
+
+**Node Pinning:** Each container uses a `nodeSelector` to pin it to a specific node. This ensures the pod always runs on the same node where:
+1. The local dev-container-base image is available
+2. The PVC data is stored (local-path storage is node-bound)
 
 ## Verification Commands
 
@@ -143,15 +150,15 @@ applications/dev-containers/
 
 ## Deployed Containers
 
-| Container | Namespace | SSH Service | Storage |
-|-----------|-----------|-------------|---------|
-| dev-container-belego | dev | dev-container-belego-svc:22 | emptyDir |
-| dev-container-pilates | dev | dev-container-pilates-svc:22 | emptyDir |
+| Container | Namespace | Node | SSH Service | Storage |
+|-----------|-----------|------|-------------|---------|
+| dev-container-belego | dev | k3s-master | dev-container-belego-svc:22 | local-path PVC (20Gi) |
+| dev-container-pilates | dev | k3s-worker-01 | dev-container-pilates-svc:22 | local-path PVC (20Gi) |
 
 ## Architecture Notes
 
 - **Namespace**: `dev` (shared with nginx proxy)
-- **Storage**: emptyDir for all mounts (fast, ephemeral)
+- **Storage**: local-path PVC for workspace (fast, persistent), emptyDir for caches
 - **Security**: SSH key-based auth only, no password authentication
 - **Network**: NetworkPolicy isolation (Story 11.5)
 
