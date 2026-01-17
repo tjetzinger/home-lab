@@ -96,7 +96,20 @@ ssh -p 2222 dev@localhost
 Each container is configured with:
 - **CPU**: 500m request, 2000m limit (2 cores)
 - **Memory**: 1Gi request, 4Gi limit
-- **Storage**: 10GB NFS PVC for workspace
+- **Storage**: emptyDir (ephemeral, ~66 MB/s write speed)
+
+## Storage Model
+
+Dev containers use **emptyDir** for fast local storage:
+
+| Aspect | Details |
+|--------|---------|
+| Type | emptyDir (node-local SSD) |
+| Performance | ~66 MB/s (vs 11.6 MB/s NFS) |
+| Persistence | **Ephemeral** - data lost on pod restart |
+| Best Practice | Use `git push` to persist code changes |
+
+**Why emptyDir?** NFS storage was too slow for development workloads (npm install, git operations, file indexing). Local storage provides 5.7x better write performance.
 
 ## Verification Commands
 
@@ -132,13 +145,13 @@ applications/dev-containers/
 
 | Container | Namespace | SSH Service | Storage |
 |-----------|-----------|-------------|---------|
-| dev-container-belego | dev | dev-container-belego-svc:22 | 10GB NFS PVC |
-| dev-container-pilates | dev | dev-container-pilates-svc:22 | 10GB NFS PVC |
+| dev-container-belego | dev | dev-container-belego-svc:22 | emptyDir |
+| dev-container-pilates | dev | dev-container-pilates-svc:22 | emptyDir |
 
 ## Architecture Notes
 
 - **Namespace**: `dev` (shared with nginx proxy)
-- **Storage**: Hybrid model - NFS PVC for workspace, emptyDir for builds
+- **Storage**: emptyDir for all mounts (fast, ephemeral)
 - **Security**: SSH key-based auth only, no password authentication
 - **Network**: NetworkPolicy isolation (Story 11.5)
 
