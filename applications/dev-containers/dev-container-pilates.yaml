@@ -1,32 +1,13 @@
-# Dev Container Deployment Template
+# Dev Container Deployment - Pilates
 #
-# Usage: Copy and replace pilates with container name (e.g., belego, pilates)
+# Storage: emptyDir (ephemeral, fast local SSD)
+# Note: Data is NOT persistent - lost on pod restart
+# Use git to persist code changes
 #
 # Prerequisites:
 #   1. Build and push image: docker build -t dev-container-base:latest ./base-image/
 #   2. Create SSH ConfigMap with authorized_keys
 #   3. Apply this manifest
-#
-# Replace pilates with: belego, pilates, etc.
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: dev-workspace-pilates
-  namespace: dev
-  labels:
-    app.kubernetes.io/name: dev-container
-    app.kubernetes.io/instance: dev-container-pilates
-    app.kubernetes.io/component: development
-    app.kubernetes.io/part-of: home-lab
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: nfs-client
-  resources:
-    requests:
-      # FR69: 10GB persistent volume per workspace
-      storage: 10Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -103,10 +84,9 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
       volumes:
-        # NFS persistent storage for workspace
+        # Fast ephemeral storage for workspace (local SSD)
         - name: workspace
-          persistentVolumeClaim:
-            claimName: dev-workspace-pilates
+          emptyDir: {}
         # SSH keys from ConfigMap
         - name: ssh-keys
           configMap:
