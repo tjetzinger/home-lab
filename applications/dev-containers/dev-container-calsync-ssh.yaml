@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: dev-container-belego-ssh
+  name: dev-container-calsync-ssh
   namespace: dev
   labels:
     app.kubernetes.io/name: dev-container
-    app.kubernetes.io/instance: dev-container-belego
+    app.kubernetes.io/instance: dev-container-calsync
     app.kubernetes.io/component: development
     app.kubernetes.io/part-of: home-lab
 data:

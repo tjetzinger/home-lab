@@ -2,8 +2,8 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
-lastModified: '2026-01-15'
-updateReason: 'Phase 2+ requirements: Tailscale subnet routers (FR120-122), NAS K3s worker (FR123-125), Open-WebUI (FR126-129), Kubernetes Dashboard (FR130-133), Gitea (FR134-137), DeepSeek-R1 R1-Mode (FR138-141), LiteLLM external providers (FR142-145). Total: FR120-148, NFR71-85.'
+lastModified: '2026-01-29'
+updateReason: 'Moltbot personal AI assistant (FR149-FR188, NFR86-NFR104). Self-hosted multi-channel AI assistant on K3s with Opus 4.5 primary, LiteLLM fallback, Telegram/WhatsApp/Discord channels, MCP research tools via mcporter (Exa), voice (ElevenLabs), multi-agent, browser automation, ClawdHub skills, log-based observability (Loki + Blackbox Exporter).'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -23,7 +23,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements:** 148 FRs across 24 capability areas
+**Functional Requirements:** 188 FRs across 25 capability areas
 - Cluster Operations (6): K3s lifecycle, node management
 - Workload Management (7): Deployments, Helm, ingress
 - Storage Management (5): NFS, PVCs, dynamic provisioning
@@ -47,8 +47,9 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - **DeepSeek-R1 Reasoning Mode (4): R1-Mode, model switching, LiteLLM integration**
 - **LiteLLM External Providers (4): Groq, Google AI, Mistral free tiers as parallel model options**
 - **Blog Article (3): Portfolio documentation, Epic 9 completion**
+- **Moltbot Personal AI Assistant (40): Gateway, Opus 4.5 + LiteLLM fallback, Telegram/WhatsApp/Discord, mcporter/Exa MCP tools, ElevenLabs voice, multi-agent, browser automation, Canvas/A2UI, ClawdHub skills, Loki/Blackbox observability, documentation**
 
-**Non-Functional Requirements:** 85 NFRs
+**Non-Functional Requirements:** 104 NFRs
 - Reliability: 95% uptime, 5-min recovery, automatic pod rescheduling
 - Security: TLS 1.2+, Tailscale-only access, encrypted secrets
 - Performance: 30s Ollama response, 5s dashboard load
@@ -1364,6 +1365,280 @@ stringData:
 - NFR83: External provider requests route within 5 seconds
 - NFR84: Rate limiting configured per provider to stay within free tiers
 
+### Moltbot Personal AI Assistant Architecture
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Deployment** | **Kubernetes Deployment in `apps` namespace** | **FR149: Official Docker image (Node.js >= 22), follows existing app deployment pattern** |
+| **Container Image** | **Official moltbot/moltbot Docker image** | **No custom build required; mcporter + MCP servers configured at runtime via workspace persistence** |
+| **Storage** | **NFS PVC (10Gi) for `~/.clawdbot` + `~/clawd/`** | **FR151-152: Config, workspace, WhatsApp session state, ClawdHub skills persist across restarts** |
+| **Ingress** | **`moltbot.home.jetzinger.com` via Traefik IngressRoute** | **FR150: Gateway control UI + WebChat accessible via Tailscale** |
+| **Primary LLM** | **Claude Opus 4.5 via Anthropic OAuth** | **FR155: Frontier reasoning as primary brain (Claude Code subscription)** |
+| **Fallback LLM** | **LiteLLM proxy (`litellm.ml.svc:4000`)** | **FR156: Automatic failover to existing three-tier local stack (vLLM GPU → Ollama CPU → OpenAI)** |
+| **Messaging Channels** | **Telegram + WhatsApp (Baileys) + Discord (discord.js)** | **FR159-161: All use outbound long-polling/WebSocket — no inbound exposure needed** |
+| **MCP Tools** | **mcporter with Exa + additional research servers** | **FR165-166: Web research via MCP, installed to workspace NFS for persistence** |
+| **Voice** | **ElevenLabs TTS/STT** | **FR169: Voice interaction via API, streaming responses** |
+| **Multi-Agent** | **Moltbot native sub-agent routing** | **FR171-173: Specialized agents callable from main conversation** |
+| **Browser Tool** | **Moltbot built-in browser automation** | **FR174-175: Web navigation, form filling, data extraction** |
+| **Skills** | **ClawdHub marketplace integration** | **FR177-180: Install/sync skills to workspace NFS** |
+| **Secrets** | **Kubernetes Secrets (7 secret keys)** | **NFR91: Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, additional MCP keys** |
+| **DM Security** | **Allowlist-only pairing** | **NFR92: Single-user lockdown across all channels** |
+| **Observability** | **Loki logs + Blackbox Exporter (no native /metrics)** | **FR181-185: Log-derived Grafana panels + HTTP probe for uptime** |
+
+**Deployment Architecture:**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Moltbot Gateway (apps namespace)                                           │
+│  Web: https://moltbot.home.jetzinger.com                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Container: moltbot/moltbot (Node.js >= 22)                                │
+│  ├── Gateway Control UI (WebChat + config management)                      │
+│  ├── Agent Engine (Opus 4.5 primary, LiteLLM fallback)                    │
+│  ├── Channel Connectors:                                                    │
+│  │   ├── Telegram (long-polling, FR159)                                    │
+│  │   ├── WhatsApp via Baileys (long-polling, FR160)                        │
+│  │   └── Discord via discord.js (WebSocket, FR161)                         │
+│  ├── MCP Tools via mcporter:                                                │
+│  │   ├── Exa (web research, FR165)                                         │
+│  │   └── Additional research servers (FR166)                               │
+│  ├── Voice: ElevenLabs TTS/STT (FR169)                                     │
+│  ├── Browser Automation Tool (FR174)                                        │
+│  ├── Canvas/A2UI Rich Content (FR176)                                       │
+│  └── ClawdHub Skills (FR177-180)                                            │
+│                                                                             │
+│  Persistent Storage (NFS PVC 10Gi):                                         │
+│  ├── ~/.clawdbot/moltbot.json (gateway config)                             │
+│  ├── ~/clawd/ (agent workspace, mcporter config, session data)             │
+│  ├── WhatsApp Baileys auth state                                            │
+│  └── ClawdHub installed skills                                              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**LLM Routing Architecture (Inverse Fallback Pattern):**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Moltbot LLM Provider Routing                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PRIMARY: Claude Opus 4.5 (Anthropic OAuth)                                │
+│  ├── Frontier reasoning, best quality                                       │
+│  ├── Outbound HTTPS to api.anthropic.com                                   │
+│  ├── OAuth credentials from K8s Secret                                      │
+│  └── Handles MCP tool orchestration natively                               │
+│                                                                             │
+│           │ (on Anthropic unavailability)                                    │
+│           ▼                                                                 │
+│                                                                             │
+│  FALLBACK: LiteLLM Proxy (litellm.ml.svc:4000/v1)                         │
+│  ├── Uses existing three-tier fallback chain:                               │
+│  │   ├── Tier 1: vLLM GPU (Qwen 2.5 7B, ~35-40 tok/s)                    │
+│  │   ├── Tier 2: Ollama CPU (qwen2.5:3b, <5s latency)                     │
+│  │   └── Tier 3: OpenAI (gpt-4o-mini, emergency)                          │
+│  └── Internal cluster DNS resolution (NFR99)                               │
+│                                                                             │
+│  NOTE: This is the INVERSE of the existing pattern.                        │
+│  Existing services: local primary → cloud fallback                         │
+│  Moltbot: cloud primary → local fallback                                   │
+│  Reason: Opus 4.5 reasoning quality justifies cloud-first for personal AI  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Networking Architecture (Outbound-Only Channels):**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Moltbot Network Flows                                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  INBOUND (Tailscale only):                                                  │
+│  └── Traefik → moltbot.home.jetzinger.com → Gateway Control UI             │
+│                                                                             │
+│  OUTBOUND (from pod, no inbound exposure needed):                           │
+│  ├── Telegram Bot API (HTTPS long-polling)                                  │
+│  ├── WhatsApp (Baileys WebSocket to WhatsApp servers)                      │
+│  ├── Discord (discord.js WebSocket to Discord gateway)                      │
+│  ├── Anthropic API (HTTPS, OAuth)                                           │
+│  ├── ElevenLabs API (HTTPS, streaming)                                      │
+│  ├── Exa API (HTTPS, research queries)                                      │
+│  └── Additional MCP server endpoints (HTTPS)                               │
+│                                                                             │
+│  INTERNAL (cluster DNS):                                                    │
+│  └── litellm.ml.svc.cluster.local:4000 (LLM fallback)                     │
+│                                                                             │
+│  NO additional Tailscale or VPN configuration required (NFR99)              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Observability Architecture (Log-Based Pattern):**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Moltbot Observability (No native /metrics endpoint)                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  LOG-BASED MONITORING (Loki + Grafana):                                     │
+│  ├── Promtail collects gateway stdout/stderr → Loki                        │
+│  ├── Grafana dashboard with LogQL queries:                                  │
+│  │   ├── Message volume per channel (Telegram/WhatsApp/Discord)            │
+│  │   ├── LLM provider usage (Opus 4.5 vs LiteLLM ratio)                   │
+│  │   ├── MCP tool invocation counts (Exa queries)                          │
+│  │   ├── Error rates and types (auth failures, disconnects)                │
+│  │   └── Session activity and agent routing                                │
+│  └── NFR103: 7-day log retention via existing Loki config                  │
+│                                                                             │
+│  BLACKBOX MONITORING (Prometheus Blackbox Exporter):                        │
+│  ├── HTTP probe: moltbot.home.jetzinger.com (30s interval)                 │
+│  ├── Tracks: uptime, response latency, TLS validity                        │
+│  └── NFR104: Alert after 3 consecutive failures                            │
+│                                                                             │
+│  ALERTMANAGER RULES (FR185):                                                │
+│  ├── MoltbotGatewayDown: Blackbox probe fails 3x → P1                     │
+│  ├── MoltbotHighErrorRate: >10% error rate in logs → P2                    │
+│  └── MoltbotAuthExpiry: OAuth token warnings in logs → P2                  │
+│                                                                             │
+│  NOTE: This is a NEW observability pattern for the cluster.                │
+│  Existing pattern: Prometheus scrape /metrics → Grafana                    │
+│  Moltbot pattern: Loki logs + Blackbox HTTP probe → Grafana                │
+│  Reason: Moltbot doesn't expose Prometheus metrics natively                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Kubernetes Manifests:**
+
+*Deployment (FR149):*
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moltbot
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: moltbot
+    app.kubernetes.io/instance: moltbot-gateway
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: moltbot
+  strategy:
+    type: RollingUpdate
+  template:
+    spec:
+      containers:
+        - name: moltbot
+          image: moltbot/moltbot:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: moltbot-secrets
+          volumeMounts:
+            - name: moltbot-data
+              mountPath: /home/node/.clawdbot
+              subPath: clawdbot
+            - name: moltbot-data
+              mountPath: /home/node/clawd
+              subPath: clawd
+      volumes:
+        - name: moltbot-data
+          persistentVolumeClaim:
+            claimName: moltbot-data
+```
+
+*Secret (NFR91):*
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: moltbot-secrets
+  namespace: apps
+type: Opaque
+stringData:
+  ANTHROPIC_OAUTH_TOKEN: "<from-oauth-flow>"
+  TELEGRAM_BOT_TOKEN: "<from-botfather>"
+  WHATSAPP_SESSION_KEY: "<from-baileys-pairing>"
+  DISCORD_BOT_TOKEN: "<from-discord-dev-portal>"
+  ELEVENLABS_API_KEY: "<from-elevenlabs>"
+  EXA_API_KEY: "<from-exa>"
+  LITELLM_FALLBACK_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
+```
+
+*Persistent Volume (FR151-152):*
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: moltbot-data
+  namespace: apps
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 10Gi
+```
+
+*IngressRoute (FR150):*
+```yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: moltbot
+  namespace: apps
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`moltbot.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: moltbot
+          port: 3000
+  tls:
+    certResolver: letsencrypt
+```
+
+**WhatsApp Session Persistence (Risk Mitigation):**
+
+WhatsApp via Baileys requires persistent auth state. If the pod restarts without preserving Baileys session data, re-pairing is required. The NFS PVC at `~/clawd/` stores Baileys auth state, ensuring session survives pod restarts. This is the primary risk mitigation for FR160.
+
+**NFR Compliance:**
+- NFR86: Gateway message processing <10s (Node.js event loop, no heavy compute)
+- NFR87: Control UI loads <3s (lightweight web UI served by gateway)
+- NFR88: LiteLLM fallback <5s (existing LiteLLM health check + failover)
+- NFR89: mcporter Exa queries <30s (external API + LLM processing)
+- NFR90: ElevenLabs streaming begins <5s (API latency)
+- NFR91: All 7 credential types in K8s Secrets (no plaintext ConfigMaps)
+- NFR92: Allowlist-only DM pairing via `moltbot.json` config
+- NFR93: Traefik IngressRoute accessible only via Tailscale mesh
+- NFR94: OAuth token auto-refresh; manual refresh via control UI (FR158)
+- NFR95: Secrets excluded from Loki log collection (gateway redacts by default)
+- NFR96: Anthropic OAuth auto-reconnect <30s on transient failures
+- NFR97: Channel auto-reconnect <60s (Telegram/WhatsApp/Discord)
+- NFR98: mcporter graceful timeout recovery (no gateway crash)
+- NFR99: LiteLLM reachable via `litellm.ml.svc` K8s DNS from `apps` namespace
+- NFR100: NFS PVC preserves all state across pod restarts
+- NFR101: Channel isolation (one channel disconnect doesn't affect others)
+- NFR102: Pod CrashLoopBackOff triggers Alertmanager within 2 minutes
+- NFR103: Loki retains Moltbot logs 7 days (existing retention policy)
+- NFR104: Blackbox Exporter 30s probe interval, alert after 3 failures
+
+**Repository Structure Addition:**
+```
+applications/
+  └── moltbot/
+      ├── deployment.yaml           # Moltbot gateway Deployment
+      ├── service.yaml              # ClusterIP service (port 3000)
+      ├── ingressroute.yaml         # moltbot.home.jetzinger.com
+      ├── pvc.yaml                  # 10Gi NFS for config + workspace
+      ├── secret.yaml               # API credentials (gitignored)
+      └── blackbox-probe.yaml       # Prometheus Blackbox target
+```
+
 ### Backup & Recovery Architecture
 
 | Decision | Choice | Rationale |
@@ -1541,6 +1816,13 @@ home-lab/
 │   ├── stirling-pdf/
 │   │   ├── values-homelab.yaml        # Stirling-PDF Helm config
 │   │   └── ingress.yaml               # stirling.home.jetzinger.com
+│   ├── moltbot/
+│   │   ├── deployment.yaml            # Moltbot gateway Deployment
+│   │   ├── service.yaml               # ClusterIP service (port 3000)
+│   │   ├── ingressroute.yaml          # moltbot.home.jetzinger.com
+│   │   ├── pvc.yaml                   # 10Gi NFS for config + workspace
+│   │   ├── secret.yaml                # API credentials (gitignored)
+│   │   └── blackbox-probe.yaml        # Prometheus Blackbox target
 │   └── dev-containers/
 │       ├── base-image/
 │       │   └── Dockerfile             # Dev container base image
@@ -1588,6 +1870,7 @@ home-lab/
 | Portfolio & Documentation (FR49-54) | `docs/` | ADRs, runbooks |
 | Document Management (FR55-93) | `applications/paperless/`, `applications/stirling-pdf/` | values, ingress, pvc, tika, gotenberg, bridge, paperless-ai |
 | Dev Containers (FR59-63) | `applications/dev-containers/` | Dockerfile, template, ssh config |
+| Moltbot AI Assistant (FR149-188) | `applications/moltbot/` | deployment, service, ingressroute, pvc, secret, blackbox-probe |
 
 ### Namespace Boundaries
 
@@ -1597,7 +1880,7 @@ home-lab/
 | `infra` | MetalLB, cert-manager | Core infrastructure |
 | `monitoring` | Prometheus, Grafana, Loki, Alertmanager | Observability |
 | `data` | PostgreSQL | Stateful data services |
-| `apps` | n8n | General applications |
+| `apps` | n8n, Open-WebUI, Moltbot | General applications |
 | `ml` | Ollama | AI/ML workloads |
 | `docs` | Paperless-ngx, Redis | Document management |
 | `dev` | Nginx proxy, dev containers | Development tools + remote dev environments |
@@ -1648,8 +1931,8 @@ Synology: /volume1/k8s-data/
 
 ### Requirements Coverage ✅
 
-**Functional Requirements:** 148/148 covered
-**Non-Functional Requirements:** 85/85 covered
+**Functional Requirements:** 188/188 covered
+**Non-Functional Requirements:** 104/104 covered
 
 All requirements have explicit architectural support documented in Core Architectural Decisions and Project Structure sections.
 
@@ -1694,6 +1977,19 @@ All requirements have explicit architectural support documented in Core Architec
 - **NFR81-82: DeepSeek-R1 model loading and inference speed — covered by DeepSeek-R1 14B Reasoning Mode Architecture**
 - **NFR83-84: External provider failover and rate limiting — covered by LiteLLM External Providers Architecture**
 - **NFR85: Blog Article publication timeline — portfolio documentation requirement**
+- **FR149-154: Moltbot Gateway & Core Infrastructure — covered by Moltbot Personal AI Assistant Architecture**
+- **FR155-158: Moltbot LLM Provider Management (Opus 4.5 + LiteLLM fallback) — covered by Moltbot Personal AI Assistant Architecture**
+- **FR159-164: Moltbot Messaging Channels (Telegram, WhatsApp, Discord, cross-channel) — covered by Moltbot Personal AI Assistant Architecture**
+- **FR165-168: Moltbot MCP Research Tools (mcporter, Exa) — covered by Moltbot Personal AI Assistant Architecture**
+- **FR169-170: Moltbot Voice Capabilities (ElevenLabs) — covered by Moltbot Personal AI Assistant Architecture**
+- **FR171-176: Moltbot Multi-Agent & Advanced (sub-agents, browser, Canvas/A2UI) — covered by Moltbot Personal AI Assistant Architecture**
+- **FR177-180: Moltbot Skills & Marketplace (ClawdHub) — covered by Moltbot Personal AI Assistant Architecture**
+- **FR181-186: Moltbot Observability & Operations (Loki, Blackbox, Alertmanager) — covered by Moltbot Personal AI Assistant Architecture**
+- **FR187-188: Moltbot Documentation & Portfolio (ADR, README) — covered by Moltbot Personal AI Assistant Architecture**
+- **NFR86-90: Moltbot Performance (message response, UI load, fallback, MCP, voice) — covered by Moltbot Personal AI Assistant Architecture**
+- **NFR91-95: Moltbot Security (K8s Secrets, allowlist DM, Tailscale-only, OAuth refresh, no secrets in logs) — covered by Moltbot Personal AI Assistant Architecture**
+- **NFR96-99: Moltbot Integration (OAuth reconnect, channel reconnect, MCP recovery, cluster DNS) — covered by Moltbot Personal AI Assistant Architecture**
+- **NFR100-104: Moltbot Reliability (NFS persistence, channel isolation, crash alerting, log retention, blackbox probing) — covered by Moltbot Personal AI Assistant Architecture**
 
 ### Implementation Readiness ✅
 
@@ -1758,10 +2054,10 @@ This architecture is ready for implementation because:
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 25 core architectural decisions made (updated 2026-01-15: +7 new architecture sections)
+- 26 core architectural decisions made (updated 2026-01-29: +1 Moltbot architecture section)
 - 6 implementation pattern categories defined
 - 8 namespace boundaries established
-- 148 functional + 85 non-functional requirements supported
+- 188 functional + 104 non-functional requirements supported
 
 **AI Agent Implementation Guide**
 - Technology stack with Helm chart references

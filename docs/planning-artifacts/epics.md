@@ -1,8 +1,8 @@
 ---
 stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
-completedAt: '2026-01-15'
-lastModified: '2026-01-15'
+completedAt: '2026-01-29'
+lastModified: '2026-01-29'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,7 +10,7 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'Workflow complete - Added 18 new stories for Phase 4 epics (15-20) plus Story 9.6 and 14.6. All 148 FRs covered across 96 stories in 20 epics.'
+updateReason: 'Workflow complete - Added 16 new stories for Phase 5 Moltbot epics (21-24). All 188 FRs covered across 112 stories in 24 epics.'
 currentStep: 'Workflow Complete - All validations passed, ready for implementation'
 ---
 
@@ -151,6 +151,48 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR146: Technical blog post published covering Phase 1 MVP and new feature additions
 - FR147: Blog post includes architecture diagrams, ADR references, and Grafana screenshots
 - FR148: Blog post documents AI-assisted engineering workflow used throughout project
+
+**Moltbot Personal AI Assistant (40 FRs)**
+- FR149: Operator can deploy Moltbot Gateway as a Docker container on K3s in the `apps` namespace
+- FR150: Operator can access the Moltbot gateway control UI via `moltbot.home.jetzinger.com`
+- FR151: Operator can configure Moltbot via `moltbot.json` persisted on NFS storage
+- FR152: System preserves all Moltbot configuration and workspace data across pod restarts
+- FR153: Operator can view gateway status and health via the control UI
+- FR154: Operator can restart the gateway via the control UI
+- FR155: System routes all conversations to Claude Opus 4.5 via Anthropic OAuth as the primary LLM
+- FR156: System automatically falls back to LiteLLM proxy when Anthropic is unavailable
+- FR157: User can identify which LLM provider is handling a given conversation
+- FR158: Operator can manage Anthropic OAuth credentials through the gateway control UI
+- FR159: User can send and receive messages with Moltbot via Telegram DM
+- FR160: User can send and receive messages with Moltbot via WhatsApp DM
+- FR161: User can send and receive messages with Moltbot via Discord DM
+- FR162: System enforces allowlist-only DM pairing across all messaging channels
+- FR163: Operator can approve or reject pairing requests via the gateway CLI
+- FR164: User can continue a conversation context across different messaging channels
+- FR165: User can request web research and receive sourced answers via Exa MCP tools
+- FR166: Operator can install and configure additional MCP research servers via mcporter
+- FR167: User can invoke any configured MCP tool through natural language conversation
+- FR168: System returns structured, sourced responses when using research tools
+- FR169: User can interact with Moltbot via voice input and receive spoken responses through ElevenLabs
+- FR170: User can switch between text and voice modes within a conversation
+- FR171: Operator can configure specialized sub-agents with distinct capabilities
+- FR172: User can invoke specific sub-agents through the main conversation
+- FR173: System routes tasks to appropriate sub-agents based on context
+- FR174: User can trigger browser automation tasks through conversation
+- FR175: System can navigate web pages, fill forms, and extract information via the browser tool
+- FR176: System can present rich content via Canvas/A2UI
+- FR177: Operator can install skills from ClawdHub marketplace
+- FR178: Operator can update and sync installed skills via ClawdHub
+- FR179: User can invoke installed skills through slash commands or natural conversation
+- FR180: Operator can enable, disable, and configure individual skills via `moltbot.json`
+- FR181: System collects gateway logs into Loki for analysis
+- FR182: Operator can view Moltbot operational dashboard in Grafana with log-derived metrics
+- FR183: Grafana dashboard displays message volume per channel, LLM provider usage, MCP tool invocations, and error rates
+- FR184: Prometheus Blackbox Exporter probes the gateway control UI for uptime monitoring
+- FR185: Alertmanager sends alerts when the gateway is unreachable, error rate is sustained, or OAuth tokens are expiring
+- FR186: Operator can view Moltbot health snapshot via `moltbot health --json`
+- FR187: Repository includes an ADR documenting Moltbot architectural decisions
+- FR188: Repository README includes a Moltbot section with architecture overview
 
 **Development Proxy (3 FRs)**
 - FR41: Operator can configure Nginx to proxy to local dev servers
@@ -306,6 +348,33 @@ This document provides the complete epic and story breakdown for home-lab, decom
 **Blog Article Completion (1 NFR)**
 - NFR85: Blog post published to dev.to or equivalent platform within 2 weeks of Epic completion
 
+**Moltbot Performance (5 NFRs)**
+- NFR86: Moltbot gateway responds to incoming Telegram/WhatsApp/Discord messages within 10 seconds (excluding LLM inference time)
+- NFR87: Gateway control UI loads within 3 seconds via Traefik ingress
+- NFR88: LiteLLM fallback activates within 5 seconds of detecting Anthropic unavailability
+- NFR89: mcporter MCP tool invocations (Exa research) return results within 30 seconds
+- NFR90: Voice responses via ElevenLabs begin streaming within 5 seconds of request
+
+**Moltbot Security (5 NFRs)**
+- NFR91: All API credentials (Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa) stored as Kubernetes Secrets, never in plaintext ConfigMaps
+- NFR92: DM pairing enforces allowlist-only policy -- unapproved senders receive no response
+- NFR93: Gateway control UI accessible only via Tailscale mesh (no public exposure)
+- NFR94: OAuth tokens rotated and refreshed automatically; manual refresh available via control UI
+- NFR95: No API keys or secrets exposed in Loki logs or Grafana dashboards
+
+**Moltbot Integration (4 NFRs)**
+- NFR96: Anthropic OAuth maintains persistent connection; automatic reconnection on transient failures within 30 seconds
+- NFR97: Telegram, WhatsApp, and Discord channels automatically reconnect after network interruptions within 60 seconds
+- NFR98: mcporter MCP server connections recover gracefully from timeouts without crashing the gateway
+- NFR99: LiteLLM internal cluster service (`litellm.ml.svc`) reachable from `apps` namespace via standard K8s DNS resolution
+
+**Moltbot Reliability (5 NFRs)**
+- NFR100: Moltbot pod restarts cleanly after node reboot with all configuration and workspace intact from NFS
+- NFR101: Gateway survives individual channel disconnections without affecting other channels
+- NFR102: Pod crash loop triggers Alertmanager notification within 2 minutes
+- NFR103: Loki retains Moltbot gateway logs for a minimum of 7 days
+- NFR104: Blackbox Exporter probe interval of 30 seconds with alerting after 3 consecutive failures
+
 ### Additional Requirements
 
 **From Architecture Document:**
@@ -376,6 +445,25 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | k3s-gpu-worker | GPU (Intel NUC) | 192.168.0.25 | 100.x.x.d |
 
 **MetalLB IP Pool:** 192.168.2.100-120
+
+**Moltbot Architecture (from Architecture Document):**
+- Deployed as Kubernetes Deployment in `apps` namespace (official moltbot/moltbot Docker image, Node.js >= 22)
+- Storage: NFS PVC (10Gi) for `~/.clawdbot` config + `~/clawd/` workspace
+- Ingress: `moltbot.home.jetzinger.com` via Traefik IngressRoute
+- LLM routing: Inverse fallback pattern -- cloud primary (Opus 4.5 via Anthropic OAuth) -> local fallback (LiteLLM proxy at `litellm.ml.svc:4000`)
+- Messaging channels: Telegram (long-polling), WhatsApp (Baileys), Discord (discord.js) -- all outbound, no inbound exposure
+- MCP tools: mcporter with Exa + additional research servers, installed to workspace NFS
+- Voice: ElevenLabs TTS/STT via API
+- Multi-agent: Native sub-agent routing
+- Browser automation: Built-in browser tool
+- Skills: ClawdHub marketplace integration
+- Observability: Log-based pattern (Loki + Blackbox Exporter) since no native /metrics endpoint
+  - Grafana dashboard with LogQL queries (message volume, LLM routing, MCP invocations, errors)
+  - Blackbox HTTP probe on gateway UI (30s interval, alert after 3 failures)
+  - Alertmanager rules: gateway down (P1), high error rate (P2), OAuth expiry (P2)
+- Secrets: 7 credential types in K8s Secrets (Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, additional MCP)
+- DM security: Allowlist-only pairing across all channels
+- WhatsApp persistence: Baileys auth state on NFS PVC to survive pod restarts
 
 ### FR Coverage Map
 
@@ -501,8 +589,48 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR146 | Epic 9 | Technical blog post covering Phase 1 MVP + new features |
 | FR147 | Epic 9 | Blog includes architecture diagrams and Grafana screenshots |
 | FR148 | Epic 9 | Blog documents AI-assisted engineering workflow |
+| FR149 | Epic 21 | Deploy Moltbot Gateway on K3s in apps namespace |
+| FR150 | Epic 21 | Gateway control UI via moltbot.home.jetzinger.com |
+| FR151 | Epic 21 | Configure Moltbot via moltbot.json on NFS |
+| FR152 | Epic 21 | Preserve config and workspace across pod restarts |
+| FR153 | Epic 21 | View gateway status and health via control UI |
+| FR154 | Epic 21 | Restart gateway via control UI |
+| FR155 | Epic 21 | Route conversations to Opus 4.5 via Anthropic OAuth |
+| FR156 | Epic 21 | Fall back to LiteLLM when Anthropic unavailable |
+| FR157 | Epic 21 | Identify which LLM provider is handling conversation |
+| FR158 | Epic 21 | Manage Anthropic OAuth via gateway control UI |
+| FR159 | Epic 21 | Telegram DM messaging channel |
+| FR160 | Epic 22 | WhatsApp DM messaging channel |
+| FR161 | Epic 22 | Discord DM messaging channel |
+| FR162 | Epic 21 | Enforce allowlist-only DM pairing |
+| FR163 | Epic 21 | Approve/reject pairing requests via gateway CLI |
+| FR164 | Epic 22 | Cross-channel conversation context continuity |
+| FR165 | Epic 22 | Web research via Exa MCP tools |
+| FR166 | Epic 22 | Install additional MCP research servers via mcporter |
+| FR167 | Epic 22 | Invoke MCP tools through natural language |
+| FR168 | Epic 22 | Structured, sourced responses from research tools |
+| FR169 | Epic 23 | Voice input/output via ElevenLabs |
+| FR170 | Epic 23 | Switch between text and voice modes |
+| FR171 | Epic 23 | Configure specialized sub-agents |
+| FR172 | Epic 23 | Invoke sub-agents from main conversation |
+| FR173 | Epic 23 | Route tasks to sub-agents based on context |
+| FR174 | Epic 23 | Trigger browser automation via conversation |
+| FR175 | Epic 23 | Navigate web, fill forms, extract information |
+| FR176 | Epic 23 | Present rich content via Canvas/A2UI |
+| FR177 | Epic 23 | Install skills from ClawdHub marketplace |
+| FR178 | Epic 23 | Update and sync installed skills |
+| FR179 | Epic 23 | Invoke skills via slash commands or conversation |
+| FR180 | Epic 23 | Enable/disable/configure individual skills |
+| FR181 | Epic 24 | Collect gateway logs into Loki |
+| FR182 | Epic 24 | Grafana dashboard with log-derived metrics |
+| FR183 | Epic 24 | Dashboard: message volume, LLM usage, MCP tools, errors |
+| FR184 | Epic 24 | Blackbox Exporter probes gateway UI |
+| FR185 | Epic 24 | Alertmanager rules for gateway/errors/OAuth |
+| FR186 | Epic 24 | Health snapshot via moltbot health --json |
+| FR187 | Epic 24 | ADR documenting Moltbot architectural decisions |
+| FR188 | Epic 24 | README Moltbot section with architecture overview |
 
-**Coverage Summary:** 148 FRs total, 85 NFRs total
+**Coverage Summary:** 188 FRs total, 104 NFRs total
 - **Phase 1 (Epic 1-9):** 54 FRs completed + 3 new (FR146-148 for Blog Article)
   - Epic 9 (Portfolio): FR49-54, FR146-148
 - **Phase 2 (Epic 10-12):** 49 FRs
@@ -512,13 +640,18 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - **Phase 3 (Epic 13-14):** 12 FRs + 4 new (FR142-145 for External Providers)
   - Epic 13 (Steam Gaming): FR95-99, FR119
   - Epic 14 (LiteLLM Inference Proxy): FR113-118, FR142-145
-- **Phase 4 (Epic 15-20):** 22 FRs (new)
+- **Phase 4 (Epic 15-20):** 22 FRs
   - Epic 15 (Tailscale Subnet Router): FR120-122
   - Epic 16 (NAS K3s Worker): FR123-125
   - Epic 17 (Open-WebUI): FR126-129
   - Epic 18 (K8s Dashboard): FR130-133
   - Epic 19 (Gitea): FR134-137
   - Epic 20 (DeepSeek-R1): FR138-141
+- **Phase 5 (Epic 21-24 - NEW):** 40 FRs (FR149-188), 19 NFRs (NFR86-104)
+  - Epic 21 (Moltbot Core Gateway & Telegram): FR149-159, FR162-163
+  - Epic 22 (Moltbot Research & Multi-Channel): FR160-161, FR164-168
+  - Epic 23 (Moltbot Advanced Capabilities): FR169-180
+  - Epic 24 (Moltbot Observability & Documentation): FR181-188
 
 ## Epic List
 
@@ -897,6 +1030,128 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - Extended gpu-mode script: ML-Mode (Qwen 2.5) → R1-Mode (DeepSeek-R1) → Gaming-Mode
 - LiteLLM can route reasoning requests to DeepSeek-R1 when in R1-Mode
 - Model swap requires vLLM restart (different model weights)
+
+### Epic 21: Moltbot Core Gateway & Telegram Channel [Phase 5]
+
+**User Outcome:** Tom has a personal AI assistant running on his K3s cluster, accessible via Telegram, powered by Claude Opus 4.5 with automatic LiteLLM fallback, secured with allowlist-only DM pairing.
+
+**FRs covered:** FR149-159, FR162-163
+- FR149: Deploy Moltbot Gateway as Docker container on K3s in `apps` namespace
+- FR150: Gateway control UI accessible via `moltbot.home.jetzinger.com`
+- FR151: Configure Moltbot via `moltbot.json` persisted on NFS storage
+- FR152: Preserve all config and workspace data across pod restarts
+- FR153: View gateway status and health via control UI
+- FR154: Restart gateway via control UI
+- FR155: Route conversations to Claude Opus 4.5 via Anthropic OAuth
+- FR156: Automatic fallback to LiteLLM proxy when Anthropic unavailable
+- FR157: Identify which LLM provider is handling a conversation
+- FR158: Manage Anthropic OAuth credentials via gateway control UI
+- FR159: Send and receive messages via Telegram DM
+- FR162: Enforce allowlist-only DM pairing across all channels
+- FR163: Approve/reject pairing requests via gateway CLI
+
+**NFRs covered:** NFR86-88, NFR91-96, NFR99-102
+- NFR86: Gateway message processing <10s (excluding LLM inference)
+- NFR87: Gateway control UI loads <3s
+- NFR88: LiteLLM fallback activates <5s
+- NFR91: All credentials stored as K8s Secrets
+- NFR92: Allowlist-only DM pairing
+- NFR93: Control UI accessible only via Tailscale
+- NFR94: OAuth tokens auto-refreshed
+- NFR95: No secrets in Loki logs
+- NFR96: Anthropic OAuth auto-reconnect <30s
+- NFR99: LiteLLM reachable via K8s DNS from apps namespace
+- NFR100: Pod restarts cleanly with config from NFS
+- NFR101: Individual channel disconnections don't affect others
+- NFR102: Crash loop alerts within 2 minutes
+
+**Implementation Notes:**
+- Official moltbot/moltbot Docker image (Node.js >= 22)
+- NFS PVC (10Gi): `~/.clawdbot` (config) + `~/clawd/` (workspace)
+- Traefik IngressRoute for HTTPS
+- Inverse fallback: cloud primary (Opus 4.5) -> local fallback (LiteLLM)
+- Telegram uses outbound long-polling (no inbound exposure needed)
+- Depends on Epic 14 (LiteLLM) for fallback routing
+
+### Epic 22: Moltbot Research Tools & Multi-Channel [Phase 5]
+
+**User Outcome:** Tom can research topics through his AI assistant using web research tools, and interact from WhatsApp, Discord, or Telegram with conversation continuity across channels.
+
+**FRs covered:** FR160-161, FR164-168
+- FR160: Send and receive messages via WhatsApp DM (Baileys)
+- FR161: Send and receive messages via Discord DM (discord.js)
+- FR164: Continue conversation context across different messaging channels
+- FR165: Web research via Exa MCP tools with sourced answers
+- FR166: Install and configure additional MCP research servers via mcporter
+- FR167: Invoke any configured MCP tool through natural language conversation
+- FR168: Structured, sourced responses from research tools
+
+**NFRs covered:** NFR89, NFR97-98
+- NFR89: mcporter MCP tool invocations return results <30s
+- NFR97: Channel auto-reconnect <60s (Telegram/WhatsApp/Discord)
+- NFR98: mcporter graceful timeout recovery (no gateway crash)
+
+**Implementation Notes:**
+- WhatsApp via Baileys (WebSocket, long-polling — no inbound exposure)
+- Discord via discord.js (WebSocket — no inbound exposure)
+- WhatsApp Baileys auth state persisted on NFS PVC to survive pod restarts
+- mcporter + Exa installed to workspace NFS for persistence
+- Depends on Epic 21 (gateway must exist)
+
+### Epic 23: Moltbot Advanced Capabilities [Phase 5]
+
+**User Outcome:** Tom's AI assistant can speak via voice, delegate to specialized sub-agents, automate browser tasks, present rich content, and install skills from a marketplace — making it a fully capable personal tool.
+
+**FRs covered:** FR169-180
+- FR169: Voice input/output via ElevenLabs TTS/STT
+- FR170: Switch between text and voice modes within a conversation
+- FR171: Configure specialized sub-agents with distinct capabilities
+- FR172: Invoke specific sub-agents from main conversation
+- FR173: Route tasks to appropriate sub-agents based on context
+- FR174: Trigger browser automation tasks through conversation
+- FR175: Navigate web pages, fill forms, extract information via browser tool
+- FR176: Present rich content via Canvas/A2UI
+- FR177: Install skills from ClawdHub marketplace
+- FR178: Update and sync installed skills via ClawdHub
+- FR179: Invoke installed skills via slash commands or natural conversation
+- FR180: Enable, disable, and configure individual skills via moltbot.json
+
+**NFRs covered:** NFR90
+- NFR90: ElevenLabs voice streaming begins <5s
+
+**Implementation Notes:**
+- ElevenLabs TTS/STT via API (streaming responses)
+- Native Moltbot sub-agent routing
+- Built-in browser automation tool
+- ClawdHub skills installed to workspace NFS
+- Depends on Epic 21 (gateway must exist)
+- Independent of Epic 22 (can be implemented in parallel)
+
+### Epic 24: Moltbot Observability & Portfolio Documentation [Phase 5]
+
+**User Outcome:** Tom can monitor Moltbot health via Grafana dashboards, receive alerts when the assistant is unhealthy, and showcase the architecture in his portfolio for interviews.
+
+**FRs covered:** FR181-188
+- FR181: Collect gateway logs into Loki for analysis
+- FR182: Grafana dashboard with log-derived metrics (LogQL)
+- FR183: Dashboard shows message volume, LLM provider usage, MCP tool invocations, error rates
+- FR184: Prometheus Blackbox Exporter probes gateway control UI
+- FR185: Alertmanager rules: gateway down (P1), high error rate (P2), OAuth expiry (P2)
+- FR186: Health snapshot via `moltbot health --json`
+- FR187: ADR documenting Moltbot architectural decisions
+- FR188: README Moltbot section with architecture overview
+
+**NFRs covered:** NFR103-104
+- NFR103: Loki retains Moltbot logs 7 days
+- NFR104: Blackbox probe 30s interval, alert after 3 failures
+
+**Implementation Notes:**
+- Log-based observability pattern (new for cluster — Loki + Blackbox instead of Prometheus scrape)
+- Promtail collects gateway stdout/stderr -> Loki
+- Grafana dashboard with LogQL queries
+- Blackbox Exporter HTTP probe on moltbot.home.jetzinger.com
+- Depends on Epic 21 (gateway must exist)
+- Independent of Epics 22-23
 
 ---
 
@@ -4875,24 +5130,539 @@ Tom has a working multi-node K3s cluster he can access from anywhere via Tailsca
 | 20 | Reasoning Model Support (DeepSeek-R1 14B) | 3 | FR138-141 | NFR81-82 |
 | **Phase 4 Total** | | **16 stories** | **22 FRs** | **12 NFRs** |
 | | | | | |
-| **Grand Total** | | **96 stories** | **148 FRs** | **85 NFRs** |
+| **Phase 5** | **Moltbot Personal AI Assistant** | | | |
+| 21 | Moltbot Core Gateway & Telegram Channel | 4 | FR149-159, FR162-163 | NFR86-88, NFR91-96, NFR99-102 |
+| 22 | Moltbot Research Tools & Multi-Channel | 4 | FR160-161, FR164-168 | NFR89, NFR97-98 |
+| 23 | Moltbot Advanced Capabilities | 5 | FR169-180 | NFR90 |
+| 24 | Moltbot Observability & Documentation | 3 | FR181-188 | NFR103-104 |
+| **Phase 5 Total** | | **16 stories** | **40 FRs** | **19 NFRs** |
+| | | | | |
+| **Grand Total** | | **112 stories** | **188 FRs** | **104 NFRs** |
 
 **Phase 1 Status:** ✅ Completed (Epics 1-9)
 **Phase 2 Status:** ✅ Completed (Epics 10-12)
 **Phase 3 Status:** ✅ Ready for Implementation (Epic 13-14 - Steam Gaming with mode switching + LiteLLM Inference Proxy)
 **Phase 4 Status:** 📋 Stories Created (Epics 15-20 - Network, NAS Worker, Open-WebUI, Dashboard, Gitea, DeepSeek-R1)
+**Phase 5 Status:** 📋 Stories Created (Epics 21-24 - Moltbot Personal AI Assistant)
 
 ---
 
-**Workflow Complete:** All epics and stories through Phase 4 have been created with detailed acceptance criteria, including:
-- Expanded Paperless-ngx ecosystem (Office processing, PDF editing, AI classification with RAG, email integration)
-- Steam Gaming Platform (Epic 13) with GPU mode switching and default ML Mode at boot
-- LiteLLM Inference Proxy (Epic 14) with three-tier fallback + parallel external providers (Groq, Gemini, Mistral)
-- Tailscale Subnet Routing (Epic 15) for full home network access
-- NAS K3s Worker (Epic 16) for storage-adjacent workloads
-- Open-WebUI (Epic 17) ChatGPT-like interface connected to LiteLLM
-- Kubernetes Dashboard (Epic 18) for cluster visualization
-- Gitea (Epic 19) self-hosted Git service
-- DeepSeek-R1 14B (Epic 20) reasoning model support with R1-Mode
+### Epic 21: Moltbot Core Gateway & Telegram Channel
+
+**User Outcome:** Tom has a personal AI assistant running on his K3s cluster, accessible via Telegram, powered by Claude Opus 4.5 with automatic LiteLLM fallback, secured with allowlist-only DM pairing.
+
+**FRs Covered:** FR149-159, FR162-163
+**NFRs Covered:** NFR86-88, NFR91-96, NFR99-102
+
+---
+
+#### Story 21.1: Deploy Moltbot Gateway with NFS Persistence
+
+As a **cluster operator**,
+I want **to deploy the Moltbot gateway container on K3s with persistent NFS storage for configuration and workspace data**,
+So that **my AI assistant infrastructure is running and survives pod restarts without losing state**.
+
+**Acceptance Criteria:**
+
+**Given** the `apps` namespace exists and NFS provisioner is available
+**When** I apply the Moltbot Deployment, Service, PVC, and Secret manifests
+**Then** the Moltbot pod starts successfully with the official `moltbot/moltbot` image
+**And** a 10Gi NFS PVC is bound and mounted at `~/.clawdbot` (config) and `~/clawd/` (workspace) via subPath
+**And** the K8s Secret `moltbot-secrets` is created with placeholder values for all 7 credential types (Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, LiteLLM fallback URL)
+**And** the `moltbot.json` configuration file persists on NFS at `~/.clawdbot/moltbot.json`
+
+**Given** the Moltbot pod is running
+**When** the pod is deleted or the node reboots
+**Then** the replacement pod starts with all configuration and workspace data intact from NFS (NFR100)
+**And** no manual re-configuration is required
+
+**FRs covered:** FR149, FR151, FR152
+**NFRs covered:** NFR91, NFR100
+
+---
+
+#### Story 21.2: Configure Traefik Ingress & Control UI
+
+As a **cluster operator**,
+I want **to access the Moltbot gateway control UI via `moltbot.home.jetzinger.com` over HTTPS**,
+So that **I can view gateway health, manage configuration, and restart the gateway from my browser**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway pod and ClusterIP service are running (Story 21.1)
+**When** I apply the Traefik IngressRoute for `moltbot.home.jetzinger.com`
+**Then** the gateway control UI is accessible at `https://moltbot.home.jetzinger.com` with valid TLS certificate
+**And** the UI loads within 3 seconds (NFR87)
+**And** the UI is only accessible via Tailscale mesh (NFR93)
+
+**Given** the control UI is loaded
+**When** I view the gateway status page
+**Then** I can see gateway health, uptime, and connection status (FR153)
+
+**Given** the control UI is loaded
+**When** I trigger a gateway restart via the UI
+**Then** the gateway process restarts cleanly and reconnects all services (FR154)
+**And** persistent state is preserved on NFS
+
+**FRs covered:** FR150, FR153, FR154
+**NFRs covered:** NFR87, NFR93
+
+---
+
+#### Story 21.3: Configure Opus 4.5 LLM with LiteLLM Fallback
+
+As a **cluster operator**,
+I want **to configure Moltbot to use Claude Opus 4.5 as the primary LLM with automatic fallback to the existing LiteLLM proxy**,
+So that **my AI assistant always has an LLM backend available, using frontier reasoning by default and local inference as backup**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running with secrets configured (Story 21.1)
+**When** I set the `ANTHROPIC_OAUTH_TOKEN` in the K8s Secret and configure `LITELLM_FALLBACK_URL` to `http://litellm.ml.svc.cluster.local:4000/v1`
+**Then** Moltbot routes all conversations to Claude Opus 4.5 via Anthropic OAuth as the primary LLM (FR155)
+**And** the LiteLLM fallback URL resolves via standard K8s DNS from the `apps` namespace (NFR99)
+
+**Given** Anthropic API is available
+**When** a conversation message is processed
+**Then** the response is generated by Opus 4.5
+**And** the user can identify that Opus 4.5 is handling the conversation (FR157)
+
+**Given** the Anthropic API becomes unavailable
+**When** a conversation message is processed
+**Then** Moltbot automatically falls back to LiteLLM proxy within 5 seconds (FR156, NFR88)
+**And** the three-tier LiteLLM fallback chain activates (vLLM GPU -> Ollama CPU -> OpenAI cloud)
+**And** the user can identify the fallback provider is handling the conversation (FR157)
+
+**Given** Anthropic API recovers after a transient failure
+**When** the OAuth connection is re-established
+**Then** auto-reconnection completes within 30 seconds (NFR96)
+
+**Given** the gateway control UI is accessible (Story 21.2)
+**When** I navigate to OAuth credential management
+**Then** I can view token status and trigger manual refresh if needed (FR158, NFR94)
+**And** no API keys or secrets are exposed in Loki logs (NFR95)
+
+**FRs covered:** FR155, FR156, FR157, FR158
+**NFRs covered:** NFR88, NFR94, NFR95, NFR96, NFR99
+
+---
+
+#### Story 21.4: Enable Telegram Channel with DM Security
+
+As a **user**,
+I want **to send and receive messages with my AI assistant via Telegram DM with allowlist-only security**,
+So that **I can interact with my personal AI from Telegram while ensuring no unauthorized users can access it**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running with LLM configured (Story 21.3)
+**When** I set the `TELEGRAM_BOT_TOKEN` in the K8s Secret (from BotFather)
+**Then** the Telegram channel connector starts and begins long-polling the Telegram Bot API
+**And** no inbound network exposure is required (outbound HTTPS only)
+
+**Given** the Telegram channel is connected
+**When** an authorized user (on the allowlist in `moltbot.json`) sends a DM
+**Then** the message is processed by the LLM and a response is returned within 10 seconds excluding LLM inference time (FR159, NFR86)
+
+**Given** the Telegram channel is connected
+**When** an unauthorized user (not on the allowlist) sends a DM
+**Then** the message is rejected and the user receives no response (FR162, NFR92)
+
+**Given** an unknown user attempts to interact
+**When** the operator reviews pairing requests via the gateway CLI
+**Then** the operator can approve or reject the pairing request (FR163)
+
+**Given** the Telegram channel experiences a network interruption
+**When** connectivity is restored
+**Then** the channel automatically reconnects within 60 seconds (NFR97)
+**And** the disconnection does not affect other gateway functionality (NFR101)
+
+**Given** the Moltbot pod enters a CrashLoopBackOff state
+**When** the crash loop persists
+**Then** Alertmanager sends a notification within 2 minutes (NFR102)
+
+**FRs covered:** FR159, FR162, FR163
+**NFRs covered:** NFR86, NFR92, NFR97, NFR101, NFR102
+
+---
+
+### Epic 22: Moltbot Research Tools & Multi-Channel
+
+**User Outcome:** Tom can research topics through his AI assistant using web research tools, and interact from WhatsApp, Discord, or Telegram with conversation continuity across channels.
+
+**FRs Covered:** FR160-161, FR164-168
+**NFRs Covered:** NFR89, NFR97-98
+
+---
+
+#### Story 22.1: Enable WhatsApp Channel via Baileys
+
+As a **user**,
+I want **to send and receive messages with my AI assistant via WhatsApp DM**,
+So that **I can interact with my personal AI from my primary messaging app**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running with LLM and Telegram configured (Epic 21)
+**When** I configure WhatsApp Baileys credentials and complete the initial pairing process
+**Then** the WhatsApp channel connector starts and establishes a WebSocket connection to WhatsApp servers
+**And** no inbound network exposure is required (outbound WebSocket only)
+
+**Given** the WhatsApp channel is connected
+**When** an authorized user sends a DM
+**Then** the message is processed by the LLM and a response is returned (FR160)
+**And** the allowlist-only DM security policy applies (FR162, configured in Epic 21)
+
+**Given** the Moltbot pod restarts
+**When** the replacement pod starts
+**Then** the Baileys auth state is restored from NFS PVC at `~/clawd/` and no re-pairing is required
+**And** WhatsApp reconnects automatically
+
+**Given** the WhatsApp channel experiences a network interruption
+**When** connectivity is restored
+**Then** the channel automatically reconnects within 60 seconds (NFR97)
+**And** the disconnection does not affect Telegram or other channels (NFR101)
+
+**FRs covered:** FR160
+**NFRs covered:** NFR97, NFR100, NFR101
+
+---
+
+#### Story 22.2: Enable Discord Channel
+
+As a **user**,
+I want **to send and receive messages with my AI assistant via Discord DM**,
+So that **I can interact with my personal AI from Discord alongside my other communities**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running (Epic 21)
+**When** I set the `DISCORD_BOT_TOKEN` in the K8s Secret (from Discord Developer Portal)
+**Then** the Discord channel connector starts and establishes a WebSocket connection to the Discord gateway via discord.js
+**And** no inbound network exposure is required (outbound WebSocket only)
+
+**Given** the Discord channel is connected
+**When** an authorized user sends a DM
+**Then** the message is processed by the LLM and a response is returned (FR161)
+**And** the allowlist-only DM security policy applies (FR162)
+
+**Given** the Discord channel experiences a network interruption
+**When** connectivity is restored
+**Then** the channel automatically reconnects within 60 seconds (NFR97)
+**And** the disconnection does not affect Telegram or WhatsApp channels (NFR101)
+
+**FRs covered:** FR161
+**NFRs covered:** NFR97, NFR101
+
+---
+
+#### Story 22.3: Configure MCP Research Tools via mcporter
+
+As a **user**,
+I want **to ask my AI assistant to research topics on the web and receive sourced answers**,
+So that **I can get up-to-date, referenced information without leaving the conversation**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running with at least one messaging channel active (Epic 21)
+**When** I configure the `EXA_API_KEY` in the K8s Secret and install the Exa MCP server via mcporter
+**Then** the Exa research tool is available to the Moltbot agent
+**And** mcporter config and installed servers persist on NFS at `~/clawd/` for pod restart survival
+
+**Given** the Exa MCP tool is configured
+**When** a user asks a research question (e.g., "What are the latest K3s releases?")
+**Then** the assistant invokes the Exa MCP tool through natural language conversation (FR167)
+**And** returns a structured, sourced response with URLs and references (FR165, FR168)
+**And** the MCP tool invocation returns results within 30 seconds (NFR89)
+
+**Given** an MCP server connection times out
+**When** the timeout is detected
+**Then** the mcporter recovers gracefully without crashing the gateway (NFR98)
+**And** the user receives an error message indicating the research tool is temporarily unavailable
+
+**Given** the operator wants to add additional research MCP servers
+**When** they install a new server via mcporter
+**Then** the new server is available to the agent for tool invocation (FR166)
+**And** the installation persists on NFS
+
+**FRs covered:** FR165, FR166, FR167, FR168
+**NFRs covered:** NFR89, NFR98
+
+---
+
+#### Story 22.4: Cross-Channel Conversation Context
+
+As a **user**,
+I want **to continue a conversation with my AI assistant across different messaging channels**,
+So that **I can start a discussion on Telegram and pick it up on WhatsApp or Discord without losing context**.
+
+**Acceptance Criteria:**
+
+**Given** the user has active sessions on multiple messaging channels (Telegram, WhatsApp, Discord)
+**When** the user sends a message on one channel referencing a previous conversation from another channel
+**Then** the assistant maintains conversation context across channels (FR164)
+**And** the user can seamlessly continue the discussion
+
+**Given** a conversation has history on Telegram
+**When** the same authorized user sends a follow-up message on WhatsApp
+**Then** the assistant has access to the prior conversation context
+**And** responds coherently with awareness of the earlier discussion
+
+**Given** one messaging channel is disconnected
+**When** the user switches to another active channel
+**Then** the conversation context is preserved and accessible on the new channel
+
+**FRs covered:** FR164
+
+---
+
+### Epic 23: Moltbot Advanced Capabilities
+
+**User Outcome:** Tom's AI assistant can speak via voice, delegate to specialized sub-agents, automate browser tasks, present rich content, and install skills from a marketplace — making it a fully capable personal tool.
+
+**FRs Covered:** FR169-180
+**NFRs Covered:** NFR90
+
+---
+
+#### Story 23.1: Enable Voice Interaction via ElevenLabs
+
+As a **user**,
+I want **to interact with my AI assistant using voice input and receive spoken responses**,
+So that **I can have hands-free conversations with my personal AI**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running with at least one messaging channel active (Epic 21)
+**When** I set the `ELEVENLABS_API_KEY` in the K8s Secret
+**Then** the ElevenLabs TTS/STT integration is available to the Moltbot agent
+
+**Given** voice mode is enabled
+**When** the user sends a voice message through a supported channel
+**Then** the assistant processes the voice input via ElevenLabs STT, generates a response via the LLM, and returns a spoken response via ElevenLabs TTS (FR169)
+**And** voice response streaming begins within 5 seconds of the request (NFR90)
+
+**Given** the user is in a voice conversation
+**When** the user sends a text message instead of voice
+**Then** the assistant seamlessly switches to text mode and responds in text (FR170)
+**And** switching back to voice is equally seamless
+
+**Given** the ElevenLabs API is temporarily unavailable
+**When** the user sends a voice message
+**Then** the assistant falls back to text-only response and informs the user that voice is temporarily unavailable
+
+**FRs covered:** FR169, FR170
+**NFRs covered:** NFR90
+
+---
+
+#### Story 23.2: Configure Multi-Agent Sub-Agent Routing
+
+As an **operator**,
+I want **to configure specialized sub-agents that the AI assistant can delegate tasks to**,
+So that **different types of requests are handled by purpose-built agents with distinct capabilities**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running (Epic 21)
+**When** the operator configures specialized sub-agents in `moltbot.json` with distinct capabilities (e.g., coding assistant, research specialist, writing editor)
+**Then** the sub-agents are registered and available to the main agent (FR171)
+
+**Given** sub-agents are configured
+**When** a user explicitly invokes a specific sub-agent (e.g., "ask the coding agent to review this")
+**Then** the request is routed to the specified sub-agent and the response is returned to the user (FR172)
+
+**Given** sub-agents are configured
+**When** a user sends a message that matches a sub-agent's domain (e.g., a code review request when a coding sub-agent exists)
+**Then** the system routes the task to the appropriate sub-agent based on context (FR173)
+**And** the user receives the sub-agent's specialized response
+
+**Given** no sub-agent matches the request
+**When** a general conversation message is sent
+**Then** the main agent handles the request directly without sub-agent routing
+
+**FRs covered:** FR171, FR172, FR173
+
+---
+
+#### Story 23.3: Enable Browser Automation Tool
+
+As a **user**,
+I want **to ask my AI assistant to perform browser-based tasks like navigating websites, filling forms, and extracting information**,
+So that **I can automate web interactions through conversation without doing them manually**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running (Epic 21)
+**When** a user requests a browser automation task through conversation (e.g., "check the current price of X on this website")
+**Then** the assistant triggers the built-in browser automation tool (FR174)
+
+**Given** the browser tool is invoked
+**When** the task involves navigating a web page
+**Then** the tool can navigate to URLs, interact with page elements, fill forms, and extract information (FR175)
+**And** the extracted information is returned to the user in the conversation
+
+**Given** a browser automation task fails (e.g., page not loading, element not found)
+**When** the failure is detected
+**Then** the assistant informs the user of the failure with a clear error description
+**And** the gateway remains stable (no crash)
+
+**FRs covered:** FR174, FR175
+
+---
+
+#### Story 23.4: Enable Rich Content via Canvas/A2UI
+
+As a **user**,
+I want **my AI assistant to present rich, structured content beyond plain text**,
+So that **I can receive visually organized information like tables, diagrams, or interactive elements when appropriate**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running (Epic 21)
+**When** a response benefits from rich content presentation (e.g., comparison tables, structured data, visual layouts)
+**Then** the assistant uses Canvas/A2UI to present the content in a rich format (FR176)
+
+**Given** the messaging channel does not support rich content rendering
+**When** rich content is generated
+**Then** the assistant falls back to a well-formatted text representation
+
+**FRs covered:** FR176
+
+---
+
+#### Story 23.5: Integrate ClawdHub Skills Marketplace
+
+As an **operator**,
+I want **to install, update, and manage skills from the ClawdHub marketplace for my AI assistant**,
+So that **I can extend the assistant's capabilities with community-built skills without custom development**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running with workspace NFS persistence (Epic 21)
+**When** the operator installs a skill from the ClawdHub marketplace
+**Then** the skill is downloaded and installed to the workspace NFS at `~/clawd/` (FR177)
+**And** the skill persists across pod restarts
+
+**Given** skills are installed
+**When** the operator runs an update/sync operation via ClawdHub
+**Then** installed skills are updated to their latest versions (FR178)
+
+**Given** a skill is installed and enabled
+**When** a user invokes the skill via a slash command (e.g., `/translate`) or natural language conversation
+**Then** the skill executes and returns its output to the user (FR179)
+
+**Given** the operator wants to manage individual skills
+**When** they edit `moltbot.json` to enable, disable, or configure a specific skill
+**Then** the changes take effect and the skill's availability is updated accordingly (FR180)
+**And** disabled skills are not invocable by users
+
+**FRs covered:** FR177, FR178, FR179, FR180
+
+---
+
+### Epic 24: Moltbot Observability & Portfolio Documentation
+
+**User Outcome:** Tom can monitor Moltbot health via Grafana dashboards, receive alerts when the assistant is unhealthy, and showcase the architecture in his portfolio for interviews.
+
+**FRs Covered:** FR181-188
+**NFRs Covered:** NFR103-104
+
+---
+
+#### Story 24.1: Configure Loki Log Collection & Grafana Dashboard
+
+As a **cluster operator**,
+I want **to collect Moltbot gateway logs into Loki and view operational metrics in a Grafana dashboard**,
+So that **I can monitor message volume, LLM routing, MCP tool usage, and error rates without native Prometheus metrics**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is running (Epic 21) and Promtail is collecting logs cluster-wide
+**When** the Moltbot pod emits stdout/stderr logs
+**Then** Promtail collects and ships the logs to Loki with appropriate labels (`namespace=apps`, `app=moltbot`) (FR181)
+**And** logs are retained for a minimum of 7 days (NFR103)
+
+**Given** Moltbot logs are available in Loki
+**When** I create a Grafana dashboard with LogQL queries
+**Then** the dashboard displays the following panels (FR182, FR183):
+- Message volume per channel (Telegram, WhatsApp, Discord)
+- LLM provider usage ratio (Opus 4.5 vs LiteLLM fallback)
+- MCP tool invocation counts (Exa research queries)
+- Error rates and types (auth failures, channel disconnects, MCP timeouts)
+- Session activity and agent routing
+
+**Given** the Grafana dashboard is configured
+**When** I open it in Grafana
+**Then** the panels load with data from Loki and reflect recent gateway activity
+
+**FRs covered:** FR181, FR182, FR183
+**NFRs covered:** NFR103
+
+---
+
+#### Story 24.2: Configure Blackbox Exporter & Alertmanager Rules
+
+As a **cluster operator**,
+I want **Prometheus Blackbox Exporter to probe the Moltbot gateway and Alertmanager to notify me when something is wrong**,
+So that **I know within minutes if my AI assistant is down or experiencing sustained errors**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot gateway is accessible at `moltbot.home.jetzinger.com` (Story 21.2)
+**When** I configure a Blackbox Exporter HTTP probe target for the gateway URL
+**Then** the probe runs every 30 seconds and reports uptime, response latency, and TLS validity to Prometheus (FR184, NFR104)
+
+**Given** the Blackbox Exporter probe is active
+**When** the gateway becomes unreachable for 3 consecutive probes (90 seconds)
+**Then** Alertmanager fires a `MoltbotGatewayDown` P1 alert (FR185)
+
+**Given** Moltbot logs are available in Loki (Story 24.1)
+**When** the error rate exceeds 10% over a sustained period (detected via LogQL recording rules or manual review)
+**Then** Alertmanager fires a `MoltbotHighErrorRate` P2 alert (FR185)
+
+**Given** Moltbot logs contain OAuth token warning patterns
+**When** the warnings indicate imminent token expiry
+**Then** Alertmanager fires a `MoltbotAuthExpiry` P2 alert (FR185)
+
+**Given** the Moltbot gateway is running
+**When** I run `moltbot health --json` via kubectl exec
+**Then** a JSON health snapshot is returned showing gateway status, channel connectivity, LLM provider status, and MCP tool availability (FR186)
+
+**FRs covered:** FR184, FR185, FR186
+**NFRs covered:** NFR104
+
+---
+
+#### Story 24.3: Document Moltbot Architecture (ADR & README)
+
+As a **portfolio audience member (hiring manager, recruiter)**,
+I want **to read about the Moltbot AI assistant architecture in the repository documentation**,
+So that **I can understand the technical decisions, integration patterns, and AI-assisted engineering approach**.
+
+**Acceptance Criteria:**
+
+**Given** the Moltbot system is deployed and operational
+**When** I create an ADR documenting Moltbot architectural decisions
+**Then** the ADR is saved at `docs/adrs/ADR-{NNN}-moltbot-personal-ai-assistant.md` following the existing ADR format (FR187)
+**And** the ADR covers: deployment architecture, inverse fallback LLM pattern, outbound-only channel networking, log-based observability pattern, NFS persistence strategy, and security model
+
+**Given** the ADR is written
+**When** I update the repository README
+**Then** the README includes a Moltbot section with architecture overview (FR188)
+**And** the section describes: what Moltbot is, how it connects to the cluster, LLM routing, messaging channels, and observability approach
+**And** the documentation is navigable by an external reviewer (NFR27)
+
+**FRs covered:** FR187, FR188
+
+---
+
+**Workflow Status:** All epics and stories through Phase 5 have been created with detailed acceptance criteria, including:
+- Phase 1-4: All 96 previous stories (Epics 1-20)
+- Phase 5: 16 new Moltbot stories (Epics 21-24):
+  - Moltbot Core Gateway & Telegram (Epic 21) with Opus 4.5 + LiteLLM inverse fallback
+  - Moltbot Research & Multi-Channel (Epic 22) with Exa MCP tools + WhatsApp/Discord
+  - Moltbot Advanced Capabilities (Epic 23) with voice, sub-agents, browser, skills
+  - Moltbot Observability & Documentation (Epic 24) with log-based monitoring + portfolio docs
 
 Ready to add to sprint-status.yaml and begin implementation.

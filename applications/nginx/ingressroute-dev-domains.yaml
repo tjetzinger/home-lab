@@ -6,24 +6,24 @@
 # FR: FR61 - Connect VS Code via Nginx proxy
 #
 # Purpose: Custom domain routing for dev container HTTP access
-# Domains: dev.belego.app, dev.*.pilates4.golf
+# Domains: dev.calsync.info, dev.*.pilates4.golf
 ---
-# Certificate for dev.belego.app
+# Certificate for dev.calsync.info
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: dev-belego-tls
+  name: dev-calsync-tls
   namespace: dev
   labels:
     app.kubernetes.io/name: nginx
     app.kubernetes.io/instance: nginx-proxy
     app.kubernetes.io/part-of: home-lab
 spec:
-  secretName: dev-belego-tls
+  secretName: dev-calsync-tls
   duration: 2160h    # 90 days
   renewBefore: 720h  # 30 days before expiry
   dnsNames:
-    - dev.belego.app
+    - dev.calsync.info
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
@@ -55,11 +55,11 @@ spec:
     kind: ClusterIssuer
     group: cert-manager.io
 ---
-# IngressRoute for dev.belego.app
+# IngressRoute for dev.calsync.info
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: dev-belego-ingress
+  name: dev-calsync-ingress
   namespace: dev
   labels:
     app.kubernetes.io/name: nginx
@@ -69,13 +69,13 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`dev.belego.app`)
+    - match: Host(`dev.calsync.info`)
       kind: Rule
       services:
         - name: nginx-proxy
           port: 80
   tls:
-    secretName: dev-belego-tls
+    secretName: dev-calsync-tls
 ---
 # IngressRoute for Pilates dev domains
 apiVersion: traefik.io/v1alpha1
@@ -99,11 +99,11 @@ spec:
   tls:
     secretName: dev-pilates-tls
 ---
-# HTTP to HTTPS redirect for dev.belego.app
+# HTTP to HTTPS redirect for dev.calsync.info
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: dev-belego-ingress-redirect
+  name: dev-calsync-ingress-redirect
   namespace: dev
   labels:
     app.kubernetes.io/name: nginx
@@ -113,7 +113,7 @@ spec:
   entryPoints:
     - web
   routes:
-    - match: Host(`dev.belego.app`)
+    - match: Host(`dev.calsync.info`)
       kind: Rule
       middlewares:
         - name: https-redirect

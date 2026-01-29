@@ -47,12 +47,12 @@ data:
 
         # Use map to assign backend to variable (forces runtime DNS resolution)
         map $server_port $ssh_backend {
-            2222 dev-container-belego-svc.dev.svc.cluster.local:22;
+            2222 dev-container-calsync-svc.dev.svc.cluster.local:22;
             2223 dev-container-pilates-svc.dev.svc.cluster.local:22;
             2224 dev-container-ai-dev-svc.dev.svc.cluster.local:22;
         }
 
-        # SSH proxy for Belego on port 2222
+        # SSH proxy for CalSync on port 2222
         server {
             listen 2222;
             proxy_pass $ssh_backend;
@@ -100,8 +100,45 @@ data:
             server 192.168.2.51:8080;
         }
 
+        # Proxy for dev.calsync.info to CalSync dev container port 3000
         server {
-            listen       80;
+            listen 80;
+            server_name dev.calsync.info;
+
+            # Use Kubernetes CoreDNS for runtime DNS resolution
+            resolver 10.43.0.10 valid=30s ipv6=off;
+            resolver_timeout 5s;
+
+            # Disable all caching for dev server
+            proxy_buffering off;
+            proxy_cache off;
+
+            # Larger buffers for OAuth callbacks with big headers/cookies
+            proxy_buffer_size 128k;
+            proxy_buffers 4 256k;
+            proxy_busy_buffers_size 256k;
+
+            location / {
+                # Use variable to force runtime DNS resolution (not at config parse time)
+                set $backend "dev-container-calsync-svc.dev.svc.cluster.local:3000";
+                proxy_pass http://$backend;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+
+                # No caching headers
+                add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+                add_header Pragma "no-cache";
+                add_header Expires "0";
+            }
+        }
+
+        server {
+            listen       80 default_server;
             server_name  localhost;
 
             # Default location - returns nginx welcome page

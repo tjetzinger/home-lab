@@ -6,7 +6,7 @@
 # FR: FR61 - Connect VS Code via Nginx proxy
 #
 # Purpose: External LoadBalancer for SSH access to dev containers via nginx proxy
-# Ports: 2222 (Belego), 2223 (Pilates), 2224 (AI-Dev)
+# Ports: 2222 (CalSync), 2223 (Pilates), 2224 (AI-Dev)
 # Note: Uses MetalLB to get external IP
 ---
 apiVersion: v1
@@ -26,7 +26,7 @@ spec:
   - port: 2222
     targetPort: 2222
     protocol: TCP
-    name: ssh-belego
+    name: ssh-calsync
   - port: 2223
     targetPort: 2223
     protocol: TCP

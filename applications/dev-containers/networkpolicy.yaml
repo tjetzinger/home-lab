@@ -8,6 +8,7 @@
 #
 # Ingress Rules:
 #   - Allow SSH (port 22) from nginx-proxy pods only
+#   - Allow HTTP (port 3000) from nginx-proxy pods for dev server access
 #   - Deny all other ingress (including from other dev containers)
 #
 # Egress Rules:
@@ -43,7 +44,7 @@ spec:
 
   # INGRESS RULES
   ingress:
-  # Allow SSH from nginx-proxy pods only (within dev namespace)
+  # Allow SSH and HTTP from nginx-proxy pods only (within dev namespace)
   - from:
     - podSelector:
         matchLabels:
@@ -51,9 +52,22 @@ spec:
     ports:
     - protocol: TCP
       port: 22
+    - protocol: TCP
+      port: 3000
 
   # EGRESS RULES
   egress:
+  # Allow localhost traffic (needed for Playwright/Chromium to connect to local dev server)
+  - to:
+    - ipBlock:
+        cidr: 127.0.0.0/8
+
+  # Allow pod-to-self traffic (pod network, for test runners connecting to local services)
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: dev-container
+
   # Allow DNS resolution (kube-system namespace, port 53 UDP/TCP)
   - to:
     - namespaceSelector:
@@ -107,3 +121,7 @@ spec:
       port: 80   # HTTP
     - protocol: TCP
       port: 443  # HTTPS
+    - protocol: TCP
+      port: 5432 # PostgreSQL (external, e.g., Supabase direct)
+    - protocol: TCP
+      port: 6543 # PostgreSQL pooler (Supabase PgBouncer)
