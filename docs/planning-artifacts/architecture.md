@@ -1371,7 +1371,7 @@ stringData:
 |----------|--------|-----------|
 | **Deployment** | **Kubernetes Deployment in `apps` namespace** | **FR149: Official Docker image (Node.js >= 22), follows existing app deployment pattern** |
 | **Container Image** | **Official moltbot/moltbot Docker image** | **No custom build required; mcporter + MCP servers configured at runtime via workspace persistence** |
-| **Storage** | **NFS PVC (10Gi) for `~/.clawdbot` + `~/clawd/`** | **FR151-152: Config, workspace, WhatsApp session state, ClawdHub skills persist across restarts** |
+| **Storage** | **NFS PVC (10Gi) for `~/.moltbot` + `~/clawd/`** | **FR151-152: Config, workspace, WhatsApp session state, ClawdHub skills persist across restarts** |
 | **Ingress** | **`moltbot.home.jetzinger.com` via Traefik IngressRoute** | **FR150: Gateway control UI + WebChat accessible via Tailscale** |
 | **Primary LLM** | **Claude Opus 4.5 via Anthropic OAuth** | **FR155: Frontier reasoning as primary brain (Claude Code subscription)** |
 | **Fallback LLM** | **LiteLLM proxy (`litellm.ml.svc:4000`)** | **FR156: Automatic failover to existing three-tier local stack (vLLM GPU → Ollama CPU → OpenAI)** |
@@ -1381,7 +1381,7 @@ stringData:
 | **Multi-Agent** | **Moltbot native sub-agent routing** | **FR171-173: Specialized agents callable from main conversation** |
 | **Browser Tool** | **Moltbot built-in browser automation** | **FR174-175: Web navigation, form filling, data extraction** |
 | **Skills** | **ClawdHub marketplace integration** | **FR177-180: Install/sync skills to workspace NFS** |
-| **Secrets** | **Kubernetes Secrets (7 secret keys)** | **NFR91: Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, additional MCP keys** |
+| **Secrets** | **Kubernetes Secrets (8 secret keys)** | **NFR91: Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, LiteLLM fallback URL, gateway auth token** |
 | **DM Security** | **Allowlist-only pairing** | **NFR92: Single-user lockdown across all channels** |
 | **Observability** | **Loki logs + Blackbox Exporter (no native /metrics)** | **FR181-185: Log-derived Grafana panels + HTTP probe for uptime** |
 
@@ -1408,7 +1408,7 @@ stringData:
 │  └── ClawdHub Skills (FR177-180)                                            │
 │                                                                             │
 │  Persistent Storage (NFS PVC 10Gi):                                         │
-│  ├── ~/.clawdbot/moltbot.json (gateway config)                             │
+│  ├── ~/.moltbot/ (gateway config)                                          │
 │  ├── ~/clawd/ (agent workspace, mcporter config, session data)             │
 │  ├── WhatsApp Baileys auth state                                            │
 │  └── ClawdHub installed skills                                              │
@@ -1532,15 +1532,24 @@ spec:
       containers:
         - name: moltbot
           image: moltbot/moltbot:latest
+          command: ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789", "--allow-unconfigured"]
           ports:
-            - containerPort: 3000
+            - containerPort: 18789
+              name: gateway
+            - containerPort: 18790
+              name: bridge
+          env:
+            - name: HOME
+              value: /home/node
+            - name: TERM
+              value: xterm-256color
           envFrom:
             - secretRef:
                 name: moltbot-secrets
           volumeMounts:
             - name: moltbot-data
-              mountPath: /home/node/.clawdbot
-              subPath: clawdbot
+              mountPath: /home/node/.moltbot
+              subPath: moltbot
             - name: moltbot-data
               mountPath: /home/node/clawd
               subPath: clawd
@@ -1561,11 +1570,12 @@ type: Opaque
 stringData:
   ANTHROPIC_OAUTH_TOKEN: "<from-oauth-flow>"
   TELEGRAM_BOT_TOKEN: "<from-botfather>"
-  WHATSAPP_SESSION_KEY: "<from-baileys-pairing>"
+  WHATSAPP_CREDENTIALS: "<from-baileys-pairing>"
   DISCORD_BOT_TOKEN: "<from-discord-dev-portal>"
   ELEVENLABS_API_KEY: "<from-elevenlabs>"
   EXA_API_KEY: "<from-exa>"
   LITELLM_FALLBACK_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
+  CLAWDBOT_GATEWAY_TOKEN: "<gateway-auth-token>"
 ```
 
 *Persistent Volume (FR151-152):*
@@ -1597,7 +1607,7 @@ spec:
       kind: Rule
       services:
         - name: moltbot
-          port: 3000
+          port: 18789
   tls:
     certResolver: letsencrypt
 ```
@@ -1612,7 +1622,7 @@ WhatsApp via Baileys requires persistent auth state. If the pod restarts without
 - NFR88: LiteLLM fallback <5s (existing LiteLLM health check + failover)
 - NFR89: mcporter Exa queries <30s (external API + LLM processing)
 - NFR90: ElevenLabs streaming begins <5s (API latency)
-- NFR91: All 7 credential types in K8s Secrets (no plaintext ConfigMaps)
+- NFR91: All 8 credential types in K8s Secrets (no plaintext ConfigMaps)
 - NFR92: Allowlist-only DM pairing via `moltbot.json` config
 - NFR93: Traefik IngressRoute accessible only via Tailscale mesh
 - NFR94: OAuth token auto-refresh; manual refresh via control UI (FR158)
@@ -1632,7 +1642,7 @@ WhatsApp via Baileys requires persistent auth state. If the pod restarts without
 applications/
   └── moltbot/
       ├── deployment.yaml           # Moltbot gateway Deployment
-      ├── service.yaml              # ClusterIP service (port 3000)
+      ├── service.yaml              # ClusterIP service (ports 18789/18790)
       ├── ingressroute.yaml         # moltbot.home.jetzinger.com
       ├── pvc.yaml                  # 10Gi NFS for config + workspace
       ├── secret.yaml               # API credentials (gitignored)

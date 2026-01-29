@@ -215,8 +215,8 @@ development_status:
   epic-20-retrospective: optional
 
   # Epic 21: Moltbot Core Gateway & Telegram Channel [Phase 5]
-  epic-21: backlog
-  21-1-deploy-moltbot-gateway-with-nfs-persistence: backlog
+  epic-21: in-progress
+  21-1-deploy-moltbot-gateway-with-nfs-persistence: done
   21-2-configure-traefik-ingress-and-control-ui: backlog
   21-3-configure-opus-4-5-llm-with-litellm-fallback: backlog
   21-4-enable-telegram-channel-with-dm-security: backlog

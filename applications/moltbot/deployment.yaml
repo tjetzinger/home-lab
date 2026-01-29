@@ -1,0 +1,61 @@
+# Moltbot Gateway Deployment
+# Story: 21.1 - Deploy Moltbot Gateway with NFS Persistence
+# Epic: 21 - Moltbot Core Gateway & Telegram Channel
+#
+# Official moltbot/moltbot Docker image (Node.js >= 22)
+# NFS persistence for config (~/.clawdbot) and workspace (~/clawd)
+# Secrets injected via envFrom secretRef
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moltbot
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: moltbot
+    app.kubernetes.io/instance: moltbot-gateway
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: moltbot
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: moltbot
+        app.kubernetes.io/instance: moltbot-gateway
+        app.kubernetes.io/part-of: home-lab
+    spec:
+      containers:
+        - name: moltbot
+          image: moltbot/moltbot:latest
+          command: ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789", "--allow-unconfigured"]
+          ports:
+            - containerPort: 18789
+              name: gateway
+              protocol: TCP
+            - containerPort: 18790
+              name: bridge
+              protocol: TCP
+          env:
+            - name: HOME
+              value: /home/node
+            - name: TERM
+              value: xterm-256color
+          envFrom:
+            - secretRef:
+                name: moltbot-secrets
+          volumeMounts:
+            - name: moltbot-data
+              mountPath: /home/node/.moltbot
+              subPath: moltbot
+            - name: moltbot-data
+              mountPath: /home/node/clawd
+              subPath: clawd
+      volumes:
+        - name: moltbot-data
+          persistentVolumeClaim:
+            claimName: moltbot-data

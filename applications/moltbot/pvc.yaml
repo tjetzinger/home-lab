@@ -1,0 +1,24 @@
+# Moltbot NFS Persistent Volume Claim
+# Story: 21.1 - Deploy Moltbot Gateway with NFS Persistence
+# Epic: 21 - Moltbot Core Gateway & Telegram Channel
+#
+# Provides persistent storage for:
+# - ~/.clawdbot/ (gateway config, moltbot.json)
+# - ~/clawd/ (agent workspace, mcporter config, session data)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: moltbot-data
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: moltbot
+    app.kubernetes.io/instance: moltbot-gateway
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 10Gi
