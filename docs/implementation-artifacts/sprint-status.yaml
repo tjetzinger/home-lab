@@ -223,8 +223,8 @@ development_status:
   epic-21-retrospective: optional
 
   # Epic 22: Moltbot Research Tools & Multi-Channel [Phase 5]
-  epic-22: backlog
-  22-1-enable-whatsapp-channel-via-baileys: backlog
+  epic-22: in-progress
+  22-1-enable-whatsapp-channel-via-baileys: ready-for-dev
   22-2-enable-discord-channel: backlog
   22-3-configure-mcp-research-tools-via-mcporter: backlog
   22-4-cross-channel-conversation-context: backlog
