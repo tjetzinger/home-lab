@@ -1,0 +1,122 @@
+# Moltbot Device Pairing Guide
+
+When running the Moltbot gateway in Kubernetes behind Traefik, the Control UI
+requires a one-time device pairing before it can connect. This is because the
+gateway only auto-approves connections from `localhost` or `*.ts.net` hosts.
+Connections through Traefik arrive with a non-local hostname
+(`moltbot.home.jetzinger.com`), so they need explicit approval.
+
+Pairing is persisted on the NFS volume and survives pod restarts.
+
+## Prerequisites
+
+- Moltbot gateway running in the `apps` namespace
+- `gateway.trustedProxies` configured in `/home/node/.moltbot/moltbot.json`
+  with the current Traefik pod IP (see [Proxy Setup](#proxy-setup) below)
+
+## Option A: Port-Forward (Recommended)
+
+The simplest approach. Local connections are auto-approved by the gateway.
+
+```bash
+# 1. Forward the gateway port to localhost
+kubectl port-forward -n apps deployment/moltbot 18789:18789
+
+# 2. Open in browser — pairing is automatic
+open http://localhost:18789
+
+# 3. Once the Control UI connects, close the port-forward (Ctrl+C)
+# 4. Access via Traefik from now on — the device is paired
+open https://moltbot.home.jetzinger.com
+```
+
+## Option B: CLI Approval
+
+Approve a pending pairing request from inside the pod.
+
+```bash
+# 1. Open the Control UI via Traefik (it will show "pairing required")
+open https://moltbot.home.jetzinger.com
+
+# 2. Check for pending pairing requests
+kubectl exec -n apps deployment/moltbot -- \
+  cat /home/node/.moltbot/devices/pending.json
+
+# 3. Approve the device using the gateway's approval function
+kubectl exec -n apps deployment/moltbot -- node -e '
+const fs = require("fs");
+const crypto = require("crypto");
+const dir = "/home/node/.moltbot/devices";
+const pending = JSON.parse(fs.readFileSync(dir + "/pending.json", "utf8"));
+const paired = JSON.parse(fs.readFileSync(dir + "/paired.json", "utf8"));
+const reqId = Object.keys(pending)[0];
+if (!reqId) { console.log("No pending requests"); process.exit(0); }
+const req = pending[reqId];
+const now = Date.now();
+paired[req.deviceId] = {
+  deviceId: req.deviceId, publicKey: req.publicKey,
+  platform: req.platform, clientId: req.clientId,
+  clientMode: req.clientMode, role: req.role,
+  roles: req.roles, scopes: req.scopes,
+  remoteIp: req.remoteIp,
+  tokens: { operator: { token: crypto.randomBytes(32).toString("hex"),
+    role: "operator", scopes: req.scopes, createdAtMs: now } },
+  createdAtMs: now, approvedAtMs: now
+};
+delete pending[reqId];
+fs.writeFileSync(dir + "/paired.json", JSON.stringify(paired, null, 2));
+fs.writeFileSync(dir + "/pending.json", JSON.stringify(pending, null, 2));
+console.log("Approved device:", req.deviceId.substring(0, 16) + "...");
+'
+
+# 4. Refresh the Control UI — it should connect
+```
+
+## Option C: Onboard Inside the Pod
+
+Run the interactive onboard wizard inside the pod (sets up gateway config
+and auto-pairs the CLI as a local device).
+
+```bash
+kubectl exec -it -n apps deployment/moltbot -- \
+  node /app/dist/index.js onboard
+```
+
+## Proxy Setup
+
+The gateway must trust Traefik as a reverse proxy. Without this, all proxied
+connections are rejected as untrusted.
+
+```bash
+# 1. Find the current Traefik pod IP
+kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik \
+  -o jsonpath='{.items[0].status.podIP}'
+
+# 2. Write the gateway config (replace IP as needed)
+kubectl exec -n apps deployment/moltbot -- sh -c '
+cat > /home/node/.moltbot/moltbot.json << EOF
+{
+  "gateway": {
+    "trustedProxies": ["10.42.4.37"]
+  }
+}
+EOF'
+
+# 3. Restart the gateway to pick up config (or it hot-reloads on next connection)
+kubectl rollout restart deployment/moltbot -n apps
+```
+
+**Note:** `trustedProxies` uses exact IP matching (no CIDR support). If the
+Traefik pod IP changes (e.g., after node reschedule), update the config.
+
+## When Re-Pairing Is Needed
+
+- Browser data cleared (device key is stored in localStorage)
+- Different browser or device
+- `paired.json` deleted from NFS
+- NFS volume recreated
+
+Pairing is **not** needed after:
+- Pod restarts (NFS persists state)
+- Gateway config changes
+- Deployment updates
