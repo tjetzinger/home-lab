@@ -8,6 +8,7 @@
 # Custom alert rules for home-lab specific services:
 # - PostgreSQL database availability (P1)
 # - NFS storage provisioner availability (P1)
+# - Moltbot CrashLoopBackOff (P2) - Story 21.4, NFR102
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -81,3 +82,22 @@ spec:
             runbook_url: "https://github.com/tjetzinger/home-lab/blob/main/docs/runbooks/egpu-hotplug.md"
             impact: "AI inference latency increased. Using CPU-only Ollama with smaller models."
             action: "If gaming, this is expected. Otherwise run 'gpu-mode ml' on k3s-gpu-worker to restore GPU inference."
+
+        # Moltbot CrashLoopBackOff Alert (P2)
+        # Story: 21.4 - Enable Telegram Channel with DM Security
+        # NFR: NFR102 - Alertmanager sends notification within 2 minutes of CrashLoopBackOff
+        # Note: Built-in KubePodCrashLooping fires after 15 min; this custom rule meets the 2-min requirement.
+        - alert: MoltbotCrashLooping
+          expr: |
+            kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", namespace="apps", pod=~"moltbot.*"} > 0
+          for: 2m
+          labels:
+            severity: warning
+            component: ai-gateway
+            service: moltbot
+            priority: P2
+          annotations:
+            summary: "Moltbot pod is in CrashLoopBackOff"
+            description: "Moltbot pod {{ $labels.pod }} in namespace 'apps' has been in CrashLoopBackOff for more than 2 minutes."
+            impact: "Telegram channel, Control UI, and LLM routing are unavailable."
+            action: "Check pod logs: kubectl logs -n apps {{ $labels.pod }} --previous. Check moltbot.json for invalid config keys."

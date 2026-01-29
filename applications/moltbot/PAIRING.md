@@ -109,6 +109,50 @@ kubectl rollout restart deployment/moltbot -n apps
 **Note:** `trustedProxies` uses exact IP matching (no CIDR support). If the
 Traefik pod IP changes (e.g., after node reschedule), update the config.
 
+## Telegram DM Access Control
+
+Telegram DM access is managed separately from device pairing. The gateway
+supports two policies configured via `channels.telegram.dmPolicy` in
+`moltbot.json`:
+
+### Allowlist Mode (Current Setup)
+
+DM access is controlled by a static list of Telegram user IDs. Only listed
+users receive responses; all others are silently ignored.
+
+```bash
+# Add a user: edit moltbot.json on the NFS volume
+kubectl exec -n apps deployment/moltbot -- node -e '
+const fs = require("fs");
+const p = "/home/node/.moltbot/moltbot.json";
+const c = JSON.parse(fs.readFileSync(p, "utf8"));
+c.channels.telegram.allowFrom.push("NEW_USER_ID");
+fs.writeFileSync(p, JSON.stringify(c, null, 2));
+console.log("Updated allowFrom:", c.channels.telegram.allowFrom);
+'
+
+# Restart to apply (or wait for hot-reload)
+kubectl rollout restart deployment/moltbot -n apps
+```
+
+### Pairing Mode (Alternative)
+
+Set `dmPolicy: "pairing"` to require a one-time pairing code. Unknown users
+receive an 8-character code (expires after 1 hour) that the operator approves.
+
+```bash
+# List pending Telegram pairing requests
+kubectl exec -n apps deployment/moltbot -- \
+  node dist/index.js pairing list telegram
+
+# Approve a pairing request
+kubectl exec -n apps deployment/moltbot -- \
+  node dist/index.js pairing approve telegram <CODE>
+```
+
+Approved senders are stored in `~/.moltbot/credentials/` and persist across
+pod restarts via NFS.
+
 ## When Re-Pairing Is Needed
 
 - Browser data cleared (device key is stored in localStorage)
