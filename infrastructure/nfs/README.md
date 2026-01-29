@@ -27,7 +27,7 @@ This directory contains the configuration for the NFS dynamic storage provisione
 
 3. **Configure NFS Permissions:**
    - Edit `k8s-data` → NFS Permissions → Create rule:
-     - Hostname/IP: `192.168.2.0/24`
+     - Hostname/IP: `192.168.2.20/30` (k3s nodes .20-.23 only)
      - Privilege: Read/Write
      - Squash: Map all users to admin
      - Enable asynchronous: Yes
