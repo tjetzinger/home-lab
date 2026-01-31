@@ -1,6 +1,6 @@
 # Story 21.4: Configure Opus 4.5 LLM with LiteLLM Fallback
 
-Status: backlog
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -28,60 +28,55 @@ So that **my AI assistant always has an LLM backend available, using frontier re
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Obtain Anthropic OAuth token (AC: #1)
-  - [ ] 1.1 Complete the Anthropic OAuth flow via `claude setup-token` (Claude Max subscription, token valid 1 year)
-  - [ ] 1.2 Update the `openclaw-secrets` K8s Secret with the real OAuth token value using `kubectl patch` (NOT committed to git)
+> **Scope:** Opus 4.5 only — LiteLLM fallback removed per user decision (2026-01-31)
 
-- [ ] Task 2: Configure OpenClaw gateway LLM provider settings (AC: #1, #2, #3)
-  - [ ] 2.1 Exec into the openclaw pod to configure gateway
-  - [ ] 2.2 Configure primary LLM provider as Anthropic OAuth (Opus 4.5) in `openclaw.json` with auth profile `anthropic:subscription` mode `oauth`
-  - [ ] 2.3 Configure fallback LLM provider as LiteLLM with `openai-completions` API at `http://litellm.ml.svc.cluster.local:4000/v1` (models: vllm-qwen, ollama-qwen, openai-gpt4o)
-  - [ ] 2.4 Write OAuth credentials to `auth-profiles.json` at `/home/node/.openclaw/agents/main/agent/auth-profiles.json`
-  - [ ] 2.5 Verify `openclaw.json` persisted on NFS — confirmed via pod restart cycle
+- [x] Task 1: Obtain Anthropic OAuth token and patch K8s secret (AC: #1)
+  - [x] 1.1 Complete the Anthropic OAuth flow via `claude setup-token` (Claude Max subscription, token valid 1 year)
+  - [x] 1.2 Update the `openclaw-secrets` K8s Secret with the real OAuth token value using `kubectl patch` (NOT committed to git)
 
-- [ ] Task 3: Validate primary LLM routing (AC: #3)
-  - [ ] 3.1 Send a test conversation message via the control UI WebChat — user confirmed response
-  - [ ] 3.2 Gateway logs confirm `agent model: anthropic/claude-opus-4-5`
-  - [ ] 3.3 User confirmed response quality
+- [x] Task 2: Configure OpenClaw gateway for Opus 4.5 (AC: #1, #3)
+  - [x] 2.1 Update `openclaw.json` on local-path PVC with auth profile `anthropic:subscription` mode `oauth` and agents default model `anthropic/claude-opus-4-5`
+  - [x] 2.2 Write OAuth credentials to `auth-profiles.json` at `/home/node/.openclaw/agents/main/agent/auth-profiles.json`
+  - [x] 2.3 Restart deployment and verify `openclaw.json` persisted on local-path PVC via pod restart cycle
 
-- [ ] Task 4: Validate LiteLLM fallback (AC: #2, #4)
-  - [ ] 4.1 Verify K8s DNS resolution: `getent hosts litellm.ml.svc.cluster.local` → `10.43.171.36`. LiteLLM API reachable with 9 models available (NFR99)
-  - [ ] 4.2 Simulated Anthropic unavailability by invalidating OAuth token in both K8s secret and auth-profiles.json
-  - [ ] 4.3 Fallback to LiteLLM triggered in ~0.5 seconds (Anthropic failed in 387ms, immediate retry to `provider=litellm model=vllm-qwen`). NFR88 met (<5s).
-  - [ ] 4.4 Logs clearly show `provider=litellm model=vllm-qwen` vs `provider=anthropic model=claude-opus-4-5` (FR157). Note: vLLM GPU was offline, LiteLLM internally fell back to Ollama CPU (slow but functional).
-  - [ ] 4.5 Restored valid Anthropic OAuth token via `kubectl patch` + auth-profiles.json update + pod restart
+- [x] Task 3: Validate primary LLM routing (AC: #3)
+  - [x] 3.1 Gateway logs confirm `agent model: anthropic/claude-opus-4-5`
+  - [x] 3.2 Send a test conversation message via the control UI WebChat — 3 successful runs logged
+  - [x] 3.3 User confirmed response from Opus 4.5 — logs show `provider=anthropic model=claude-opus-4-5 thinking=low`
 
-- [ ] Task 5: Validate auto-reconnection (AC: #5)
-  - [ ] 5.1 After restoring token and restarting pod, Opus 4.5 responded immediately on next message
-  - [ ] 5.2 Logs confirm `provider=anthropic model=claude-opus-4-5` after restore. Auto-reconnection verified (NFR96).
+- [x] Task 4: Validate OAuth management via control UI (AC: #6)
+  - [x] 4.1 Control UI at `openclaw.home.jetzinger.com` accessible with WebChat functional
+  - [x] 4.2 Auth profiles loaded in startup logs — `Browser control service ready (profiles=2)`
+  - [x] 4.3 Token renewal procedure documented in `applications/openclaw/OAUTH-SETUP.md`
 
-- [ ] Task 6: Validate OAuth management via control UI (AC: #6)
-  - [ ] 6.1 Control UI at `openclaw.home.jetzinger.com` accessible with WebChat functional
-  - [ ] 6.2 Auth profiles loaded (2 profiles confirmed in startup logs). Token managed via auth-profiles.json on NFS.
-  - [ ] 6.3 Manual token refresh: re-run `claude setup-token` + patch secret + restart. Documented in `applications/openclaw/OAUTH-SETUP.md`.
-
-- [ ] Task 7: Validate secrets are not in logs (AC: #7)
-  - [ ] 7.1 Checked pod stdout logs and `/tmp/openclaw/openclaw-2026-01-29.log` — 0 matches for token patterns
-  - [ ] 7.2 No OAuth tokens, API keys, or secret values in log output (NFR95 satisfied)
-  - [ ] 7.3 Gateway redacts secrets by default — confirmed operational
+- [x] Task 5: Validate secrets are not in logs (AC: #7)
+  - [x] 5.1 Check pod stdout logs and gateway log file — 0 matches for token patterns
+  - [x] 5.2 No OAuth tokens or API keys in log output (NFR95)
+  - [x] 5.3 Gateway redacts secrets by default — confirmed operational
 
 ## Gap Analysis
 
-**Scan Date:** 2026-01-29
+**Scan Date:** 2026-01-31 (re-implementation)
 
 **What Exists:**
-- `applications/openclaw/secret.yaml` — Contains `ANTHROPIC_OAUTH_TOKEN` (empty placeholder) and `LITELLM_FALLBACK_URL` (correct value)
-- `applications/openclaw/deployment.yaml` — Injects secrets via `envFrom.secretRef`, NFS mount at `/home/node/.openclaw`
+- `applications/openclaw/secret.yaml` — Contains `ANTHROPIC_OAUTH_TOKEN` (empty placeholder) and `LITELLM_FALLBACK_URL`
+- `applications/openclaw/deployment.yaml` — Injects secrets via `envFrom.secretRef`, local-path PVC mount at `/home/node/.openclaw`
 - `applications/openclaw/ingressroute.yaml` — Control UI ingress configured
-- `applications/litellm/` — Full LiteLLM deployment (9 models: vllm-qwen, vllm-r1, ollama-qwen, openai-gpt4o, groq, gemini, mistral)
-- `/home/node/.openclaw/openclaw.json` — Existing config with `trustedProxies` from Story 21.2
+- `applications/openclaw/OAUTH-SETUP.md` — Existing tutorial from previous (failed) attempt
+- `/home/node/.openclaw/openclaw.json` — Existing config with memory-lancedb plugin + gateway trustedProxies, but NO auth/agents config
+- Gateway running, shows `agent model: anthropic/claude-opus-4-5` in logs (default), but no credentials configured
+- `ANTHROPIC_OAUTH_TOKEN` is **empty** in live K8s secret
 
 **What's Missing:**
 - Real OAuth token value in K8s secret
-- LLM provider configuration in `openclaw.json`
-- Auth profile credentials for Anthropic OAuth
+- Auth configuration in `openclaw.json` (auth profiles, agents default model)
+- `/home/node/.openclaw/agents/main/agent/auth-profiles.json` — directory does not exist
 
-**Task Changes:** NO CHANGES NEEDED — draft tasks matched codebase reality
+**Task Changes:**
+- REMOVED: Tasks 4 (LiteLLM fallback validation), Task 5 (auto-reconnection) — LiteLLM fallback out of scope
+- REMOVED: Task 2.3 (LiteLLM provider config) — not needed
+- MODIFIED: All tasks — corrected storage references from "NFS" to "local-path PVC"
+- SIMPLIFIED: 7 tasks → 5 tasks focused on Opus 4.5 only
 
 ---
 
@@ -96,7 +91,7 @@ So that **my AI assistant always has an LLM backend available, using frontier re
   - Tier 2: Ollama CPU (qwen2.5:3b, <5s latency)
   - Tier 3: OpenAI (gpt-4o-mini, emergency)
 - **Secrets:** All credentials stored as K8s Secrets per NFR91. `ANTHROPIC_OAUTH_TOKEN` and `LITELLM_FALLBACK_URL` already exist in `openclaw-secrets`
-- **Config persistence:** `openclaw.json` at `/home/node/.openclaw/openclaw.json` on NFS PVC (10Gi)
+- **Config persistence:** `openclaw.json` at `/home/node/.openclaw/openclaw.json` on local-path PVC (10Gi, pinned to k3s-worker-01)
 - **OAuth handling:** Auto-refresh (NFR94), auto-reconnect <30s (NFR96), manual refresh via control UI (FR158)
 - **Log safety:** Gateway redacts secrets by default (NFR95)
 
@@ -104,7 +99,7 @@ So that **my AI assistant always has an LLM backend available, using frontier re
 
 - `applications/openclaw/secret.yaml` — Already contains `ANTHROPIC_OAUTH_TOKEN` (empty placeholder) and `LITELLM_FALLBACK_URL` (set to correct URL). Only needs the OAuth token populated via `kubectl patch`.
 - `applications/openclaw/deployment.yaml` — Injects secrets via `envFrom.secretRef`. No changes expected.
-- `/home/node/.openclaw/openclaw.json` (on NFS) — Gateway config file where LLM provider settings are configured. Already exists with `trustedProxies` from Story 21.2.
+- `/home/node/.openclaw/openclaw.json` (on local-path PVC) — Gateway config file where LLM provider settings are configured. Already exists with memory-lancedb plugin + gateway trustedProxies config.
 
 ### Previous Story Intelligence (Stories 21.1, 21.2)
 
@@ -138,7 +133,7 @@ Pattern: Conventional commits with `feat:` prefix, referencing Epic and Story nu
 
 - No new files expected — this story configures existing infrastructure
 - `applications/openclaw/secret.yaml` needs real credential (NOT committed to git)
-- `openclaw.json` on NFS may need LLM provider configuration updates
+- `openclaw.json` on local-path PVC needs auth/agents configuration added
 
 ### Dependencies
 
@@ -165,29 +160,28 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 ### Debug Log References
 
-- Pod crashed with invalid `openclaw.json` config — unknown keys `token`, `apiKey`, `fallbackStrategy`, root-level `providers`. Fixed by using correct schema: `models.providers` with required `models` array, auth profiles without inline tokens.
-- LiteLLM API requires auth: dummy key `sk-litellm-local` rejected. Resolved by using real `LITELLM_MASTER_KEY` from `litellm-secrets` in `ml` namespace.
+- (Previous attempt) Pod crashed with invalid `openclaw.json` config — unknown keys `token`, `apiKey`, `fallbackStrategy`, root-level `providers`. Correct schema uses `auth.profiles` and `agents.defaults.model`.
 
 ### Completion Notes List
 
 - OAuth token obtained via `claude setup-token` (Claude Max subscription, 1-year validity)
 - Token patched into `openclaw-secrets` K8s Secret via `kubectl patch` (base64-encoded, not in git)
-- `openclaw.json` configured with: Anthropic OAuth auth profile, LiteLLM as `openai-completions` provider with 3 fallback models (vllm-qwen, ollama-qwen, openai-gpt4o), primary model `anthropic/claude-opus-4-5`, fallback `litellm/vllm-qwen`
-- Auth credentials written to `/home/node/.openclaw/agents/main/agent/auth-profiles.json`
+- `openclaw.json` updated with `auth.profiles` (anthropic:subscription, oauth mode) and `agents.defaults.model` (anthropic/claude-opus-4-5)
+- Auth credentials written to `/home/node/.openclaw/agents/main/agent/auth-profiles.json` on local-path PVC
 - Gateway confirmed running with `agent model: anthropic/claude-opus-4-5` in logs
-- DNS resolution verified: `litellm.ml.svc.cluster.local` → `10.43.171.36`
-- LiteLLM API reachable with 9 models available
-- No secrets found in pod logs or gateway log file (NFR95)
-- User confirmed Opus 4.5 responses via control UI WebChat
+- 3 successful conversation runs via WebChat — all show `provider=anthropic model=claude-opus-4-5 thinking=low`
+- Memory-lancedb plugin operational: captured 2 memories, injected 2 into context
+- 0 secret matches in pod stdout and gateway log file (NFR95 satisfied)
 
 ### Change Log
 
-- 2026-01-29: Story implemented — OAuth token obtained, gateway configured with Opus 4.5 primary + LiteLLM fallback, all 7 tasks validated including fallback simulation and auto-reconnection. OAUTH-SETUP.md tutorial created.
+- 2026-01-29: Previous implementation attempt (marked done incorrectly — credentials not persisted, config lost)
+- 2026-01-31: Story reset for re-implementation. Scope reduced to Opus 4.5 only (LiteLLM fallback removed). Tasks refined based on codebase gap analysis. Storage references corrected from NFS to local-path PVC.
+- 2026-01-31: Re-implementation complete — OAuth token patched, gateway configured, all 5 tasks validated.
 
 ### File List
 
-- `applications/openclaw/OAUTH-SETUP.md` — NEW: tutorial for OAuth token setup and renewal
+- `applications/openclaw/OAUTH-SETUP.md` — existing tutorial (no changes needed)
 - `applications/openclaw/secret.yaml` — no git changes (token patched at runtime only via `kubectl patch`)
-- NFS: `/home/node/.openclaw/openclaw.json` — updated with auth profiles, LiteLLM provider, model config
-- NFS: `/home/node/.openclaw/agents/main/agent/auth-profiles.json` — created with Anthropic OAuth credentials
-- NFS: `/home/node/.openclaw/agents/main/agent/models.json` — auto-generated by gateway from config
+- PVC: `/home/node/.openclaw/openclaw.json` — updated with auth profiles and agents default model config
+- PVC: `/home/node/.openclaw/agents/main/agent/auth-profiles.json` — created with Anthropic OAuth credentials
