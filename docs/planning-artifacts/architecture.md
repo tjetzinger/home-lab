@@ -3,7 +3,7 @@ stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
 lastModified: '2026-01-31'
-updateReason: 'OpenClaw long-term memory architecture (2026-01-31): Added memory-lancedb plugin with local Xenova embeddings for auto-recall/capture (FR189-FR191, NFR105-NFR106). Previous: OpenClaw storage architecture update (2026-01-30, FR151-FR152b, NFR100).'
+updateReason: 'OpenClaw memory architecture correction (2026-01-31): Updated memory-lancedb from local Xenova to OpenAI text-embedding-3-small (plugin does not support local embeddings). Updated NFR105, CLI commands, and architecture diagram. Previous: OpenClaw long-term memory architecture (2026-01-31, FR189-FR191, NFR105-NFR106).'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -1381,10 +1381,10 @@ stringData:
 | **Multi-Agent** | **OpenClaw native sub-agent routing** | **FR171-173: Specialized agents callable from main conversation** |
 | **Browser Tool** | **OpenClaw built-in browser automation** | **FR174-175: Web navigation, form filling, data extraction** |
 | **Skills** | **ClawdHub marketplace integration** | **FR177-180: Install/sync skills to local workspace** |
-| **Secrets** | **Kubernetes Secrets (8 secret keys)** | **NFR91: Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, LiteLLM fallback URL, gateway auth token** |
+| **Secrets** | **Kubernetes Secrets (9 secret keys)** | **NFR91: Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, OpenAI (embeddings), LiteLLM fallback URL, gateway auth token** |
 | **DM Security** | **Allowlist-only pairing** | **NFR92: Single-user lockdown across all channels** |
 | **Observability** | **Loki logs + Blackbox Exporter (no native /metrics)** | **FR181-185: Log-derived Grafana panels + HTTP probe for uptime** |
-| **Memory Backend** | **`memory-lancedb` plugin with local Xenova embeddings** | **FR189-191: Auto-capture/recall across conversations; `Xenova/all-MiniLM-L6-v2` (384-dim, ~5-15ms/embed on 4 vCPU); no external API dependency** |
+| **Memory Backend** | **`memory-lancedb` plugin with OpenAI embeddings** | **FR189-191: Auto-capture/recall across conversations; `text-embedding-3-small` (1536-dim, ~300-500ms/embed via API); OPENAI_API_KEY in K8s Secret** |
 
 **Deployment Architecture:**
 ```
@@ -1516,12 +1516,14 @@ stringData:
 │                                                                             │
 │  PLUGIN CONFIGURATION (openclaw.json):                                     │
 │  ├── plugins.slots.memory = "memory-lancedb"                              │
-│  └── embedding.provider = "local"                                          │
-│      embedding.model = "Xenova/all-MiniLM-L6-v2"                          │
+│  └── plugins.entries.memory-lancedb.config:                                │
+│      embedding.apiKey = "${OPENAI_API_KEY}"                                │
+│      embedding.model = "text-embedding-3-small"                            │
+│      autoCapture = true, autoRecall = true                                 │
 │                                                                             │
 │  AUTO-CAPTURE (on every conversation turn):                                │
-│  ├── User message → embed via Xenova (384-dim, ~5-15ms)                   │
-│  ├── Assistant response → extract key facts                                │
+│  ├── User message → embed via OpenAI API (1536-dim, ~300-500ms)           │
+│  ├── Assistant response → extract key facts (rule-based triggers)          │
 │  └── Store vectors + metadata → LanceDB on local PVC                      │
 │                                                                             │
 │  AUTO-RECALL (on every new message):                                       │
@@ -1530,29 +1532,27 @@ stringData:
 │  └── Inject as context before LLM inference (transparent to user)         │
 │                                                                             │
 │  STORAGE (on openclaw-data PVC, k3s-worker-01):                           │
-│  ├── ~/.openclaw/memory/ (Markdown source files)                          │
-│  ├── ~/.openclaw/memory.db (LanceDB vector store)                         │
+│  ├── ~/.openclaw/memory/lancedb/memories.lance/ (LanceDB vector store)    │
 │  └── Persists across pod restarts (NFR106)                                │
 │                                                                             │
-│  EMBEDDING STACK (fully local, no external API):                           │
-│  ├── @xenova/transformers (Node.js runtime)                               │
-│  ├── Xenova/all-MiniLM-L6-v2 (~80MB model, cached after first load)      │
-│  ├── 384-dimensional embeddings                                            │
-│  ├── Latency: ~5-15ms per embed on 4 vCPU (NFR105)                       │
-│  └── First request: ~200-500ms (model load, one-time)                     │
+│  EMBEDDING STACK (OpenAI API):                                             │
+│  ├── openai npm package (in extension node_modules)                        │
+│  ├── text-embedding-3-small (1536-dimensional)                             │
+│  ├── Latency: ~300-500ms per embed (cloud API round-trip)                 │
+│  └── OPENAI_API_KEY from K8s Secret (env var substitution)                │
 │                                                                             │
 │  ALTERNATIVES CONSIDERED:                                                  │
 │  ├── memory-core (default): Manual search only, no auto-recall — rejected │
 │  │   for personal AI use case requiring cross-conversation learning        │
-│  ├── OpenAI embeddings: Higher quality but adds API dependency + cost     │
-│  │   — rejected to maintain fully self-contained local stack               │
-│  └── LiteLLM-routed embeddings: Could use vLLM/Ollama — future option    │
-│      if embedding quality from Xenova proves insufficient                  │
+│  ├── Local Xenova embeddings: Plugin does not support local provider      │
+│  │   — only OpenAI-compatible embedding APIs supported in v2026.1.29      │
+│  └── LiteLLM-routed embeddings: Could proxy OpenAI embedding calls       │
+│      through LiteLLM to local models — future option if cost concerns     │
 │                                                                             │
-│  OPERATIONAL MANAGEMENT:                                                   │
-│  ├── openclaw memory status  — show index stats (FR191)                   │
-│  ├── openclaw memory index   — reindex memory files                       │
-│  └── openclaw memory search  — semantic search over memories              │
+│  OPERATIONAL MANAGEMENT (CLI: openclaw ltm):                               │
+│  ├── openclaw ltm stats   — show memory count (FR191)                     │
+│  ├── openclaw ltm list    — list stored memories                          │
+│  └── openclaw ltm search  — semantic search over memories                 │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1698,7 +1698,7 @@ WhatsApp via Baileys requires persistent auth state. If the pod restarts without
 - NFR102: Pod CrashLoopBackOff triggers Alertmanager within 2 minutes
 - NFR103: Loki retains OpenClaw logs 7 days (existing retention policy)
 - NFR104: Blackbox Exporter 30s probe interval, alert after 3 failures
-- NFR105: Memory embedding latency <50ms on k3s-worker-01 (4 vCPU) with local Xenova
+- NFR105: Memory embedding latency <500ms via OpenAI API (text-embedding-3-small); local Xenova not supported by plugin
 - NFR106: LanceDB memory data persists across pod restarts via local PVC
 
 **Repository Structure Addition:**
@@ -2064,7 +2064,7 @@ All requirements have explicit architectural support documented in Core Architec
 - **NFR91-95: OpenClaw Security (K8s Secrets, allowlist DM, Tailscale-only, OAuth refresh, no secrets in logs) — covered by OpenClaw Personal AI Assistant Architecture**
 - **NFR96-99: OpenClaw Integration (OAuth reconnect, channel reconnect, MCP recovery, cluster DNS) — covered by OpenClaw Personal AI Assistant Architecture**
 - **NFR100-104: OpenClaw Reliability (NFS persistence, channel isolation, crash alerting, log retention, blackbox probing) — covered by OpenClaw Personal AI Assistant Architecture**
-- **FR189-191: OpenClaw Long-Term Memory (LanceDB auto-recall/capture, local Xenova embeddings, CLI management) — covered by OpenClaw Personal AI Assistant Architecture**
+- **FR189-191: OpenClaw Long-Term Memory (LanceDB auto-recall/capture, OpenAI text-embedding-3-small, CLI management) — covered by OpenClaw Personal AI Assistant Architecture**
 - **NFR105-106: OpenClaw Memory (embedding latency, LanceDB persistence) — covered by OpenClaw Personal AI Assistant Architecture**
 
 ### Implementation Readiness ✅

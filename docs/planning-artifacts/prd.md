@@ -26,7 +26,7 @@ project_name: 'home-lab'
 **Date:** 2025-12-27 | **Last Updated:** 2026-01-31
 
 **Changelog:**
-- 2026-01-31: Added OpenClaw long-term memory with LanceDB (FR189-FR191, NFR105-NFR106) - memory-lancedb plugin with local Xenova embeddings for automatic memory capture and recall across conversations
+- 2026-01-31: Added OpenClaw long-term memory with LanceDB (FR189-FR191, NFR105-NFR106) - memory-lancedb plugin with OpenAI text-embedding-3-small for automatic memory capture and recall across conversations
 - 2026-01-30: Updated OpenClaw storage architecture (FR151, FR152, FR152a, FR152b, NFR100) - Changed from NFS to local persistent storage on k3s-worker-01 to eliminate network complexity and corruption vectors; added node affinity and Velero backup requirements
 - 2026-01-29: Added OpenClaw personal AI assistant (FR149-FR163, NFR86-NFR97) - Self-hosted multi-channel AI assistant on K3s with Opus 4.5 primary, LiteLLM fallback, Telegram channel, MCP research tools via mcporter (Exa)
 - 2026-01-15: Added Phase 2+ requirements - Tailscale subnet routers (FR120-122, NFR71-72), Synology NAS K3s worker (FR123-125, NFR73-74), Open-WebUI chat interface (FR126-129, NFR75-76), Kubernetes Dashboard (FR130-133, NFR77-78), Gitea self-hosted Git (FR134-137, NFR79-80), DeepSeek-R1 14B reasoning mode (FR138-141, NFR81-82), LiteLLM external providers Groq/Google/Mistral (FR142-145, NFR83-84), Blog article completion (FR146-148, NFR85)
@@ -1226,9 +1226,9 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 
 ### Long-Term Memory
 
-- FR189: Operator can configure OpenClaw to use the `memory-lancedb` plugin with local Xenova embeddings (`Xenova/all-MiniLM-L6-v2`) for automatic memory capture and recall, replacing the default `memory-core` plugin
+- FR189: Operator can configure OpenClaw to use the `memory-lancedb` plugin with OpenAI embeddings (`text-embedding-3-small`) for automatic memory capture and recall, replacing the default `memory-core` plugin
 - FR190: System automatically captures conversation context into a LanceDB vector store and recalls relevant memories on subsequent conversations without the user or agent explicitly invoking memory tools
-- FR191: Operator can manage the memory index via `openclaw memory` CLI commands (status, reindex, search) from inside the pod
+- FR191: Operator can manage the memory index via `openclaw ltm` CLI commands (stats, list, search) from inside the pod
 
 ### Documentation & Portfolio
 
@@ -1270,6 +1270,6 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 
 ### Memory
 
-- NFR105: Memory embedding latency does not exceed 50ms per message on k3s-worker-01 (4 vCPU) using local Xenova provider (`Xenova/all-MiniLM-L6-v2`), with no external API dependency
+- NFR105: Memory embedding latency does not exceed 500ms per message using OpenAI API (`text-embedding-3-small`); local Xenova not supported by memory-lancedb plugin
 - NFR106: LanceDB memory data persists across pod restarts via local PVC (`openclaw-data`) on k3s-worker-01
 

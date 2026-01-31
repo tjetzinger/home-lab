@@ -10,7 +10,7 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'OpenClaw long-term memory story (2026-01-31): Added Story 21.3 (LanceDB memory with local Xenova embeddings, FR189-191, NFR105-106). Renumbered existing 21.3→21.4, 21.4→21.5. Previous: OpenClaw storage architecture update (2026-01-30, FR151-FR152b, NFR100).'
+updateReason: 'OpenClaw memory implementation correction (2026-01-31): Updated FR189 and NFR105 — memory-lancedb plugin uses OpenAI text-embedding-3-small, not local Xenova (plugin does not support local embeddings). Updated CLI commands to actual openclaw ltm subcommand. Previous: OpenClaw long-term memory story (2026-01-31, FR189-191, NFR105-106).'
 currentStep: 'Workflow Complete - All validations passed, ready for implementation'
 ---
 
@@ -195,9 +195,9 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR188: Repository README includes a OpenClaw section with architecture overview
 
 **Long-Term Memory (3 FRs)**
-- FR189: Operator can configure OpenClaw to use the `memory-lancedb` plugin with local Xenova embeddings (`Xenova/all-MiniLM-L6-v2`) for automatic memory capture and recall
+- FR189: Operator can configure OpenClaw to use the `memory-lancedb` plugin with OpenAI embeddings (`text-embedding-3-small`) for automatic memory capture and recall
 - FR190: System automatically captures conversation context into a LanceDB vector store and recalls relevant memories on subsequent conversations
-- FR191: Operator can manage the memory index via `openclaw memory` CLI commands (status, reindex, search)
+- FR191: Operator can manage the memory index via `openclaw ltm` CLI commands (stats, list, search)
 
 **Development Proxy (3 FRs)**
 - FR41: Operator can configure Nginx to proxy to local dev servers
@@ -381,7 +381,7 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR104: Blackbox Exporter probe interval of 30 seconds with alerting after 3 consecutive failures
 
 **OpenClaw Memory (2 NFRs)**
-- NFR105: Memory embedding latency does not exceed 50ms per message on k3s-worker-01 (4 vCPU) using local Xenova provider (`Xenova/all-MiniLM-L6-v2`)
+- NFR105: Memory embedding latency does not exceed 500ms per message using OpenAI API (`text-embedding-3-small`); local Xenova not supported by memory-lancedb plugin
 - NFR106: LanceDB memory data persists across pod restarts via local PVC (`openclaw-data`) on k3s-worker-01
 
 ### Additional Requirements
@@ -5239,14 +5239,14 @@ So that **my AI assistant learns from past conversations and provides contextual
 **Acceptance Criteria:**
 
 **Given** the OpenClaw gateway is running with local persistent storage (Story 21.1)
-**When** I configure `plugins.slots.memory = "memory-lancedb"` and `embedding.provider = "local"` with `embedding.model = "Xenova/all-MiniLM-L6-v2"` in `openclaw.json`
+**When** I configure `plugins.slots.memory = "memory-lancedb"` and `plugins.entries.memory-lancedb.config.embedding` with `apiKey: "${OPENAI_API_KEY}"` and `model: "text-embedding-3-small"` in `openclaw.json`
 **Then** the gateway starts with the `memory-lancedb` plugin active, replacing the default `memory-core` plugin (FR189)
-**And** the Xenova embedding model is downloaded and cached on the local PVC (~80MB, one-time)
+**And** the OPENAI_API_KEY is resolved from the K8s Secret environment variable
 
 **Given** the `memory-lancedb` plugin is active
 **When** a conversation message is processed
 **Then** the system automatically captures conversation context (user message + assistant key facts) into the LanceDB vector store (FR190)
-**And** embedding latency does not exceed 50ms per message on k3s-worker-01 (NFR105)
+**And** embedding latency does not exceed 500ms per message via OpenAI API (NFR105)
 
 **Given** the `memory-lancedb` plugin is active and has stored memories
 **When** a new conversation message arrives
@@ -5259,8 +5259,8 @@ So that **my AI assistant learns from past conversations and provides contextual
 **And** no memory data is lost and auto-recall continues functioning immediately
 
 **Given** the operator execs into the OpenClaw pod
-**When** they run `openclaw memory status`, `openclaw memory index`, or `openclaw memory search`
-**Then** the CLI commands return memory index statistics, trigger reindexing, or perform semantic search respectively (FR191)
+**When** they run `openclaw ltm stats`, `openclaw ltm list`, or `openclaw ltm search`
+**Then** the CLI commands return memory count, list stored memories, or perform semantic search respectively (FR191)
 
 **FRs covered:** FR189, FR190, FR191
 **NFRs covered:** NFR105, NFR106

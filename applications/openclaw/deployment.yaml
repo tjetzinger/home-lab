@@ -34,6 +34,19 @@ spec:
                     operator: In
                     values:
                       - k3s-worker-01
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.37
+          command: ["sh", "-c", "chown -R 1000:1000 /data/openclaw /data/clawd 2>/dev/null; mkdir -p /data/openclaw/memory/lancedb && chown -R 1000:1000 /data/openclaw/memory"]
+          volumeMounts:
+            - name: openclaw-data
+              mountPath: /data/openclaw
+              subPath: openclaw
+            - name: openclaw-data
+              mountPath: /data/clawd
+              subPath: clawd
+          securityContext:
+            runAsUser: 0
       containers:
         - name: openclaw
           image: docker.io/library/openclaw:2026.1.29
