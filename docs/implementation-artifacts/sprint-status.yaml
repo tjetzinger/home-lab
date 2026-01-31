@@ -215,7 +215,7 @@ development_status:
   epic-20-retrospective: optional
 
   # Epic 21: OpenClaw Core Gateway & Telegram Channel [Phase 5]
-  epic-21: in-progress
+  epic-21: done
   21-1-deploy-openclaw-gateway-with-local-persistence: done
   21-2-configure-traefik-ingress-and-control-ui: done
   21-3-configure-long-term-memory-with-lancedb: done
