@@ -2,7 +2,7 @@
 stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
 completedAt: '2026-01-29'
-lastModified: '2026-01-30'
+lastModified: '2026-01-31'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,7 +10,7 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'OpenClaw storage architecture update (2026-01-30): Updated Epic 21 stories to reflect local persistent storage on k3s-worker-01 with node affinity (FR151, FR152, FR152a, FR152b, NFR100), eliminating NFS complexity. Previous: Workflow complete (2026-01-29) - Added 16 new stories for Phase 5 OpenClaw epics (21-24).'
+updateReason: 'OpenClaw long-term memory story (2026-01-31): Added Story 21.3 (LanceDB memory with local Xenova embeddings, FR189-191, NFR105-106). Renumbered existing 21.3→21.4, 21.4→21.5. Previous: OpenClaw storage architecture update (2026-01-30, FR151-FR152b, NFR100).'
 currentStep: 'Workflow Complete - All validations passed, ready for implementation'
 ---
 
@@ -194,6 +194,11 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR187: Repository includes an ADR documenting OpenClaw architectural decisions
 - FR188: Repository README includes a OpenClaw section with architecture overview
 
+**Long-Term Memory (3 FRs)**
+- FR189: Operator can configure OpenClaw to use the `memory-lancedb` plugin with local Xenova embeddings (`Xenova/all-MiniLM-L6-v2`) for automatic memory capture and recall
+- FR190: System automatically captures conversation context into a LanceDB vector store and recalls relevant memories on subsequent conversations
+- FR191: Operator can manage the memory index via `openclaw memory` CLI commands (status, reindex, search)
+
 **Development Proxy (3 FRs)**
 - FR41: Operator can configure Nginx to proxy to local dev servers
 - FR42: Developer can access local dev servers via cluster ingress
@@ -374,6 +379,10 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR102: Pod crash loop triggers Alertmanager notification within 2 minutes
 - NFR103: Loki retains OpenClaw gateway logs for a minimum of 7 days
 - NFR104: Blackbox Exporter probe interval of 30 seconds with alerting after 3 consecutive failures
+
+**OpenClaw Memory (2 NFRs)**
+- NFR105: Memory embedding latency does not exceed 50ms per message on k3s-worker-01 (4 vCPU) using local Xenova provider (`Xenova/all-MiniLM-L6-v2`)
+- NFR106: LanceDB memory data persists across pod restarts via local PVC (`openclaw-data`) on k3s-worker-01
 
 ### Additional Requirements
 
@@ -629,8 +638,11 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR186 | Epic 24 | Health snapshot via openclaw health --json |
 | FR187 | Epic 24 | ADR documenting OpenClaw architectural decisions |
 | FR188 | Epic 24 | README OpenClaw section with architecture overview |
+| FR189 | Epic 21 | Configure memory-lancedb plugin with local Xenova embeddings |
+| FR190 | Epic 21 | Auto-capture/recall conversation context via LanceDB |
+| FR191 | Epic 21 | Manage memory index via openclaw memory CLI commands |
 
-**Coverage Summary:** 188 FRs total, 104 NFRs total
+**Coverage Summary:** 191 FRs total, 106 NFRs total
 - **Phase 1 (Epic 1-9):** 54 FRs completed + 3 new (FR146-148 for Blog Article)
   - Epic 9 (Portfolio): FR49-54, FR146-148
 - **Phase 2 (Epic 10-12):** 49 FRs
@@ -647,8 +659,8 @@ This document provides the complete epic and story breakdown for home-lab, decom
   - Epic 18 (K8s Dashboard): FR130-133
   - Epic 19 (Gitea): FR134-137
   - Epic 20 (DeepSeek-R1): FR138-141
-- **Phase 5 (Epic 21-24 - NEW):** 40 FRs (FR149-188), 19 NFRs (NFR86-104)
-  - Epic 21 (OpenClaw Core Gateway & Telegram): FR149-159, FR162-163
+- **Phase 5 (Epic 21-24 - NEW):** 43 FRs (FR149-191), 21 NFRs (NFR86-106)
+  - Epic 21 (OpenClaw Core Gateway & Telegram): FR149-159, FR162-163, FR189-191
   - Epic 22 (OpenClaw Research & Multi-Channel): FR160-161, FR164-168
   - Epic 23 (OpenClaw Advanced Capabilities): FR169-180
   - Epic 24 (OpenClaw Observability & Documentation): FR181-188
@@ -5139,13 +5151,13 @@ Tom has a working multi-node K3s cluster he can access from anywhere via Tailsca
 | **Phase 4 Total** | | **16 stories** | **22 FRs** | **12 NFRs** |
 | | | | | |
 | **Phase 5** | **OpenClaw Personal AI Assistant** | | | |
-| 21 | OpenClaw Core Gateway & Telegram Channel | 4 | FR149-159, FR162-163 | NFR86-88, NFR91-96, NFR99-102 |
+| 21 | OpenClaw Core Gateway & Telegram Channel | 5 | FR149-159, FR162-163, FR189-191 | NFR86-88, NFR91-96, NFR99-102, NFR105-106 |
 | 22 | OpenClaw Research Tools & Multi-Channel | 4 | FR160-161, FR164-168 | NFR89, NFR97-98 |
 | 23 | OpenClaw Advanced Capabilities | 5 | FR169-180 | NFR90 |
 | 24 | OpenClaw Observability & Documentation | 3 | FR181-188 | NFR103-104 |
-| **Phase 5 Total** | | **16 stories** | **40 FRs** | **19 NFRs** |
+| **Phase 5 Total** | | **17 stories** | **43 FRs** | **21 NFRs** |
 | | | | | |
-| **Grand Total** | | **112 stories** | **188 FRs** | **104 NFRs** |
+| **Grand Total** | | **113 stories** | **191 FRs** | **106 NFRs** |
 
 **Phase 1 Status:** ✅ Completed (Epics 1-9)
 **Phase 2 Status:** ✅ Completed (Epics 10-12)
@@ -5157,10 +5169,10 @@ Tom has a working multi-node K3s cluster he can access from anywhere via Tailsca
 
 ### Epic 21: OpenClaw Core Gateway & Telegram Channel
 
-**User Outcome:** Tom has a personal AI assistant running on his K3s cluster, accessible via Telegram, powered by Claude Opus 4.5 with automatic LiteLLM fallback, secured with allowlist-only DM pairing.
+**User Outcome:** Tom has a personal AI assistant running on his K3s cluster, accessible via Telegram, powered by Claude Opus 4.5 with automatic LiteLLM fallback, secured with allowlist-only DM pairing, with long-term memory that learns across conversations.
 
-**FRs Covered:** FR149-159, FR162-163
-**NFRs Covered:** NFR86-88, NFR91-96, NFR99-102
+**FRs Covered:** FR149-159, FR162-163, FR189-191
+**NFRs Covered:** NFR86-88, NFR91-96, NFR99-102, NFR105-106
 
 ---
 
@@ -5218,7 +5230,44 @@ So that **I can view gateway health, manage configuration, and restart the gatew
 
 ---
 
-#### Story 21.3: Configure Opus 4.5 LLM with LiteLLM Fallback
+#### Story 21.3: Configure Long-Term Memory with LanceDB
+
+As a **cluster operator**,
+I want **to configure OpenClaw to use the `memory-lancedb` plugin with local Xenova embeddings for automatic memory capture and recall**,
+So that **my AI assistant learns from past conversations and provides contextually relevant responses without manual memory management**.
+
+**Acceptance Criteria:**
+
+**Given** the OpenClaw gateway is running with local persistent storage (Story 21.1)
+**When** I configure `plugins.slots.memory = "memory-lancedb"` and `embedding.provider = "local"` with `embedding.model = "Xenova/all-MiniLM-L6-v2"` in `openclaw.json`
+**Then** the gateway starts with the `memory-lancedb` plugin active, replacing the default `memory-core` plugin (FR189)
+**And** the Xenova embedding model is downloaded and cached on the local PVC (~80MB, one-time)
+
+**Given** the `memory-lancedb` plugin is active
+**When** a conversation message is processed
+**Then** the system automatically captures conversation context (user message + assistant key facts) into the LanceDB vector store (FR190)
+**And** embedding latency does not exceed 50ms per message on k3s-worker-01 (NFR105)
+
+**Given** the `memory-lancedb` plugin is active and has stored memories
+**When** a new conversation message arrives
+**Then** the system automatically embeds the incoming message and performs vector similarity search against stored memories (FR190)
+**And** relevant memories are injected as context before LLM inference, transparent to the user
+
+**Given** the OpenClaw pod restarts
+**When** the replacement pod starts
+**Then** the LanceDB vector store and memory files are intact on the local PVC (`openclaw-data`) (NFR106)
+**And** no memory data is lost and auto-recall continues functioning immediately
+
+**Given** the operator execs into the OpenClaw pod
+**When** they run `openclaw memory status`, `openclaw memory index`, or `openclaw memory search`
+**Then** the CLI commands return memory index statistics, trigger reindexing, or perform semantic search respectively (FR191)
+
+**FRs covered:** FR189, FR190, FR191
+**NFRs covered:** NFR105, NFR106
+
+---
+
+#### Story 21.4: Configure Opus 4.5 LLM with LiteLLM Fallback
 
 As a **cluster operator**,
 I want **to configure OpenClaw to use Claude Opus 4.5 as the primary LLM with automatic fallback to the existing LiteLLM proxy**,
@@ -5256,7 +5305,7 @@ So that **my AI assistant always has an LLM backend available, using frontier re
 
 ---
 
-#### Story 21.4: Enable Telegram Channel with DM Security
+#### Story 21.5: Enable Telegram Channel with DM Security
 
 As a **user**,
 I want **to send and receive messages with my AI assistant via Telegram DM with allowlist-only security**,
@@ -5264,7 +5313,7 @@ So that **I can interact with my personal AI from Telegram while ensuring no una
 
 **Acceptance Criteria:**
 
-**Given** the OpenClaw gateway is running with LLM configured (Story 21.3)
+**Given** the OpenClaw gateway is running with LLM configured (Story 21.4)
 **When** I set the `TELEGRAM_BOT_TOKEN` in the K8s Secret (from BotFather)
 **Then** the Telegram channel connector starts and begins long-polling the Telegram Bot API
 **And** no inbound network exposure is required (outbound HTTPS only)

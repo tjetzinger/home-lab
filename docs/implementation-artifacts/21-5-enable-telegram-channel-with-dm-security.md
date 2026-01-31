@@ -1,4 +1,4 @@
-# Story 21.4: Enable Telegram Channel with DM Security
+# Story 21.5: Enable Telegram Channel with DM Security
 
 Status: backlog
 
@@ -107,10 +107,10 @@ So that **I can interact with my personal AI from Telegram while ensuring no una
 
 - `applications/openclaw/secret.yaml` — Already contains `TELEGRAM_BOT_TOKEN` (empty placeholder). No git changes needed, only `kubectl patch` at runtime.
 - `applications/openclaw/deployment.yaml` — Already injects all secrets via `envFrom.secretRef`. No changes expected.
-- `/home/node/.openclaw/openclaw.json` (on NFS) — Gateway config where Telegram channel and DM allowlist will be configured. Already has `trustedProxies`, auth profiles, and LLM provider config from Stories 21.1-21.3.
+- `/home/node/.openclaw/openclaw.json` (on NFS) — Gateway config where Telegram channel and DM allowlist will be configured. Already has `trustedProxies`, auth profiles, and LLM provider config from Stories 21.1-21.4.
 - `monitoring/prometheus/` — May need a new PrometheusRule for CrashLoopBackOff alerting (NFR102) if not already covered.
 
-### Previous Story Intelligence (Story 21.3)
+### Previous Story Intelligence (Story 21.4)
 
 **Critical learnings:**
 - Gateway port is **18789** (not 3000 as architecture initially assumed)
@@ -129,7 +129,7 @@ So that **I can interact with my personal AI from Telegram while ensuring no una
 ### Git Intelligence (Recent Commits)
 
 ```
-bebf116 feat: configure Opus 4.5 LLM with LiteLLM fallback (Epic 21, Story 21.3)
+bebf116 feat: configure Opus 4.5 LLM with LiteLLM fallback (Epic 21, Story 21.4)
 5143e2d feat: configure Traefik ingress and Control UI for OpenClaw (Epic 21, Story 21.2)
 4a005b8 feat: deploy OpenClaw gateway with NFS persistence (Epic 21, Story 21.1)
 687c0e4 feat: add OpenClaw Phase 5 planning and calsync dev container
@@ -154,13 +154,13 @@ Pattern: Conventional commits with `feat:` prefix, referencing Epic and Story nu
 
 ### Dependencies
 
-- **Requires:** Story 21.1 (deployment) - done, Story 21.2 (ingress) - done, Story 21.3 (LLM config) - done
+- **Requires:** Story 21.1 (deployment) - done, Story 21.2 (ingress) - done, Story 21.4 (LLM config) - done
 - **External dependency:** Telegram Bot Token from @BotFather (requires Telegram account)
 - **Tom's Telegram user ID:** Needed for allowlist configuration
 
 ### References
 
-- [Source: docs/planning-artifacts/epics.md#Story 21.4 BDD (line ~5250)]
+- [Source: docs/planning-artifacts/epics.md#Story 21.5 BDD (line ~5250)]
 - [Source: docs/planning-artifacts/architecture.md#OpenClaw Personal AI Assistant Architecture (line ~1368)]
 - [Source: docs/planning-artifacts/architecture.md#Networking Architecture (line ~1449)]
 - [Source: docs/planning-artifacts/architecture.md#Secret manifest (line ~1562)]

@@ -1,4 +1,4 @@
-# Story 21.3: Configure Opus 4.5 LLM with LiteLLM Fallback
+# Story 21.4: Configure Opus 4.5 LLM with LiteLLM Fallback
 
 Status: backlog
 
@@ -152,7 +152,7 @@ Pattern: Conventional commits with `feat:` prefix, referencing Epic and Story nu
 - [Source: docs/planning-artifacts/architecture.md#LLM Routing Architecture (line ~1419)]
 - [Source: docs/planning-artifacts/architecture.md#NFR Compliance (line ~1619)]
 - [Source: docs/planning-artifacts/architecture.md#Secret manifest (line ~1562)]
-- [Source: docs/planning-artifacts/epics.md#Story 21.3 BDD (line ~5212)]
+- [Source: docs/planning-artifacts/epics.md#Story 21.4 BDD (line ~5212)]
 - [Source: docs/planning-artifacts/epics.md#Epic 21 Implementation Notes (line ~1068)]
 - [Source: docs/implementation-artifacts/21-1-deploy-openclaw-gateway-with-nfs-persistence.md - Previous story]
 - [Source: docs/implementation-artifacts/21-2-configure-traefik-ingress-and-control-ui.md - Previous story]

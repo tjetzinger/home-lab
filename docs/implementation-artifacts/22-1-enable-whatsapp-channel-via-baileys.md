@@ -36,7 +36,7 @@ So that **I can interact with my personal AI from my primary messaging app**.
 
 - [ ] Task 2: Configure WhatsApp channel in openclaw.json (AC: #1, #2)
   - [ ] 2.1 Exec into the openclaw pod and edit `/home/node/.openclaw/openclaw.json`
-  - [ ] 2.2 Add WhatsApp channel configuration (following the same pattern as Telegram channel from Story 21.4)
+  - [ ] 2.2 Add WhatsApp channel configuration (following the same pattern as Telegram channel from Story 21.5)
   - [ ] 2.3 Configure dmPolicy=allowlist with Tom's WhatsApp number/ID in allowFrom
   - [ ] 2.4 Verify the gateway reads `WHATSAPP_CREDENTIALS` from environment variable (injected via K8s Secret envFrom) if required
   - [ ] 2.5 Restart pod or trigger config hot-reload to activate WhatsApp connector
@@ -71,7 +71,7 @@ _This section will be populated by dev-story when gap analysis runs._
 
 - **WhatsApp Transport:** Baileys library uses outbound WebSocket connection to WhatsApp servers. No inbound network exposure, no webhook needed. This is similar to Telegram long-polling but uses WebSocket instead of HTTPS polling.
 - **Baileys Auth State Persistence:** This is the PRIMARY RISK for this story. Baileys requires persistent auth state — if session data is lost, re-pairing is required (QR scan on phone). Architecture explicitly calls out NFS PVC at `~/clawd/` for storing Baileys auth state [Source: docs/planning-artifacts/architecture.md#WhatsApp Session Persistence (line ~1615)].
-- **DM Security Pattern:** Same as Telegram (Story 21.4) — allowlist-only pairing per NFR92. Gateway silently drops messages from non-allowlisted users. Configure via `openclaw.json` with `dmPolicy: "allowlist"` and `allowFrom` array.
+- **DM Security Pattern:** Same as Telegram (Story 21.5) — allowlist-only pairing per NFR92. Gateway silently drops messages from non-allowlisted users. Configure via `openclaw.json` with `dmPolicy: "allowlist"` and `allowFrom` array.
 - **Secret Management:** `WHATSAPP_CREDENTIALS` placeholder already exists in `openclaw-secrets` (line 25 of `secret.yaml`). Populate via `kubectl patch` — never commit real credentials to git.
 - **Config Persistence:** All WhatsApp config stored in `/home/node/.openclaw/openclaw.json` on NFS PVC (10Gi). Survives pod restarts.
 - **Gateway Port:** 18789 (not 3000). Config directory is `.openclaw` (not `.clawdbot`).
@@ -82,10 +82,10 @@ _This section will be populated by dev-story when gap analysis runs._
 
 - `applications/openclaw/secret.yaml` — Already contains `WHATSAPP_CREDENTIALS` (empty placeholder at line 25). No git changes needed, only `kubectl patch` at runtime if Baileys requires env var credentials.
 - `applications/openclaw/deployment.yaml` — Already injects all secrets via `envFrom.secretRef`. NFS mounts at `/home/node/.openclaw` (subPath: openclaw) and `/home/node/clawd` (subPath: clawd). No changes expected.
-- `/home/node/.openclaw/openclaw.json` (on NFS) — Gateway config where WhatsApp channel will be configured. Already has Telegram channel config from Story 21.4.
+- `/home/node/.openclaw/openclaw.json` (on NFS) — Gateway config where WhatsApp channel will be configured. Already has Telegram channel config from Story 21.5.
 - `/home/node/clawd/` (on NFS) — Baileys auth state will be stored here for persistence across pod restarts.
 
-### Previous Story Intelligence (Story 21.4)
+### Previous Story Intelligence (Story 21.5)
 
 **Critical learnings from Telegram channel setup:**
 - Gateway port is **18789** (not 3000 as architecture initially assumed)
@@ -102,8 +102,8 @@ _This section will be populated by dev-story when gap analysis runs._
 ### Git Intelligence (Recent Commits)
 
 ```
-daa2338 feat: enable Telegram channel with DM allowlist security (Epic 21, Story 21.4)
-bebf116 feat: configure Opus 4.5 LLM with LiteLLM fallback (Epic 21, Story 21.3)
+daa2338 feat: enable Telegram channel with DM allowlist security (Epic 21, Story 21.5)
+bebf116 feat: configure Opus 4.5 LLM with LiteLLM fallback (Epic 21, Story 21.4)
 5143e2d feat: configure Traefik ingress and Control UI for OpenClaw (Epic 21, Story 21.2)
 4a005b8 feat: deploy OpenClaw gateway with NFS persistence (Epic 21, Story 21.1)
 687c0e4 feat: add OpenClaw Phase 5 planning and calsync dev container
@@ -128,9 +128,9 @@ Pattern: Conventional commits with `feat:` prefix, referencing Epic and Story nu
 
 ### Dependencies
 
-- **Requires:** Story 21.1 (deployment) - done, Story 21.2 (ingress) - done, Story 21.3 (LLM config) - done, Story 21.4 (Telegram + DM security) - done
+- **Requires:** Story 21.1 (deployment) - done, Story 21.2 (ingress) - done, Story 21.4 (LLM config) - done, Story 21.5 (Telegram + DM security) - done
 - **External dependency:** Tom's WhatsApp account for device pairing (QR code scan)
-- **Predecessor pattern:** WhatsApp channel follows the same openclaw.json configuration pattern as Telegram (Story 21.4)
+- **Predecessor pattern:** WhatsApp channel follows the same openclaw.json configuration pattern as Telegram (Story 21.5)
 
 ### References
 

@@ -2,8 +2,8 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
-lastModified: '2026-01-30'
-updateReason: 'OpenClaw storage architecture update (2026-01-30): Changed from NFS to local persistent storage on k3s-worker-01 with node affinity (FR151, FR152, FR152a, FR152b, NFR100) to eliminate network complexity and corruption vectors; added Velero backup coverage. Previous: OpenClaw personal AI assistant (2026-01-29, FR149-FR188, NFR86-NFR104).'
+lastModified: '2026-01-31'
+updateReason: 'OpenClaw long-term memory architecture (2026-01-31): Added memory-lancedb plugin with local Xenova embeddings for auto-recall/capture (FR189-FR191, NFR105-NFR106). Previous: OpenClaw storage architecture update (2026-01-30, FR151-FR152b, NFR100).'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -1384,6 +1384,7 @@ stringData:
 | **Secrets** | **Kubernetes Secrets (8 secret keys)** | **NFR91: Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, LiteLLM fallback URL, gateway auth token** |
 | **DM Security** | **Allowlist-only pairing** | **NFR92: Single-user lockdown across all channels** |
 | **Observability** | **Loki logs + Blackbox Exporter (no native /metrics)** | **FR181-185: Log-derived Grafana panels + HTTP probe for uptime** |
+| **Memory Backend** | **`memory-lancedb` plugin with local Xenova embeddings** | **FR189-191: Auto-capture/recall across conversations; `Xenova/all-MiniLM-L6-v2` (384-dim, ~5-15ms/embed on 4 vCPU); no external API dependency** |
 
 **Deployment Architecture:**
 ```
@@ -1503,6 +1504,55 @@ stringData:
 │  Existing pattern: Prometheus scrape /metrics → Grafana                    │
 │  OpenClaw pattern: Loki logs + Blackbox HTTP probe → Grafana                │
 │  Reason: OpenClaw doesn't expose Prometheus metrics natively                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Long-Term Memory Architecture (Auto-Recall/Capture):**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  OpenClaw Memory Subsystem (memory-lancedb plugin)                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PLUGIN CONFIGURATION (openclaw.json):                                     │
+│  ├── plugins.slots.memory = "memory-lancedb"                              │
+│  └── embedding.provider = "local"                                          │
+│      embedding.model = "Xenova/all-MiniLM-L6-v2"                          │
+│                                                                             │
+│  AUTO-CAPTURE (on every conversation turn):                                │
+│  ├── User message → embed via Xenova (384-dim, ~5-15ms)                   │
+│  ├── Assistant response → extract key facts                                │
+│  └── Store vectors + metadata → LanceDB on local PVC                      │
+│                                                                             │
+│  AUTO-RECALL (on every new message):                                       │
+│  ├── Embed incoming message → vector similarity search                     │
+│  ├── Retrieve top-k relevant memories from LanceDB                        │
+│  └── Inject as context before LLM inference (transparent to user)         │
+│                                                                             │
+│  STORAGE (on openclaw-data PVC, k3s-worker-01):                           │
+│  ├── ~/.openclaw/memory/ (Markdown source files)                          │
+│  ├── ~/.openclaw/memory.db (LanceDB vector store)                         │
+│  └── Persists across pod restarts (NFR106)                                │
+│                                                                             │
+│  EMBEDDING STACK (fully local, no external API):                           │
+│  ├── @xenova/transformers (Node.js runtime)                               │
+│  ├── Xenova/all-MiniLM-L6-v2 (~80MB model, cached after first load)      │
+│  ├── 384-dimensional embeddings                                            │
+│  ├── Latency: ~5-15ms per embed on 4 vCPU (NFR105)                       │
+│  └── First request: ~200-500ms (model load, one-time)                     │
+│                                                                             │
+│  ALTERNATIVES CONSIDERED:                                                  │
+│  ├── memory-core (default): Manual search only, no auto-recall — rejected │
+│  │   for personal AI use case requiring cross-conversation learning        │
+│  ├── OpenAI embeddings: Higher quality but adds API dependency + cost     │
+│  │   — rejected to maintain fully self-contained local stack               │
+│  └── LiteLLM-routed embeddings: Could use vLLM/Ollama — future option    │
+│      if embedding quality from Xenova proves insufficient                  │
+│                                                                             │
+│  OPERATIONAL MANAGEMENT:                                                   │
+│  ├── openclaw memory status  — show index stats (FR191)                   │
+│  ├── openclaw memory index   — reindex memory files                       │
+│  └── openclaw memory search  — semantic search over memories              │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1648,6 +1698,8 @@ WhatsApp via Baileys requires persistent auth state. If the pod restarts without
 - NFR102: Pod CrashLoopBackOff triggers Alertmanager within 2 minutes
 - NFR103: Loki retains OpenClaw logs 7 days (existing retention policy)
 - NFR104: Blackbox Exporter 30s probe interval, alert after 3 failures
+- NFR105: Memory embedding latency <50ms on k3s-worker-01 (4 vCPU) with local Xenova
+- NFR106: LanceDB memory data persists across pod restarts via local PVC
 
 **Repository Structure Addition:**
 ```
@@ -2012,6 +2064,8 @@ All requirements have explicit architectural support documented in Core Architec
 - **NFR91-95: OpenClaw Security (K8s Secrets, allowlist DM, Tailscale-only, OAuth refresh, no secrets in logs) — covered by OpenClaw Personal AI Assistant Architecture**
 - **NFR96-99: OpenClaw Integration (OAuth reconnect, channel reconnect, MCP recovery, cluster DNS) — covered by OpenClaw Personal AI Assistant Architecture**
 - **NFR100-104: OpenClaw Reliability (NFS persistence, channel isolation, crash alerting, log retention, blackbox probing) — covered by OpenClaw Personal AI Assistant Architecture**
+- **FR189-191: OpenClaw Long-Term Memory (LanceDB auto-recall/capture, local Xenova embeddings, CLI management) — covered by OpenClaw Personal AI Assistant Architecture**
+- **NFR105-106: OpenClaw Memory (embedding latency, LanceDB persistence) — covered by OpenClaw Personal AI Assistant Architecture**
 
 ### Implementation Readiness ✅
 
