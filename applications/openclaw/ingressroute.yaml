@@ -2,27 +2,27 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: moltbot-tls
+  name: openclaw-tls
   namespace: apps
   labels:
-    app.kubernetes.io/name: moltbot
+    app.kubernetes.io/name: openclaw
     app.kubernetes.io/part-of: home-lab
     app.kubernetes.io/managed-by: kubectl
 spec:
-  secretName: moltbot-tls
+  secretName: openclaw-tls
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-    - moltbot.home.jetzinger.com
+    - openclaw.home.jetzinger.com
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: moltbot-ingress
+  name: openclaw-ingress
   namespace: apps
   labels:
-    app.kubernetes.io/name: moltbot
+    app.kubernetes.io/name: openclaw
     app.kubernetes.io/part-of: home-lab
     app.kubernetes.io/managed-by: kubectl
 spec:
@@ -30,20 +30,20 @@ spec:
     - websecure
   routes:
     - kind: Rule
-      match: Host(`moltbot.home.jetzinger.com`)
+      match: Host(`openclaw.home.jetzinger.com`)
       services:
-        - name: moltbot
+        - name: openclaw
           port: 18789
   tls:
-    secretName: moltbot-tls
+    secretName: openclaw-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: moltbot-ingress-redirect
+  name: openclaw-ingress-redirect
   namespace: apps
   labels:
-    app.kubernetes.io/name: moltbot
+    app.kubernetes.io/name: openclaw
     app.kubernetes.io/part-of: home-lab
     app.kubernetes.io/managed-by: kubectl
 spec:
@@ -51,9 +51,9 @@ spec:
     - web
   routes:
     - kind: Rule
-      match: Host(`moltbot.home.jetzinger.com`)
+      match: Host(`openclaw.home.jetzinger.com`)
       services:
-        - name: moltbot
+        - name: openclaw
           port: 18789
       middlewares:
         - name: https-redirect

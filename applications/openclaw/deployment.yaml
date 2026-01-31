@@ -2,10 +2,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: moltbot
+  name: openclaw
   namespace: apps
   labels:
-    app.kubernetes.io/name: moltbot
+    app.kubernetes.io/name: openclaw
     app.kubernetes.io/part-of: home-lab
     app.kubernetes.io/managed-by: kubectl
 spec:
@@ -17,11 +17,11 @@ spec:
       maxSurge: 0
   selector:
     matchLabels:
-      app.kubernetes.io/name: moltbot
+      app.kubernetes.io/name: openclaw
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: moltbot
+        app.kubernetes.io/name: openclaw
         app.kubernetes.io/part-of: home-lab
     spec:
       # Pin to k3s-worker-01 for local storage persistence
@@ -35,7 +35,7 @@ spec:
                     values:
                       - k3s-worker-01
       containers:
-        - name: moltbot
+        - name: openclaw
           image: docker.io/library/openclaw:2026.1.29
           imagePullPolicy: Never
           command:
@@ -56,12 +56,12 @@ spec:
               protocol: TCP
           envFrom:
             - secretRef:
-                name: moltbot-secrets
+                name: openclaw-secrets
           volumeMounts:
-            - name: moltbot-data
+            - name: openclaw-data
               mountPath: /home/node/.openclaw
               subPath: openclaw
-            - name: moltbot-data
+            - name: openclaw-data
               mountPath: /home/node/clawd
               subPath: clawd
           resources:
@@ -72,6 +72,6 @@ spec:
               memory: "2Gi"
               cpu: "1000m"
       volumes:
-        - name: moltbot-data
+        - name: openclaw-data
           persistentVolumeClaim:
-            claimName: moltbot-data
+            claimName: openclaw-data

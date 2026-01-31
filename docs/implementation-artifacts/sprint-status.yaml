@@ -214,15 +214,15 @@ development_status:
   20-3-configure-litellm-with-deepseek-r1: done
   epic-20-retrospective: optional
 
-  # Epic 21: Moltbot Core Gateway & Telegram Channel [Phase 5]
+  # Epic 21: OpenClaw Core Gateway & Telegram Channel [Phase 5]
   epic-21: in-progress
-  21-1-deploy-moltbot-gateway-with-local-persistence: done
+  21-1-deploy-openclaw-gateway-with-local-persistence: done
   21-2-configure-traefik-ingress-and-control-ui: done
   21-3-configure-opus-4-5-llm-with-litellm-fallback: backlog
   21-4-enable-telegram-channel-with-dm-security: backlog
   epic-21-retrospective: optional
 
-  # Epic 22: Moltbot Research Tools & Multi-Channel [Phase 5]
+  # Epic 22: OpenClaw Research Tools & Multi-Channel [Phase 5]
   epic-22: backlog
   22-1-enable-whatsapp-channel-via-baileys: backlog
   22-2-enable-discord-channel: backlog
@@ -230,7 +230,7 @@ development_status:
   22-4-cross-channel-conversation-context: backlog
   epic-22-retrospective: optional
 
-  # Epic 23: Moltbot Advanced Capabilities [Phase 5]
+  # Epic 23: OpenClaw Advanced Capabilities [Phase 5]
   epic-23: backlog
   23-1-enable-voice-interaction-via-elevenlabs: backlog
   23-2-configure-multi-agent-sub-agent-routing: backlog
@@ -239,9 +239,9 @@ development_status:
   23-5-integrate-clawdhub-skills-marketplace: backlog
   epic-23-retrospective: optional
 
-  # Epic 24: Moltbot Observability & Portfolio Documentation [Phase 5]
+  # Epic 24: OpenClaw Observability & Portfolio Documentation [Phase 5]
   epic-24: backlog
   24-1-configure-loki-log-collection-and-grafana-dashboard: backlog
   24-2-configure-blackbox-exporter-and-alertmanager-rules: backlog
-  24-3-document-moltbot-architecture-adr-and-readme: backlog
+  24-3-document-openclaw-architecture-adr-and-readme: backlog
   epic-24-retrospective: optional

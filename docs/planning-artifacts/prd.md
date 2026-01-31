@@ -1,13 +1,13 @@
 ---
 stepsCompleted: [1, 2, 3, 4, 7, 8, 9, 10, 11]
 workflow_completed: true
-moltbot_update_completed: '2026-01-29'
-moltbot_storage_update: '2026-01-30'
+openclaw_update_completed: '2026-01-29'
+openclaw_storage_update: '2026-01-30'
 inputDocuments:
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
   - 'docs/planning-artifacts/research/domain-k8s-platform-career-positioning-research-2025-12-27.md'
   - 'docs/analysis/brainstorming-session-2025-12-27.md'
-  - 'external: github.com/moltbot/moltbot'
+  - 'external: github.com/openclaw/openclaw'
 workflowType: 'prd'
 lastStep: 11
 briefCount: 1
@@ -26,8 +26,8 @@ project_name: 'home-lab'
 **Date:** 2025-12-27 | **Last Updated:** 2026-01-30
 
 **Changelog:**
-- 2026-01-30: Updated Moltbot storage architecture (FR151, FR152, FR152a, FR152b, NFR100) - Changed from NFS to local persistent storage on k3s-worker-01 to eliminate network complexity and corruption vectors; added node affinity and Velero backup requirements
-- 2026-01-29: Added Moltbot personal AI assistant (FR149-FR163, NFR86-NFR97) - Self-hosted multi-channel AI assistant on K3s with Opus 4.5 primary, LiteLLM fallback, Telegram channel, MCP research tools via mcporter (Exa)
+- 2026-01-30: Updated OpenClaw storage architecture (FR151, FR152, FR152a, FR152b, NFR100) - Changed from NFS to local persistent storage on k3s-worker-01 to eliminate network complexity and corruption vectors; added node affinity and Velero backup requirements
+- 2026-01-29: Added OpenClaw personal AI assistant (FR149-FR163, NFR86-NFR97) - Self-hosted multi-channel AI assistant on K3s with Opus 4.5 primary, LiteLLM fallback, Telegram channel, MCP research tools via mcporter (Exa)
 - 2026-01-15: Added Phase 2+ requirements - Tailscale subnet routers (FR120-122, NFR71-72), Synology NAS K3s worker (FR123-125, NFR73-74), Open-WebUI chat interface (FR126-129, NFR75-76), Kubernetes Dashboard (FR130-133, NFR77-78), Gitea self-hosted Git (FR134-137, NFR79-80), DeepSeek-R1 14B reasoning mode (FR138-141, NFR81-82), LiteLLM external providers Groq/Google/Mistral (FR142-145, NFR83-84), Blog article completion (FR146-148, NFR85)
 - 2026-01-14: Added ML Mode default at boot for k3s-gpu-worker (FR119, NFR70) - systemd service auto-activates vLLM after k3s agent ready
 - 2026-01-14: Added LiteLLM Inference Proxy (Story 14.x) - Three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud). Paperless-AI uses unified LiteLLM endpoint. Added FR113-118, NFR65-69.
@@ -64,13 +64,13 @@ The project applies 10+ years of automotive distributed systems experience—OTA
 
 5. **Dual Purpose**: Simultaneously a learning platform for skill acquisition AND functional home infrastructure running daily workloads
 
-## Moltbot - Personal AI Assistant
+## OpenClaw - Personal AI Assistant
 
-**home-lab** extends beyond infrastructure and inference backends into a self-hosted personal AI assistant. Moltbot provides an always-available AI companion accessible through Telegram, powered by Claude Opus 4.5 via Anthropic OAuth (Claude Code subscription) with automatic fallback to the existing LiteLLM local inference stack.
+**home-lab** extends beyond infrastructure and inference backends into a self-hosted personal AI assistant. OpenClaw provides an always-available AI companion accessible through Telegram, powered by Claude Opus 4.5 via Anthropic OAuth (Claude Code subscription) with automatic fallback to the existing LiteLLM local inference stack.
 
-The assistant integrates MCP research tools via mcporter (Exa and others) for real-time web research, making it a capable research partner rather than just a chat interface. Running as a containerized workload on K3s, Moltbot inherits the cluster's existing Tailscale mesh networking -- no additional VPN configuration required.
+The assistant integrates MCP research tools via mcporter (Exa and others) for real-time web research, making it a capable research partner rather than just a chat interface. Running as a containerized workload on K3s, OpenClaw inherits the cluster's existing Tailscale mesh networking -- no additional VPN configuration required.
 
-### What Makes Moltbot Special
+### What Makes OpenClaw Special
 
 1. **Frontier AI on your own terms**: Opus 4.5 as primary brain with local LiteLLM fallback -- best reasoning available, with graceful degradation when the cloud is unavailable
 2. **Telegram as interface**: No web UI to open -- interact with your AI assistant from the same app you already use for messaging
@@ -78,7 +78,7 @@ The assistant integrates MCP research tools via mcporter (Exa and others) for re
 4. **Zero-config networking**: Gateway runs on K3s and inherits the cluster's existing Tailscale mesh -- accessible from any Tailscale device, no public exposure
 5. **Portfolio differentiator**: Demonstrates end-to-end AI infrastructure -- from GPU inference to proxy routing to a personal assistant consumers can understand
 
-### Moltbot Technical Stack
+### OpenClaw Technical Stack
 
 - **Runtime:** Node.js >= 22
 - **LLM:** Anthropic Claude Opus 4.5 (OAuth, Claude Code subscription)
@@ -86,7 +86,7 @@ The assistant integrates MCP research tools via mcporter (Exa and others) for re
 - **Channel:** Telegram (long polling, no inbound exposure needed)
 - **MCP Tools:** mcporter with Exa research + additional research servers
 - **Gateway:** WebSocket control plane on K3s
-- **Ingress:** `moltbot.home.jetzinger.com` via Traefik (gateway control UI)
+- **Ingress:** `openclaw.home.jetzinger.com` via Traefik (gateway control UI)
 - **Networking:** Inherited from cluster Tailscale mesh (no additional config)
 - **Deployment:** Docker container on K3s, `apps` namespace
 - **Storage:** Persistent volume for `~/.clawdbot` config + workspace data
@@ -839,15 +839,15 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 - NFR85: Blog post published to dev.to or equivalent platform within 2 weeks of Epic completion
 
-## Moltbot Success Criteria
+## OpenClaw Success Criteria
 
 ### User Success
 
-**Aha Moment:** Successfully completing a real research task through Telegram -- asking Moltbot a complex question and receiving a well-sourced, Exa-researched answer directly in the chat.
+**Aha Moment:** Successfully completing a real research task through Telegram -- asking OpenClaw a complex question and receiving a well-sourced, Exa-researched answer directly in the chat.
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Research task completion | Moltbot returns sourced answers via Exa MCP tools | Manual validation of research quality |
+| Research task completion | OpenClaw returns sourced answers via Exa MCP tools | Manual validation of research quality |
 | Telegram responsiveness | Bot responds to messages within 10 seconds (excluding LLM inference time) | Telegram message timestamps |
 | Daily usability | Usable as primary research assistant | Self-assessment after 1 week |
 | Fallback transparency | Clear indication when operating on LiteLLM fallback vs Opus 4.5 | Bot response metadata |
@@ -856,20 +856,20 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Portfolio showcase | Moltbot documented as home-lab feature with architecture diagram | GitHub repo docs |
-| Blog content | Moltbot integration included in technical blog post | Published article |
-| Interview talking point | Can explain Moltbot architecture end-to-end (container, LLM routing, MCP tools, Telegram) | Self-assessment |
+| Portfolio showcase | OpenClaw documented as home-lab feature with architecture diagram | GitHub repo docs |
+| Blog content | OpenClaw integration included in technical blog post | Published article |
+| Interview talking point | Can explain OpenClaw architecture end-to-end (container, LLM routing, MCP tools, Telegram) | Self-assessment |
 | Differentiator impact | Demonstrates "AI infrastructure serving a real personal assistant" narrative | Recruiter/interviewer feedback |
 
 ### Technical Success
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Container health | Moltbot pod running stable in `apps` namespace | `kubectl get pods -n apps` |
+| Container health | OpenClaw pod running stable in `apps` namespace | `kubectl get pods -n apps` |
 | Opus 4.5 connectivity | Anthropic OAuth authentication working | Gateway logs |
 | LiteLLM fallback | Automatic failover to local LiteLLM when Anthropic unavailable | Simulated outage test |
 | MCP tools | mcporter with Exa + additional research servers returning results | `mcporter list` + test query |
-| Ingress | `moltbot.home.jetzinger.com` serving gateway control UI | Browser access via Tailscale |
+| Ingress | `openclaw.home.jetzinger.com` serving gateway control UI | Browser access via Tailscale |
 | Persistent config | Config and workspace data survive pod restarts | Pod restart test |
 | Telegram channel | Bot registered, paired, responding to DMs | Telegram test message |
 | WhatsApp channel | Bot connected via Baileys, responding to DMs | WhatsApp test message |
@@ -884,24 +884,24 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 ### Measurable Outcomes
 
 **Leading Indicators:**
-- Moltbot pod uptime (Prometheus)
+- OpenClaw pod uptime (Prometheus)
 - Daily Telegram/WhatsApp/Discord message count (gateway logs)
 - Research query success rate
 
 **Lagging Indicators:**
-- "I use Moltbot daily" self-assessment after 2 weeks
-- Moltbot mentioned in recruiter conversations
-- Blog post views for Moltbot-related content
+- "I use OpenClaw daily" self-assessment after 2 weeks
+- OpenClaw mentioned in recruiter conversations
+- Blog post views for OpenClaw-related content
 
-## Moltbot Product Scope
+## OpenClaw Product Scope
 
 ### MVP - Minimum Viable Product
 
 **Core Infrastructure:**
-- Moltbot Gateway running as Docker container on K3s in `apps` namespace
+- OpenClaw Gateway running as Docker container on K3s in `apps` namespace
 - Persistent volume for `~/.clawdbot` config and workspace
-- Traefik IngressRoute for gateway control UI (`moltbot.home.jetzinger.com`)
-- Prometheus metrics for Moltbot gateway health
+- Traefik IngressRoute for gateway control UI (`openclaw.home.jetzinger.com`)
+- Prometheus metrics for OpenClaw gateway health
 - Grafana dashboard for bot usage and LLM routing
 
 **LLM Configuration:**
@@ -931,8 +931,8 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 ### Growth Features (Post-MVP)
 
-- Portfolio blog post covering Moltbot architecture
-- Moltbot integration showcased in technical blog post
+- Portfolio blog post covering OpenClaw architecture
+- OpenClaw integration showcased in technical blog post
 - Additional messaging channels (Signal, Google Chat, Teams)
 
 ### Vision (Future)
@@ -940,9 +940,9 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - macOS/iOS companion app integration
 - Node network across multiple devices
 - Custom skill development for home-lab specific tasks
-- Moltbot as entry point for cluster operations (kubectl via bot)
+- OpenClaw as entry point for cluster operations (kubectl via bot)
 
-## Moltbot User Journeys
+## OpenClaw User Journeys
 
 ### Journey 5: Tom the Researcher - The 2am Rabbit Hole
 
@@ -950,11 +950,11 @@ Tom is reading a Hacker News thread about a new Kubernetes networking approach. 
 
 He opens Telegram and types: "Research the current state of eBPF-based CNI plugins for Kubernetes. Compare Cilium, Calico eBPF, and any newer alternatives. Focus on performance benchmarks and home lab suitability."
 
-Moltbot picks it up instantly. Opus 4.5 orchestrates the Exa MCP tools -- searching for recent benchmarks, pulling documentation, cross-referencing GitHub stars and release activity. Thirty seconds later, Tom's Telegram lights up with a structured response: a comparison table, three sourced links, and a recommendation that Cilium's recent 1.16 release added features relevant to his K3s setup.
+OpenClaw picks it up instantly. Opus 4.5 orchestrates the Exa MCP tools -- searching for recent benchmarks, pulling documentation, cross-referencing GitHub stars and release activity. Thirty seconds later, Tom's Telegram lights up with a structured response: a comparison table, three sourced links, and a recommendation that Cilium's recent 1.16 release added features relevant to his K3s setup.
 
-Tom asks a follow-up: "Would switching from Flannel to Cilium break my existing Tailscale mesh networking?" Moltbot researches the specific interaction between Cilium and Tailscale, finds a community discussion on the exact topic, and summarizes the migration path with caveats.
+Tom asks a follow-up: "Would switching from Flannel to Cilium break my existing Tailscale mesh networking?" OpenClaw researches the specific interaction between Cilium and Tailscale, finds a community discussion on the exact topic, and summarizes the migration path with caveats.
 
-By the time Tom falls asleep, he has a clear picture of whether this is worth pursuing -- all without leaving his messaging app. The next morning, he forwards the Moltbot conversation to his laptop and creates an ADR draft.
+By the time Tom falls asleep, he has a clear picture of whether this is worth pursuing -- all without leaving his messaging app. The next morning, he forwards the OpenClaw conversation to his laptop and creates an ADR draft.
 
 **Requirements revealed:** Telegram channel, Opus 4.5 as primary LLM, Exa MCP research tools, conversational follow-ups, structured response formatting, mcporter configuration.
 
@@ -962,29 +962,29 @@ By the time Tom falls asleep, he has a clear picture of whether this is worth pu
 
 Tom is at his desk working on a home-lab feature when a thought hits him. He types into Discord (where he's already active in dev communities): "What are the best practices for running Node.js >= 22 containers on K3s with limited memory?"
 
-Moltbot responds in Discord with a concise answer. Later, on his commute, he opens WhatsApp and asks: "Continue that Node.js container question -- what about health check patterns?" Moltbot picks up the context from the earlier Discord session and continues the conversation seamlessly.
+OpenClaw responds in Discord with a concise answer. Later, on his commute, he opens WhatsApp and asks: "Continue that Node.js container question -- what about health check patterns?" OpenClaw picks up the context from the earlier Discord session and continues the conversation seamlessly.
 
-That evening, he's on the couch with his phone. A Telegram message to Moltbot: "Summarize everything we discussed today about Node.js containers into bullet points for my ADR." Moltbot consolidates the cross-channel conversation into a clean summary.
+That evening, he's on the couch with his phone. A Telegram message to OpenClaw: "Summarize everything we discussed today about Node.js containers into bullet points for my ADR." OpenClaw consolidates the cross-channel conversation into a clean summary.
 
 **Requirements revealed:** WhatsApp, Discord, and Telegram channels, cross-session context, DM pairing security (allowlist-only), session history access.
 
 ### Journey 7: Tom the Voice User - Hands-Free Research
 
-Tom is soldering a cable for his eGPU enclosure. Both hands occupied. He activates Moltbot's voice mode through his phone: "Hey, what's the recommended Thunderbolt cable length for an RTX 3060 eGPU setup? Any signal degradation issues?"
+Tom is soldering a cable for his eGPU enclosure. Both hands occupied. He activates OpenClaw's voice mode through his phone: "Hey, what's the recommended Thunderbolt cable length for an RTX 3060 eGPU setup? Any signal degradation issues?"
 
-Moltbot speaks back through ElevenLabs: "Based on my research, Thunderbolt 3 cables up to 0.7 meters maintain full 40Gbps bandwidth. Beyond that, active cables are recommended. For your RTX 3060 eGPU setup, the community reports stable performance at up to 2 meters with certified active cables."
+OpenClaw speaks back through ElevenLabs: "Based on my research, Thunderbolt 3 cables up to 0.7 meters maintain full 40Gbps bandwidth. Beyond that, active cables are recommended. For your RTX 3060 eGPU setup, the community reports stable performance at up to 2 meters with certified active cables."
 
 Tom asks a follow-up verbally, and the conversation continues hands-free while he finishes the hardware work.
 
 **Requirements revealed:** ElevenLabs voice integration, voice wake/talk mode, hands-free operation, research capabilities in voice context.
 
-### Journey 8: Tom the Operator - Moltbot Goes Down
+### Journey 8: Tom the Operator - OpenClaw Goes Down
 
-It's Saturday morning. Tom opens Telegram and sends a message to Moltbot. No response. He checks his phone -- no error, just silence.
+It's Saturday morning. Tom opens Telegram and sends a message to OpenClaw. No response. He checks his phone -- no error, just silence.
 
-He opens `moltbot.home.jetzinger.com` in his browser via Tailscale. The gateway control UI shows the pod is running but the Anthropic OAuth connection has expired. He checks Grafana -- the Moltbot dashboard shows the auth failure started 3 hours ago, and LiteLLM fallback kicked in but the local models couldn't handle the mcporter research tool calls.
+He opens `openclaw.home.jetzinger.com` in his browser via Tailscale. The gateway control UI shows the pod is running but the Anthropic OAuth connection has expired. He checks Grafana -- the OpenClaw dashboard shows the auth failure started 3 hours ago, and LiteLLM fallback kicked in but the local models couldn't handle the mcporter research tool calls.
 
-Tom refreshes the OAuth token through the gateway control UI. Within seconds, Moltbot responds to his pending Telegram message with an apology and the answer he was waiting for. He makes a mental note to add an alert rule for auth token expiry.
+Tom refreshes the OAuth token through the gateway control UI. Within seconds, OpenClaw responds to his pending Telegram message with an apology and the answer he was waiting for. He makes a mental note to add an alert rule for auth token expiry.
 
 Later, he documents the incident in a runbook and adds a Prometheus alert for Anthropic connectivity. This becomes another portfolio story -- real operational experience with AI infrastructure.
 
@@ -994,7 +994,7 @@ Later, he documents the incident in a runbook and adds a Prometheus alert for An
 
 During a technical interview for a Senior Platform Engineer role, the interviewer asks: "Tell me about a complex system you've built end-to-end."
 
-Tom pulls up his home-lab repo. "Beyond the K3s cluster and ML inference stack, I run a personal AI assistant called Moltbot. It's a self-hosted, containerized Node.js application running on my cluster. The primary brain is Claude Opus 4.5 via Anthropic OAuth, with automatic fallback to my local LiteLLM proxy -- that's vLLM on GPU falling back to Ollama on CPU. I interact with it through Telegram, WhatsApp, and Discord."
+Tom pulls up his home-lab repo. "Beyond the K3s cluster and ML inference stack, I run a personal AI assistant called OpenClaw. It's a self-hosted, containerized Node.js application running on my cluster. The primary brain is Claude Opus 4.5 via Anthropic OAuth, with automatic fallback to my local LiteLLM proxy -- that's vLLM on GPU falling back to Ollama on CPU. I interact with it through Telegram, WhatsApp, and Discord."
 
 The interviewer leans forward. "How does it do research?"
 
@@ -1004,27 +1004,27 @@ The interviewer leans forward. "How does it do research?"
 
 "Exactly. It demonstrates the full stack -- from GPU inference to API routing to a consumer-facing AI product. Every architectural decision is documented as an ADR."
 
-**Requirements revealed:** Portfolio documentation, architecture diagram, ADR for Moltbot decisions, demonstrable running system, clear technical narrative.
+**Requirements revealed:** Portfolio documentation, architecture diagram, ADR for OpenClaw decisions, demonstrable running system, clear technical narrative.
 
-### Moltbot Journey Requirements Summary
+### OpenClaw Journey Requirements Summary
 
 | Journey | Key Capabilities Required |
 |---------|--------------------------|
 | Researcher - 2am Rabbit Hole | Telegram, Opus 4.5, Exa MCP research, structured responses, conversational follow-ups |
 | Multi-Channel User | WhatsApp + Discord + Telegram, cross-session context, DM pairing security |
 | Voice User | ElevenLabs voice, hands-free operation, voice + research integration |
-| Operator - Moltbot Goes Down | Gateway control UI, Prometheus/Grafana, LiteLLM fallback, OAuth management, alerting |
+| Operator - OpenClaw Goes Down | Gateway control UI, Prometheus/Grafana, LiteLLM fallback, OAuth management, alerting |
 | Portfolio Showcaser | Documentation, ADR, architecture diagram, demonstrable system, interview narrative |
 
-## Moltbot Infrastructure Requirements
+## OpenClaw Infrastructure Requirements
 
 ### Project-Type Overview
 
-Moltbot is deployed as a containerized Node.js application on the existing K3s cluster pinned to k3s-worker-01 via node affinity. It follows the established deployment patterns: Helm/kubectl manifests, local persistent storage, Traefik ingress, Kubernetes Secrets, and full observability integration.
+OpenClaw is deployed as a containerized Node.js application on the existing K3s cluster pinned to k3s-worker-01 via node affinity. It follows the established deployment patterns: Helm/kubectl manifests, local persistent storage, Traefik ingress, Kubernetes Secrets, and full observability integration.
 
 ### Container & Runtime
 
-- Official Moltbot Docker image (Node.js >= 22)
+- Official OpenClaw Docker image (Node.js >= 22)
 - No custom image build required
 - mcporter installed at runtime or via workspace persistence
 - Container runs in `apps` namespace alongside Open-WebUI and n8n
@@ -1043,7 +1043,7 @@ Kubernetes Secrets (existing pattern) for:
 ### Storage & Persistence
 
 Local persistent volumes on k3s-worker-01 via `local-path` storage class:
-- `~/.clawdbot/moltbot.json` -- gateway configuration
+- `~/.clawdbot/openclaw.json` -- gateway configuration
 - `~/clawd/` -- agent workspace (skills, session data, mcporter config)
 - WhatsApp session state (Baileys requires persistent auth state)
 - ClawdHub installed skills
@@ -1051,7 +1051,7 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 
 ### Networking
 
-- **Ingress:** `moltbot.home.jetzinger.com` via Traefik IngressRoute (gateway control UI + WebChat)
+- **Ingress:** `openclaw.home.jetzinger.com` via Traefik IngressRoute (gateway control UI + WebChat)
 - **Outbound:** Telegram, WhatsApp, Discord long-polling (no inbound exposure needed)
 - **Outbound:** Anthropic API, ElevenLabs API, Exa API, additional MCP server endpoints
 - **Internal:** LiteLLM fallback via `litellm.ml.svc` cluster service
@@ -1069,14 +1069,14 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
   - Session activity and agent routing
 
 **Blackbox monitoring (Prometheus Blackbox Exporter):**
-- HTTP probe on gateway control UI (`moltbot.home.jetzinger.com`)
+- HTTP probe on gateway control UI (`openclaw.home.jetzinger.com`)
 - Uptime and response latency tracking
 - Alertmanager rules for:
   - Gateway unreachable (pod down or crash loop)
   - Sustained high error rate in logs
   - Anthropic OAuth token expiry warnings
 
-**Note:** Moltbot does not expose a native Prometheus `/metrics` endpoint. Observability is achieved through log analysis via Loki and blackbox probing via Prometheus.
+**Note:** OpenClaw does not expose a native Prometheus `/metrics` endpoint. Observability is achieved through log analysis via Loki and blackbox probing via Prometheus.
 
 ### Resource Allocation
 
@@ -1089,26 +1089,26 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 - **Namespace:** `apps` (alongside existing application workloads)
 - **Node Affinity:** Pinned to k3s-worker-01 (highest resource CPU worker)
 - **Deployment method:** Kubernetes manifests (Deployment, Service, IngressRoute, PVC, Secret)
-- **Configuration:** `moltbot.json` persisted on local storage
+- **Configuration:** `openclaw.json` persisted on local storage
 - **Updates:** Rolling deployment strategy, config changes via `gateway config.patch` or pod restart
 - **DM Security:** Allowlist-only pairing across all channels -- single-user lockdown
 
-## Moltbot Scoping & Phased Development
+## OpenClaw Scoping & Phased Development
 
 ### MVP Strategy & Philosophy
 
-**MVP Approach:** Platform MVP -- deploy the complete Moltbot foundation as a fully operational personal AI assistant from day one. Since Moltbot is an existing product being deployed (not built from scratch), the MVP encompasses full feature enablement through configuration rather than implementation.
+**MVP Approach:** Platform MVP -- deploy the complete OpenClaw foundation as a fully operational personal AI assistant from day one. Since OpenClaw is an existing product being deployed (not built from scratch), the MVP encompasses full feature enablement through configuration rather than implementation.
 
 **Resource Requirements:** Single operator (Tom), weekend deployment cadence consistent with existing home-lab patterns.
 
 ### MVP Implementation Phases
 
 #### Phase 1a: Core Gateway
-- Deploy official Moltbot Docker container on K3s (`apps` namespace, k3s-worker-01 node affinity)
+- Deploy official OpenClaw Docker container on K3s (`apps` namespace, k3s-worker-01 node affinity)
 - Configure Opus 4.5 as primary LLM via Anthropic OAuth
 - Connect Telegram channel (first channel, lowest friction)
 - Local persistent storage on k3s-worker-01 (config + workspace)
-- Traefik IngressRoute for gateway control UI (`moltbot.home.jetzinger.com`)
+- Traefik IngressRoute for gateway control UI (`openclaw.home.jetzinger.com`)
 - Kubernetes Secrets for credentials
 - Basic Loki log collection
 
@@ -1131,13 +1131,13 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 - Build Grafana dashboard with Loki log-derived panels
 - Configure Blackbox Exporter HTTP probes
 - Set up Alertmanager rules (gateway down, auth expiry, error rate)
-- Write ADR for Moltbot architectural decisions
-- Update README with Moltbot section
+- Write ADR for OpenClaw architectural decisions
+- Update README with OpenClaw section
 
 ### Post-MVP Features (Phase 2: Growth)
 
-- Portfolio blog post covering Moltbot architecture
-- Moltbot integration showcased in technical blog post
+- Portfolio blog post covering OpenClaw architecture
+- OpenClaw integration showcased in technical blog post
 - Additional messaging channels (Signal, Google Chat, Teams)
 
 ### Future Vision (Phase 3: Expansion)
@@ -1145,7 +1145,7 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 - macOS/iOS companion app integration
 - Node network across multiple devices
 - Custom skill development for home-lab specific tasks
-- Moltbot as entry point for cluster operations (kubectl via bot)
+- OpenClaw as entry point for cluster operations (kubectl via bot)
 
 ### Risk Mitigation Strategy
 
@@ -1157,16 +1157,16 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 | ElevenLabs latency | Voice feels sluggish | Acceptable for v1; optimize later |
 | Multi-agent resource usage | Pod memory spikes | Monitor via Loki, set resource limits if needed |
 
-## Moltbot Functional Requirements
+## OpenClaw Functional Requirements
 
 ### Gateway & Core Infrastructure
 
-- FR149: Operator can deploy Moltbot Gateway as a Docker container on K3s in the `apps` namespace
-- FR150: Operator can access the Moltbot gateway control UI via `moltbot.home.jetzinger.com` through Traefik ingress
-- FR151: Operator can configure Moltbot via `moltbot.json` persisted on local persistent storage
-- FR152: System preserves all Moltbot configuration and workspace data across pod restarts via local persistent volume
-- FR152a: System schedules Moltbot pod to k3s-worker-01 (highest resource CPU worker) using node affinity
-- FR152b: Velero cluster backups include Moltbot local PVC for disaster recovery
+- FR149: Operator can deploy OpenClaw Gateway as a Docker container on K3s in the `apps` namespace
+- FR150: Operator can access the OpenClaw gateway control UI via `openclaw.home.jetzinger.com` through Traefik ingress
+- FR151: Operator can configure OpenClaw via `openclaw.json` persisted on local persistent storage
+- FR152: System preserves all OpenClaw configuration and workspace data across pod restarts via local persistent volume
+- FR152a: System schedules OpenClaw pod to k3s-worker-01 (highest resource CPU worker) using node affinity
+- FR152b: Velero cluster backups include OpenClaw local PVC for disaster recovery
 - FR153: Operator can view gateway status and health via the control UI
 - FR154: Operator can restart the gateway via the control UI
 
@@ -1179,9 +1179,9 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 
 ### Messaging Channels
 
-- FR159: User can send and receive messages with Moltbot via Telegram DM
-- FR160: User can send and receive messages with Moltbot via WhatsApp DM
-- FR161: User can send and receive messages with Moltbot via Discord DM
+- FR159: User can send and receive messages with OpenClaw via Telegram DM
+- FR160: User can send and receive messages with OpenClaw via WhatsApp DM
+- FR161: User can send and receive messages with OpenClaw via Discord DM
 - FR162: System enforces allowlist-only DM pairing across all messaging channels
 - FR163: Operator can approve or reject pairing requests via the gateway CLI
 - FR164: User can continue a conversation context across different messaging channels
@@ -1195,7 +1195,7 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 
 ### Voice Capabilities
 
-- FR169: User can interact with Moltbot via voice input and receive spoken responses through ElevenLabs
+- FR169: User can interact with OpenClaw via voice input and receive spoken responses through ElevenLabs
 - FR170: User can switch between text and voice modes within a conversation
 
 ### Multi-Agent & Advanced
@@ -1212,27 +1212,27 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 - FR177: Operator can install skills from ClawdHub marketplace
 - FR178: Operator can update and sync installed skills via ClawdHub
 - FR179: User can invoke installed skills through slash commands or natural conversation
-- FR180: Operator can enable, disable, and configure individual skills via `moltbot.json`
+- FR180: Operator can enable, disable, and configure individual skills via `openclaw.json`
 
 ### Observability & Operations
 
 - FR181: System collects gateway logs into Loki for analysis
-- FR182: Operator can view Moltbot operational dashboard in Grafana with log-derived metrics
+- FR182: Operator can view OpenClaw operational dashboard in Grafana with log-derived metrics
 - FR183: Grafana dashboard displays message volume per channel, LLM provider usage, MCP tool invocations, and error rates
 - FR184: Prometheus Blackbox Exporter probes the gateway control UI for uptime monitoring
 - FR185: Alertmanager sends alerts when the gateway is unreachable, error rate is sustained, or OAuth tokens are expiring
-- FR186: Operator can view Moltbot health snapshot via `moltbot health --json`
+- FR186: Operator can view OpenClaw health snapshot via `openclaw health --json`
 
 ### Documentation & Portfolio
 
-- FR187: Repository includes an ADR documenting Moltbot architectural decisions
-- FR188: Repository README includes a Moltbot section with architecture overview
+- FR187: Repository includes an ADR documenting OpenClaw architectural decisions
+- FR188: Repository README includes a OpenClaw section with architecture overview
 
-## Moltbot Non-Functional Requirements
+## OpenClaw Non-Functional Requirements
 
 ### Performance
 
-- NFR86: Moltbot gateway responds to incoming Telegram/WhatsApp/Discord messages within 10 seconds (excluding LLM inference time)
+- NFR86: OpenClaw gateway responds to incoming Telegram/WhatsApp/Discord messages within 10 seconds (excluding LLM inference time)
 - NFR87: Gateway control UI loads within 3 seconds via Traefik ingress
 - NFR88: LiteLLM fallback activates within 5 seconds of detecting Anthropic unavailability
 - NFR89: mcporter MCP tool invocations (Exa research) return results within 30 seconds
@@ -1255,9 +1255,9 @@ Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 
 ### Reliability
 
-- NFR100: Moltbot pod restarts cleanly after k3s-worker-01 reboot with all configuration and workspace intact from local storage
+- NFR100: OpenClaw pod restarts cleanly after k3s-worker-01 reboot with all configuration and workspace intact from local storage
 - NFR101: Gateway survives individual channel disconnections without affecting other channels
 - NFR102: Pod crash loop triggers Alertmanager notification within 2 minutes
-- NFR103: Loki retains Moltbot gateway logs for a minimum of 7 days
+- NFR103: Loki retains OpenClaw gateway logs for a minimum of 7 days
 - NFR104: Blackbox Exporter probe interval of 30 seconds with alerting after 3 consecutive failures
 

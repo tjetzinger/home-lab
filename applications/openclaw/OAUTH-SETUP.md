@@ -1,13 +1,13 @@
-# Moltbot OAuth Setup: Claude Max Subscription
+# OpenClaw OAuth Setup: Claude Max Subscription
 
-This guide covers obtaining an Anthropic OAuth token via Claude Max and configuring it for a headless Moltbot gateway running in Kubernetes.
+This guide covers obtaining an Anthropic OAuth token via Claude Max and configuring it for a headless OpenClaw gateway running in Kubernetes.
 
 ## Prerequisites
 
 - Active Claude Pro or Max subscription
 - Claude Code CLI installed locally (`npm install -g @anthropic-ai/claude-code`)
-- `kubectl` access to the cluster with the Moltbot deployment
-- Moltbot gateway already deployed (Story 21.1) with NFS persistence
+- `kubectl` access to the cluster with the OpenClaw deployment
+- OpenClaw gateway already deployed (Story 21.1) with NFS persistence
 
 ## Step 1: Obtain the OAuth Token
 
@@ -28,16 +28,16 @@ Copy the full token. Tokens obtained this way are valid for approximately 1 year
 | `sk-ant-oat01-...` | OAuth token (subscription) | `Authorization: Bearer <token>` |
 | `sk-ant-api...` | API key (pay-as-you-go) | `x-api-key: <key>` |
 
-Moltbot handles both formats, but OAuth is the recommended path for Claude Max subscribers.
+OpenClaw handles both formats, but OAuth is the recommended path for Claude Max subscribers.
 
 ## Step 2: Patch the Kubernetes Secret
 
-The `moltbot-secrets` Secret already has an `ANTHROPIC_OAUTH_TOKEN` placeholder. Patch it with the real value:
+The `openclaw-secrets` Secret already has an `ANTHROPIC_OAUTH_TOKEN` placeholder. Patch it with the real value:
 
 ```bash
 TOKEN_B64=$(echo -n 'sk-ant-oat01-YOUR-TOKEN-HERE' | base64 -w0)
 
-kubectl patch secret moltbot-secrets -n apps --type='json' \
+kubectl patch secret openclaw-secrets -n apps --type='json' \
   -p="[{\"op\": \"replace\", \"path\": \"/data/ANTHROPIC_OAUTH_TOKEN\", \"value\": \"${TOKEN_B64}\"}]"
 ```
 
@@ -48,9 +48,9 @@ This updates the live secret without modifying any git-tracked files.
 The gateway needs an auth-profiles.json file in the agent directory. After patching the secret, exec into the pod:
 
 ```bash
-kubectl exec -n apps deployment/moltbot -- node -e '
+kubectl exec -n apps deployment/openclaw -- node -e '
 const fs = require("fs");
-const dir = "/home/node/.moltbot/agents/main/agent";
+const dir = "/home/node/.openclaw/agents/main/agent";
 fs.mkdirSync(dir, { recursive: true });
 
 const authProfiles = {
@@ -69,9 +69,9 @@ console.log("Auth profile written successfully");
 
 This reads the token from the environment variable (injected by the Secret) and writes it to the NFS-persisted credential store.
 
-## Step 4: Configure moltbot.json
+## Step 4: Configure openclaw.json
 
-The gateway config at `/home/node/.moltbot/moltbot.json` needs the auth profile and model settings. The minimal addition to an existing config:
+The gateway config at `/home/node/.openclaw/openclaw.json` needs the auth profile and model settings. The minimal addition to an existing config:
 
 ```json
 {
@@ -99,9 +99,9 @@ The gateway config at `/home/node/.moltbot/moltbot.json` needs the auth profile 
 To update via kubectl exec:
 
 ```bash
-kubectl exec -n apps deployment/moltbot -- node -e '
+kubectl exec -n apps deployment/openclaw -- node -e '
 const fs = require("fs");
-const path = "/home/node/.moltbot/moltbot.json";
+const path = "/home/node/.openclaw/openclaw.json";
 const cfg = JSON.parse(fs.readFileSync(path, "utf8"));
 
 cfg.auth = {
@@ -127,14 +127,14 @@ console.log("Config updated");
 Restart the deployment to pick up the new secret:
 
 ```bash
-kubectl rollout restart deployment/moltbot -n apps
-kubectl rollout status deployment/moltbot -n apps --timeout=90s
+kubectl rollout restart deployment/openclaw -n apps
+kubectl rollout status deployment/openclaw -n apps --timeout=90s
 ```
 
 Verify the gateway started correctly:
 
 ```bash
-kubectl logs -n apps deployment/moltbot --tail=20
+kubectl logs -n apps deployment/openclaw --tail=20
 ```
 
 Expected output includes:
@@ -146,11 +146,11 @@ Expected output includes:
 
 ## Step 6: Test via Control UI
 
-Open `https://moltbot.home.jetzinger.com` and send a message via WebChat. The response should come from Opus 4.5.
+Open `https://openclaw.home.jetzinger.com` and send a message via WebChat. The response should come from Opus 4.5.
 
 ## Adding a LiteLLM Fallback (Optional)
 
-To add a local LiteLLM proxy as fallback when Anthropic is unavailable, extend `moltbot.json`:
+To add a local LiteLLM proxy as fallback when Anthropic is unavailable, extend `openclaw.json`:
 
 ```json
 {
@@ -204,21 +204,21 @@ The OAuth token expires after approximately 1 year. To renew:
 If the pod crashes with "Config invalid", check the error message for unrecognized keys. Common mistakes:
 
 - `providers` at root level -- must be under `models.providers`
-- `token` or `apiKey` inside auth profiles -- credentials go in `auth-profiles.json`, not `moltbot.json`
+- `token` or `apiKey` inside auth profiles -- credentials go in `auth-profiles.json`, not `openclaw.json`
 - Missing `models` array in custom provider -- each provider under `models.providers` requires a `models: [...]` array
 
 Fix via a temporary pod if the main pod is crash-looping:
 
 ```bash
-kubectl run moltbot-fix --rm -i --restart=Never --image=node:22-slim -n apps \
+kubectl run openclaw-fix --rm -i --restart=Never --image=node:22-slim -n apps \
   --overrides='{
     "spec": {
       "securityContext": {"runAsUser": 1000, "runAsGroup": 1000},
       "containers": [{"name": "fix", "image": "node:22-slim",
         "command": ["node", "-e", "...your fix script..."],
-        "volumeMounts": [{"name": "d", "mountPath": "/mnt", "subPath": "moltbot"}]
+        "volumeMounts": [{"name": "d", "mountPath": "/mnt", "subPath": "openclaw"}]
       }],
-      "volumes": [{"name": "d", "persistentVolumeClaim": {"claimName": "moltbot-data"}}]
+      "volumes": [{"name": "d", "persistentVolumeClaim": {"claimName": "openclaw-data"}}]
     }
   }'
 ```
@@ -234,8 +234,8 @@ kubectl run moltbot-fix --rm -i --restart=Never --image=node:22-slim -n apps \
 The gateway redacts secrets by default. Verify with:
 
 ```bash
-kubectl exec -n apps deployment/moltbot -- \
-  sh -c 'grep -ic "sk-ant\|sk-litellm\|oauth" /tmp/moltbot/moltbot-*.log'
+kubectl exec -n apps deployment/openclaw -- \
+  sh -c 'grep -ic "sk-ant\|sk-litellm\|oauth" /tmp/openclaw/openclaw-*.log'
 ```
 
 Expected output: `0`
