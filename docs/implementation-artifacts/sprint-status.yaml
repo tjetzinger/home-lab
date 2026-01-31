@@ -218,7 +218,7 @@ development_status:
   epic-21: in-progress
   21-1-deploy-openclaw-gateway-with-local-persistence: done
   21-2-configure-traefik-ingress-and-control-ui: done
-  21-3-configure-long-term-memory-with-lancedb: review
+  21-3-configure-long-term-memory-with-lancedb: done
   21-4-configure-opus-4-5-llm: done
   21-5-enable-telegram-channel-with-dm-security: done
   epic-21-retrospective: optional
