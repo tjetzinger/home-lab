@@ -1,6 +1,6 @@
 # Story 21.4: Enable Telegram Channel with DM Security
 
-Status: done
+Status: backlog
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -29,45 +29,45 @@ So that **I can interact with my personal AI from Telegram while ensuring no una
 
 ## Tasks / Subtasks
 
-- [x] Task 1: Create Telegram bot via BotFather (AC: #1)
-  - [x] 1.1 Create a new Telegram bot via @BotFather and record the bot token
-  - [x] 1.2 Configure bot settings: disable group joining, set description and about text
-  - [x] 1.3 Patch `TELEGRAM_BOT_TOKEN` into `moltbot-secrets` K8s Secret via `kubectl patch` (NOT committed to git)
+- [ ] Task 1: Create Telegram bot via BotFather (AC: #1)
+  - [ ] 1.1 Create a new Telegram bot via @BotFather and record the bot token
+  - [ ] 1.2 Configure bot settings: disable group joining, set description and about text
+  - [ ] 1.3 Patch `TELEGRAM_BOT_TOKEN` into `moltbot-secrets` K8s Secret via `kubectl patch` (NOT committed to git)
 
-- [x] Task 2: Configure Telegram channel in moltbot.json (AC: #1, #2)
-  - [x] 2.1 Exec into the moltbot pod and edit `/home/node/.moltbot/moltbot.json`
-  - [x] 2.2 Add Telegram channel configuration with long-polling mode enabled
-  - [x] 2.3 Verify the gateway reads `TELEGRAM_BOT_TOKEN` from environment variable (injected via K8s Secret)
-  - [x] 2.4 Restart pod or trigger config hot-reload to activate Telegram connector
-  - [x] 2.5 Verify gateway logs show Telegram channel connected and long-polling active
+- [ ] Task 2: Configure Telegram channel in moltbot.json (AC: #1, #2)
+  - [ ] 2.1 Exec into the moltbot pod and edit `/home/node/.moltbot/moltbot.json`
+  - [ ] 2.2 Add Telegram channel configuration with long-polling mode enabled
+  - [ ] 2.3 Verify the gateway reads `TELEGRAM_BOT_TOKEN` from environment variable (injected via K8s Secret)
+  - [ ] 2.4 Restart pod or trigger config hot-reload to activate Telegram connector
+  - [ ] 2.5 Verify gateway logs show Telegram channel connected and long-polling active
 
-- [x] Task 3: Configure DM allowlist security (AC: #2, #3, #4)
-  - [x] 3.1 Configure allowlist in `moltbot.json` with Tom's Telegram user ID
-  - [x] 3.2 Verify the gateway enforces allowlist-only policy (NFR92)
-  - [x] 3.3 Test: Send a DM from Tom's Telegram account — expect LLM response
-  - [x] 3.4 Unauthorized user DM silent rejection — enforced by dmPolicy:allowlist (gateway built-in)
+- [ ] Task 3: Configure DM allowlist security (AC: #2, #3, #4)
+  - [ ] 3.1 Configure allowlist in `moltbot.json` with Tom's Telegram user ID
+  - [ ] 3.2 Verify the gateway enforces allowlist-only policy (NFR92)
+  - [ ] 3.3 Test: Send a DM from Tom's Telegram account — expect LLM response
+  - [ ] 3.4 Unauthorized user DM silent rejection — enforced by dmPolicy:allowlist (gateway built-in)
 
-- [x] Task 4: Validate pairing management (AC: #4)
-  - [x] 4.1 Verified CLI pairing commands work (`pairing list telegram`, `devices list`)
-  - [x] 4.2 Operator manages access via allowFrom list (allowlist mode) or CLI approval (pairing mode) (FR163)
-  - [x] 4.3 Allowlist-based access confirmed — authorized user receives LLM responses
-  - [x] 4.4 Documented both allowlist and pairing modes in PAIRING.md
+- [ ] Task 4: Validate pairing management (AC: #4)
+  - [ ] 4.1 Verified CLI pairing commands work (`pairing list telegram`, `devices list`)
+  - [ ] 4.2 Operator manages access via allowFrom list (allowlist mode) or CLI approval (pairing mode) (FR163)
+  - [ ] 4.3 Allowlist-based access confirmed — authorized user receives LLM responses
+  - [ ] 4.4 Documented both allowlist and pairing modes in PAIRING.md
 
-- [x] Task 5: Validate message round-trip and LLM routing (AC: #2)
-  - [x] 5.1 Telegram DM processed by LLM and response returned successfully
-  - [x] 5.2 Total run duration 6.4s — within 10s threshold (NFR86)
-  - [x] 5.3 Logs confirm routing to anthropic/claude-opus-4-5 (primary provider)
-  - [x] 5.4 Session state maintained via sessionId — context persists across messages
+- [ ] Task 5: Validate message round-trip and LLM routing (AC: #2)
+  - [ ] 5.1 Telegram DM processed by LLM and response returned successfully
+  - [ ] 5.2 Total run duration 6.4s — within 10s threshold (NFR86)
+  - [ ] 5.3 Logs confirm routing to anthropic/claude-opus-4-5 (primary provider)
+  - [ ] 5.4 Session state maintained via sessionId — context persists across messages
 
-- [x] Task 6: Validate auto-reconnect (AC: #5)
-  - [x] 6.1 Simulated interruption via pod restart (rollout restart)
-  - [x] 6.2 Telegram reconnected in ~30s after restart — within 60s threshold (NFR97)
-  - [x] 6.3 Control UI reconnected independently at 22:05:42Z — unaffected by Telegram restart (NFR101)
+- [ ] Task 6: Validate auto-reconnect (AC: #5)
+  - [ ] 6.1 Simulated interruption via pod restart (rollout restart)
+  - [ ] 6.2 Telegram reconnected in ~30s after restart — within 60s threshold (NFR97)
+  - [ ] 6.3 Control UI reconnected independently at 22:05:42Z — unaffected by Telegram restart (NFR101)
 
-- [x] Task 7: Configure CrashLoopBackOff alerting (AC: #6)
-  - [x] 7.1 Confirmed built-in KubePodCrashLooping fires after 15 min — too slow for NFR102
-  - [x] 7.2 Added MoltbotCrashLooping rule in custom-rules.yaml with 2-min threshold (NFR102)
-  - [x] 7.3 Alert routes via existing Alertmanager config to mobile push (Story 4.5)
+- [ ] Task 7: Configure CrashLoopBackOff alerting (AC: #6)
+  - [ ] 7.1 Confirmed built-in KubePodCrashLooping fires after 15 min — too slow for NFR102
+  - [ ] 7.2 Added MoltbotCrashLooping rule in custom-rules.yaml with 2-min threshold (NFR102)
+  - [ ] 7.3 Alert routes via existing Alertmanager config to mobile push (Story 4.5)
 
 ## Gap Analysis
 

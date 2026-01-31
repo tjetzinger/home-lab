@@ -2,6 +2,7 @@
 stepsCompleted: [1, 2, 3, 4, 7, 8, 9, 10, 11]
 workflow_completed: true
 moltbot_update_completed: '2026-01-29'
+moltbot_storage_update: '2026-01-30'
 inputDocuments:
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
   - 'docs/planning-artifacts/research/domain-k8s-platform-career-positioning-research-2025-12-27.md'
@@ -14,7 +15,7 @@ researchCount: 1
 brainstormingCount: 1
 projectDocsCount: 0
 date: '2025-12-27'
-lastUpdated: '2026-01-29'
+lastUpdated: '2026-01-30'
 author: 'Tom'
 project_name: 'home-lab'
 ---
@@ -22,9 +23,10 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-01-29
+**Date:** 2025-12-27 | **Last Updated:** 2026-01-30
 
 **Changelog:**
+- 2026-01-30: Updated Moltbot storage architecture (FR151, FR152, FR152a, FR152b, NFR100) - Changed from NFS to local persistent storage on k3s-worker-01 to eliminate network complexity and corruption vectors; added node affinity and Velero backup requirements
 - 2026-01-29: Added Moltbot personal AI assistant (FR149-FR163, NFR86-NFR97) - Self-hosted multi-channel AI assistant on K3s with Opus 4.5 primary, LiteLLM fallback, Telegram channel, MCP research tools via mcporter (Exa)
 - 2026-01-15: Added Phase 2+ requirements - Tailscale subnet routers (FR120-122, NFR71-72), Synology NAS K3s worker (FR123-125, NFR73-74), Open-WebUI chat interface (FR126-129, NFR75-76), Kubernetes Dashboard (FR130-133, NFR77-78), Gitea self-hosted Git (FR134-137, NFR79-80), DeepSeek-R1 14B reasoning mode (FR138-141, NFR81-82), LiteLLM external providers Groq/Google/Mistral (FR142-145, NFR83-84), Blog article completion (FR146-148, NFR85)
 - 2026-01-14: Added ML Mode default at boot for k3s-gpu-worker (FR119, NFR70) - systemd service auto-activates vLLM after k3s agent ready
@@ -996,7 +998,7 @@ Tom pulls up his home-lab repo. "Beyond the K3s cluster and ML inference stack, 
 
 The interviewer leans forward. "How does it do research?"
 
-"It uses mcporter to integrate MCP servers -- primarily Exa for web research. The agent can search the web, cross-reference sources, and deliver structured answers. I use it daily for technical research. The whole thing runs in a Docker container on K3s with Traefik ingress, NFS persistence, and full Prometheus observability."
+"It uses mcporter to integrate MCP servers -- primarily Exa for web research. The agent can search the web, cross-reference sources, and deliver structured answers. I use it daily for technical research. The whole thing runs in a Docker container on K3s with Traefik ingress, local persistent storage, and full Prometheus observability."
 
 "That's... not a typical home lab project."
 
@@ -1018,7 +1020,7 @@ The interviewer leans forward. "How does it do research?"
 
 ### Project-Type Overview
 
-Moltbot is deployed as a containerized Node.js application on the existing K3s cluster. It follows the established deployment patterns: Helm/kubectl manifests, NFS persistent storage, Traefik ingress, Kubernetes Secrets, and full observability integration.
+Moltbot is deployed as a containerized Node.js application on the existing K3s cluster pinned to k3s-worker-01 via node affinity. It follows the established deployment patterns: Helm/kubectl manifests, local persistent storage, Traefik ingress, Kubernetes Secrets, and full observability integration.
 
 ### Container & Runtime
 
@@ -1040,11 +1042,12 @@ Kubernetes Secrets (existing pattern) for:
 
 ### Storage & Persistence
 
-NFS persistent volumes via Synology DS920+ (existing pattern):
+Local persistent volumes on k3s-worker-01 via `local-path` storage class:
 - `~/.clawdbot/moltbot.json` -- gateway configuration
 - `~/clawd/` -- agent workspace (skills, session data, mcporter config)
 - WhatsApp session state (Baileys requires persistent auth state)
 - ClawdHub installed skills
+- Backed up via Velero cluster backups (disaster recovery)
 
 ### Networking
 
@@ -1084,8 +1087,9 @@ NFS persistent volumes via Synology DS920+ (existing pattern):
 ### Implementation Considerations
 
 - **Namespace:** `apps` (alongside existing application workloads)
+- **Node Affinity:** Pinned to k3s-worker-01 (highest resource CPU worker)
 - **Deployment method:** Kubernetes manifests (Deployment, Service, IngressRoute, PVC, Secret)
-- **Configuration:** `moltbot.json` mounted from ConfigMap or persisted on NFS
+- **Configuration:** `moltbot.json` persisted on local storage
 - **Updates:** Rolling deployment strategy, config changes via `gateway config.patch` or pod restart
 - **DM Security:** Allowlist-only pairing across all channels -- single-user lockdown
 
@@ -1100,10 +1104,10 @@ NFS persistent volumes via Synology DS920+ (existing pattern):
 ### MVP Implementation Phases
 
 #### Phase 1a: Core Gateway
-- Deploy official Moltbot Docker container on K3s (`apps` namespace)
+- Deploy official Moltbot Docker container on K3s (`apps` namespace, k3s-worker-01 node affinity)
 - Configure Opus 4.5 as primary LLM via Anthropic OAuth
 - Connect Telegram channel (first channel, lowest friction)
-- Persistent storage on NFS (config + workspace)
+- Local persistent storage on k3s-worker-01 (config + workspace)
 - Traefik IngressRoute for gateway control UI (`moltbot.home.jetzinger.com`)
 - Kubernetes Secrets for credentials
 - Basic Loki log collection
@@ -1148,7 +1152,7 @@ NFS persistent volumes via Synology DS920+ (existing pattern):
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Anthropic OAuth complexity in container | Can't authenticate Opus 4.5 | Start with API key fallback, migrate to OAuth |
-| WhatsApp Baileys session persistence | Frequent re-pairing required | NFS persistent volume for auth state |
+| WhatsApp Baileys session persistence | Frequent re-pairing required | Local persistent volume for auth state |
 | mcporter in container runtime | MCP tools unavailable | Pre-install via workspace persistence or init container |
 | ElevenLabs latency | Voice feels sluggish | Acceptable for v1; optimize later |
 | Multi-agent resource usage | Pod memory spikes | Monitor via Loki, set resource limits if needed |
@@ -1159,8 +1163,10 @@ NFS persistent volumes via Synology DS920+ (existing pattern):
 
 - FR149: Operator can deploy Moltbot Gateway as a Docker container on K3s in the `apps` namespace
 - FR150: Operator can access the Moltbot gateway control UI via `moltbot.home.jetzinger.com` through Traefik ingress
-- FR151: Operator can configure Moltbot via `moltbot.json` persisted on NFS storage
-- FR152: System preserves all Moltbot configuration and workspace data across pod restarts
+- FR151: Operator can configure Moltbot via `moltbot.json` persisted on local persistent storage
+- FR152: System preserves all Moltbot configuration and workspace data across pod restarts via local persistent volume
+- FR152a: System schedules Moltbot pod to k3s-worker-01 (highest resource CPU worker) using node affinity
+- FR152b: Velero cluster backups include Moltbot local PVC for disaster recovery
 - FR153: Operator can view gateway status and health via the control UI
 - FR154: Operator can restart the gateway via the control UI
 
@@ -1249,7 +1255,7 @@ NFS persistent volumes via Synology DS920+ (existing pattern):
 
 ### Reliability
 
-- NFR100: Moltbot pod restarts cleanly after node reboot with all configuration and workspace intact from NFS
+- NFR100: Moltbot pod restarts cleanly after k3s-worker-01 reboot with all configuration and workspace intact from local storage
 - NFR101: Gateway survives individual channel disconnections without affecting other channels
 - NFR102: Pod crash loop triggers Alertmanager notification within 2 minutes
 - NFR103: Loki retains Moltbot gateway logs for a minimum of 7 days

@@ -1,9 +1,4 @@
-# Moltbot ClusterIP Service
-# Story: 21.1 - Deploy Moltbot Gateway with NFS Persistence
-# Epic: 21 - Moltbot Core Gateway & Telegram Channel
-#
-# Exposes gateway (18789) and bridge (18790) ports
-# Used by Traefik IngressRoute (Story 21.2) for external access
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -11,7 +6,6 @@ metadata:
   namespace: apps
   labels:
     app.kubernetes.io/name: moltbot
-    app.kubernetes.io/instance: moltbot-gateway
     app.kubernetes.io/part-of: home-lab
     app.kubernetes.io/managed-by: kubectl
 spec:
@@ -21,9 +15,9 @@ spec:
   ports:
     - name: gateway
       port: 18789
-      targetPort: 18789
+      targetPort: gateway
       protocol: TCP
     - name: bridge
       port: 18790
-      targetPort: 18790
+      targetPort: bridge
       protocol: TCP

@@ -2,7 +2,7 @@
 stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
 completedAt: '2026-01-29'
-lastModified: '2026-01-29'
+lastModified: '2026-01-30'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,7 +10,7 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'Workflow complete - Added 16 new stories for Phase 5 Moltbot epics (21-24). All 188 FRs covered across 112 stories in 24 epics.'
+updateReason: 'Moltbot storage architecture update (2026-01-30): Updated Epic 21 stories to reflect local persistent storage on k3s-worker-01 with node affinity (FR151, FR152, FR152a, FR152b, NFR100), eliminating NFS complexity. Previous: Workflow complete (2026-01-29) - Added 16 new stories for Phase 5 Moltbot epics (21-24).'
 currentStep: 'Workflow Complete - All validations passed, ready for implementation'
 ---
 
@@ -1033,13 +1033,17 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 
 ### Epic 21: Moltbot Core Gateway & Telegram Channel [Phase 5]
 
+> **⚠️ REIMPLEMENTATION NOTE (2026-01-30):** This epic was previously marked as DONE but experienced persistent configuration corruption and crash loops. All Kubernetes resources, NFS data, and application manifests have been completely cleaned up. This epic has been reset to BACKLOG status for complete reimplementation from scratch with lessons learned from the first implementation.
+
 **User Outcome:** Tom has a personal AI assistant running on his K3s cluster, accessible via Telegram, powered by Claude Opus 4.5 with automatic LiteLLM fallback, secured with allowlist-only DM pairing.
 
 **FRs covered:** FR149-159, FR162-163
 - FR149: Deploy Moltbot Gateway as Docker container on K3s in `apps` namespace
 - FR150: Gateway control UI accessible via `moltbot.home.jetzinger.com`
-- FR151: Configure Moltbot via `moltbot.json` persisted on NFS storage
-- FR152: Preserve all config and workspace data across pod restarts
+- FR151: Configure Moltbot via `moltbot.json` persisted on local persistent storage
+- FR152: Preserve all config and workspace data across pod restarts via local persistent volume
+- FR152a: System schedules Moltbot pod to k3s-worker-01 (highest resource CPU worker) using node affinity
+- FR152b: Velero cluster backups include Moltbot local PVC for disaster recovery
 - FR153: View gateway status and health via control UI
 - FR154: Restart gateway via control UI
 - FR155: Route conversations to Claude Opus 4.5 via Anthropic OAuth
@@ -1061,19 +1065,23 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - NFR95: No secrets in Loki logs
 - NFR96: Anthropic OAuth auto-reconnect <30s
 - NFR99: LiteLLM reachable via K8s DNS from apps namespace
-- NFR100: Pod restarts cleanly with config from NFS
+- NFR100: Pod restarts cleanly with config from local storage on k3s-worker-01
 - NFR101: Individual channel disconnections don't affect others
 - NFR102: Crash loop alerts within 2 minutes
 
 **Implementation Notes:**
 - Official moltbot/moltbot Docker image (Node.js >= 22)
-- NFS PVC (10Gi): `~/.clawdbot` (config) + `~/clawd/` (workspace)
+- Local PVC (10Gi, local-path storage class) on k3s-worker-01: `~/.clawdbot` (config) + `~/clawd/` (workspace)
+- Node affinity pins pod to k3s-worker-01 (highest resource CPU worker)
+- Backed up via Velero cluster backups
 - Traefik IngressRoute for HTTPS
 - Inverse fallback: cloud primary (Opus 4.5) -> local fallback (LiteLLM)
 - Telegram uses outbound long-polling (no inbound exposure needed)
 - Depends on Epic 14 (LiteLLM) for fallback routing
 
 ### Epic 22: Moltbot Research Tools & Multi-Channel [Phase 5]
+
+> **⚠️ STATUS UPDATE (2026-01-30):** This epic depends on Epic 21. Due to Epic 21 complete cleanup and reimplementation, this epic has been moved back to BACKLOG status. Implementation will resume after Epic 21 is stable and complete.
 
 **User Outcome:** Tom can research topics through his AI assistant using web research tools, and interact from WhatsApp, Discord, or Telegram with conversation continuity across channels.
 
@@ -1094,8 +1102,8 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 **Implementation Notes:**
 - WhatsApp via Baileys (WebSocket, long-polling — no inbound exposure)
 - Discord via discord.js (WebSocket — no inbound exposure)
-- WhatsApp Baileys auth state persisted on NFS PVC to survive pod restarts
-- mcporter + Exa installed to workspace NFS for persistence
+- WhatsApp Baileys auth state persisted on local PVC to survive pod restarts
+- mcporter + Exa installed to local workspace for persistence
 - Depends on Epic 21 (gateway must exist)
 
 ### Epic 23: Moltbot Advanced Capabilities [Phase 5]
@@ -1123,7 +1131,7 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - ElevenLabs TTS/STT via API (streaming responses)
 - Native Moltbot sub-agent routing
 - Built-in browser automation tool
-- ClawdHub skills installed to workspace NFS
+- ClawdHub skills installed to local workspace
 - Depends on Epic 21 (gateway must exist)
 - Independent of Epic 22 (can be implemented in parallel)
 
@@ -5156,27 +5164,28 @@ Tom has a working multi-node K3s cluster he can access from anywhere via Tailsca
 
 ---
 
-#### Story 21.1: Deploy Moltbot Gateway with NFS Persistence
+#### Story 21.1: Deploy Moltbot Gateway with Local Persistent Storage
 
 As a **cluster operator**,
-I want **to deploy the Moltbot gateway container on K3s with persistent NFS storage for configuration and workspace data**,
+I want **to deploy the Moltbot gateway container on K3s with local persistent storage on k3s-worker-01 for configuration and workspace data**,
 So that **my AI assistant infrastructure is running and survives pod restarts without losing state**.
 
 **Acceptance Criteria:**
 
-**Given** the `apps` namespace exists and NFS provisioner is available
-**When** I apply the Moltbot Deployment, Service, PVC, and Secret manifests
-**Then** the Moltbot pod starts successfully with the official `moltbot/moltbot` image
-**And** a 10Gi NFS PVC is bound and mounted at `~/.clawdbot` (config) and `~/clawd/` (workspace) via subPath
-**And** the K8s Secret `moltbot-secrets` is created with placeholder values for all 7 credential types (Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, LiteLLM fallback URL)
-**And** the `moltbot.json` configuration file persists on NFS at `~/.clawdbot/moltbot.json`
+**Given** the `apps` namespace exists and local-path storage provisioner is available
+**When** I apply the Moltbot Deployment (with node affinity to k3s-worker-01), Service, PVC, and Secret manifests
+**Then** the Moltbot pod starts successfully on k3s-worker-01 with the official `moltbot/moltbot` image (FR152a)
+**And** a 10Gi local PVC (local-path storage class) is bound and mounted at `~/.clawdbot` (config) and `~/clawd/` (workspace) via subPath
+**And** the K8s Secret `moltbot-secrets` is created with placeholder values for all 8 credential types (Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, LiteLLM fallback URL, gateway auth token)
+**And** the `moltbot.json` configuration file persists on local storage at `~/.clawdbot/moltbot.json`
+**And** Velero cluster backups include the Moltbot PVC for disaster recovery (FR152b)
 
-**Given** the Moltbot pod is running
-**When** the pod is deleted or the node reboots
-**Then** the replacement pod starts with all configuration and workspace data intact from NFS (NFR100)
+**Given** the Moltbot pod is running on k3s-worker-01
+**When** the pod is deleted or k3s-worker-01 reboots
+**Then** the replacement pod starts on k3s-worker-01 with all configuration and workspace data intact from local storage (NFR100)
 **And** no manual re-configuration is required
 
-**FRs covered:** FR149, FR151, FR152
+**FRs covered:** FR149, FR151, FR152, FR152a, FR152b
 **NFRs covered:** NFR91, NFR100
 
 ---
@@ -5202,7 +5211,7 @@ So that **I can view gateway health, manage configuration, and restart the gatew
 **Given** the control UI is loaded
 **When** I trigger a gateway restart via the UI
 **Then** the gateway process restarts cleanly and reconnects all services (FR154)
-**And** persistent state is preserved on NFS
+**And** persistent state is preserved on local storage
 
 **FRs covered:** FR150, FR153, FR154
 **NFRs covered:** NFR87, NFR93

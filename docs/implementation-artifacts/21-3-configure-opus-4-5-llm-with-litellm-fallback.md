@@ -1,6 +1,6 @@
 # Story 21.3: Configure Opus 4.5 LLM with LiteLLM Fallback
 
-Status: done
+Status: backlog
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -28,42 +28,42 @@ So that **my AI assistant always has an LLM backend available, using frontier re
 
 ## Tasks / Subtasks
 
-- [x] Task 1: Obtain Anthropic OAuth token (AC: #1)
-  - [x] 1.1 Complete the Anthropic OAuth flow via `claude setup-token` (Claude Max subscription, token valid 1 year)
-  - [x] 1.2 Update the `moltbot-secrets` K8s Secret with the real OAuth token value using `kubectl patch` (NOT committed to git)
+- [ ] Task 1: Obtain Anthropic OAuth token (AC: #1)
+  - [ ] 1.1 Complete the Anthropic OAuth flow via `claude setup-token` (Claude Max subscription, token valid 1 year)
+  - [ ] 1.2 Update the `moltbot-secrets` K8s Secret with the real OAuth token value using `kubectl patch` (NOT committed to git)
 
-- [x] Task 2: Configure Moltbot gateway LLM provider settings (AC: #1, #2, #3)
-  - [x] 2.1 Exec into the moltbot pod to configure gateway
-  - [x] 2.2 Configure primary LLM provider as Anthropic OAuth (Opus 4.5) in `moltbot.json` with auth profile `anthropic:subscription` mode `oauth`
-  - [x] 2.3 Configure fallback LLM provider as LiteLLM with `openai-completions` API at `http://litellm.ml.svc.cluster.local:4000/v1` (models: vllm-qwen, ollama-qwen, openai-gpt4o)
-  - [x] 2.4 Write OAuth credentials to `auth-profiles.json` at `/home/node/.moltbot/agents/main/agent/auth-profiles.json`
-  - [x] 2.5 Verify `moltbot.json` persisted on NFS — confirmed via pod restart cycle
+- [ ] Task 2: Configure Moltbot gateway LLM provider settings (AC: #1, #2, #3)
+  - [ ] 2.1 Exec into the moltbot pod to configure gateway
+  - [ ] 2.2 Configure primary LLM provider as Anthropic OAuth (Opus 4.5) in `moltbot.json` with auth profile `anthropic:subscription` mode `oauth`
+  - [ ] 2.3 Configure fallback LLM provider as LiteLLM with `openai-completions` API at `http://litellm.ml.svc.cluster.local:4000/v1` (models: vllm-qwen, ollama-qwen, openai-gpt4o)
+  - [ ] 2.4 Write OAuth credentials to `auth-profiles.json` at `/home/node/.moltbot/agents/main/agent/auth-profiles.json`
+  - [ ] 2.5 Verify `moltbot.json` persisted on NFS — confirmed via pod restart cycle
 
-- [x] Task 3: Validate primary LLM routing (AC: #3)
-  - [x] 3.1 Send a test conversation message via the control UI WebChat — user confirmed response
-  - [x] 3.2 Gateway logs confirm `agent model: anthropic/claude-opus-4-5`
-  - [x] 3.3 User confirmed response quality
+- [ ] Task 3: Validate primary LLM routing (AC: #3)
+  - [ ] 3.1 Send a test conversation message via the control UI WebChat — user confirmed response
+  - [ ] 3.2 Gateway logs confirm `agent model: anthropic/claude-opus-4-5`
+  - [ ] 3.3 User confirmed response quality
 
-- [x] Task 4: Validate LiteLLM fallback (AC: #2, #4)
-  - [x] 4.1 Verify K8s DNS resolution: `getent hosts litellm.ml.svc.cluster.local` → `10.43.171.36`. LiteLLM API reachable with 9 models available (NFR99)
-  - [x] 4.2 Simulated Anthropic unavailability by invalidating OAuth token in both K8s secret and auth-profiles.json
-  - [x] 4.3 Fallback to LiteLLM triggered in ~0.5 seconds (Anthropic failed in 387ms, immediate retry to `provider=litellm model=vllm-qwen`). NFR88 met (<5s).
-  - [x] 4.4 Logs clearly show `provider=litellm model=vllm-qwen` vs `provider=anthropic model=claude-opus-4-5` (FR157). Note: vLLM GPU was offline, LiteLLM internally fell back to Ollama CPU (slow but functional).
-  - [x] 4.5 Restored valid Anthropic OAuth token via `kubectl patch` + auth-profiles.json update + pod restart
+- [ ] Task 4: Validate LiteLLM fallback (AC: #2, #4)
+  - [ ] 4.1 Verify K8s DNS resolution: `getent hosts litellm.ml.svc.cluster.local` → `10.43.171.36`. LiteLLM API reachable with 9 models available (NFR99)
+  - [ ] 4.2 Simulated Anthropic unavailability by invalidating OAuth token in both K8s secret and auth-profiles.json
+  - [ ] 4.3 Fallback to LiteLLM triggered in ~0.5 seconds (Anthropic failed in 387ms, immediate retry to `provider=litellm model=vllm-qwen`). NFR88 met (<5s).
+  - [ ] 4.4 Logs clearly show `provider=litellm model=vllm-qwen` vs `provider=anthropic model=claude-opus-4-5` (FR157). Note: vLLM GPU was offline, LiteLLM internally fell back to Ollama CPU (slow but functional).
+  - [ ] 4.5 Restored valid Anthropic OAuth token via `kubectl patch` + auth-profiles.json update + pod restart
 
-- [x] Task 5: Validate auto-reconnection (AC: #5)
-  - [x] 5.1 After restoring token and restarting pod, Opus 4.5 responded immediately on next message
-  - [x] 5.2 Logs confirm `provider=anthropic model=claude-opus-4-5` after restore. Auto-reconnection verified (NFR96).
+- [ ] Task 5: Validate auto-reconnection (AC: #5)
+  - [ ] 5.1 After restoring token and restarting pod, Opus 4.5 responded immediately on next message
+  - [ ] 5.2 Logs confirm `provider=anthropic model=claude-opus-4-5` after restore. Auto-reconnection verified (NFR96).
 
-- [x] Task 6: Validate OAuth management via control UI (AC: #6)
-  - [x] 6.1 Control UI at `moltbot.home.jetzinger.com` accessible with WebChat functional
-  - [x] 6.2 Auth profiles loaded (2 profiles confirmed in startup logs). Token managed via auth-profiles.json on NFS.
-  - [x] 6.3 Manual token refresh: re-run `claude setup-token` + patch secret + restart. Documented in `applications/moltbot/OAUTH-SETUP.md`.
+- [ ] Task 6: Validate OAuth management via control UI (AC: #6)
+  - [ ] 6.1 Control UI at `moltbot.home.jetzinger.com` accessible with WebChat functional
+  - [ ] 6.2 Auth profiles loaded (2 profiles confirmed in startup logs). Token managed via auth-profiles.json on NFS.
+  - [ ] 6.3 Manual token refresh: re-run `claude setup-token` + patch secret + restart. Documented in `applications/moltbot/OAUTH-SETUP.md`.
 
-- [x] Task 7: Validate secrets are not in logs (AC: #7)
-  - [x] 7.1 Checked pod stdout logs and `/tmp/moltbot/moltbot-2026-01-29.log` — 0 matches for token patterns
-  - [x] 7.2 No OAuth tokens, API keys, or secret values in log output (NFR95 satisfied)
-  - [x] 7.3 Gateway redacts secrets by default — confirmed operational
+- [ ] Task 7: Validate secrets are not in logs (AC: #7)
+  - [ ] 7.1 Checked pod stdout logs and `/tmp/moltbot/moltbot-2026-01-29.log` — 0 matches for token patterns
+  - [ ] 7.2 No OAuth tokens, API keys, or secret values in log output (NFR95 satisfied)
+  - [ ] 7.3 Gateway redacts secrets by default — confirmed operational
 
 ## Gap Analysis
 

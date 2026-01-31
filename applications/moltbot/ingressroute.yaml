@@ -1,9 +1,4 @@
-# Moltbot IngressRoute for Traefik
-# Story: 21.2 - Configure Traefik Ingress & Control UI
-# FR153: Gateway health visible via control UI
-# FR154: Gateway restart via control UI
 ---
-# Certificate for TLS
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -11,8 +6,8 @@ metadata:
   namespace: apps
   labels:
     app.kubernetes.io/name: moltbot
-    app.kubernetes.io/instance: moltbot-gateway
     app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
 spec:
   secretName: moltbot-tls
   issuerRef:
@@ -21,7 +16,6 @@ spec:
   dnsNames:
     - moltbot.home.jetzinger.com
 ---
-# Main IngressRoute for HTTPS
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -29,9 +23,8 @@ metadata:
   namespace: apps
   labels:
     app.kubernetes.io/name: moltbot
-    app.kubernetes.io/instance: moltbot-gateway
-    app.kubernetes.io/component: control-ui
     app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
 spec:
   entryPoints:
     - websecure
@@ -44,7 +37,6 @@ spec:
   tls:
     secretName: moltbot-tls
 ---
-# HTTP to HTTPS redirect
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -52,18 +44,17 @@ metadata:
   namespace: apps
   labels:
     app.kubernetes.io/name: moltbot
-    app.kubernetes.io/instance: moltbot-gateway-redirect
-    app.kubernetes.io/component: control-ui
     app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
 spec:
   entryPoints:
     - web
   routes:
     - kind: Rule
       match: Host(`moltbot.home.jetzinger.com`)
-      middlewares:
-        - name: https-redirect
-          namespace: apps
       services:
         - name: moltbot
           port: 18789
+      middlewares:
+        - name: https-redirect
+          namespace: apps

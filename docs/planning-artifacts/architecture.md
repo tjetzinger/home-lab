@@ -2,8 +2,8 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
-lastModified: '2026-01-29'
-updateReason: 'Moltbot personal AI assistant (FR149-FR188, NFR86-NFR104). Self-hosted multi-channel AI assistant on K3s with Opus 4.5 primary, LiteLLM fallback, Telegram/WhatsApp/Discord channels, MCP research tools via mcporter (Exa), voice (ElevenLabs), multi-agent, browser automation, ClawdHub skills, log-based observability (Loki + Blackbox Exporter).'
+lastModified: '2026-01-30'
+updateReason: 'Moltbot storage architecture update (2026-01-30): Changed from NFS to local persistent storage on k3s-worker-01 with node affinity (FR151, FR152, FR152a, FR152b, NFR100) to eliminate network complexity and corruption vectors; added Velero backup coverage. Previous: Moltbot personal AI assistant (2026-01-29, FR149-FR188, NFR86-NFR104).'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -1369,18 +1369,18 @@ stringData:
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Deployment** | **Kubernetes Deployment in `apps` namespace** | **FR149: Official Docker image (Node.js >= 22), follows existing app deployment pattern** |
+| **Deployment** | **Kubernetes Deployment in `apps` namespace, pinned to k3s-worker-01** | **FR149, FR152a: Official Docker image (Node.js >= 22), node affinity to highest resource CPU worker** |
 | **Container Image** | **Official moltbot/moltbot Docker image** | **No custom build required; mcporter + MCP servers configured at runtime via workspace persistence** |
-| **Storage** | **NFS PVC (10Gi) for `~/.moltbot` + `~/clawd/`** | **FR151-152: Config, workspace, WhatsApp session state, ClawdHub skills persist across restarts** |
+| **Storage** | **Local PVC (10Gi, local-path) on k3s-worker-01 for `~/.moltbot` + `~/clawd/`** | **FR151-152, FR152b: Config, workspace, WhatsApp session state, ClawdHub skills persist across restarts; backed up via Velero** |
 | **Ingress** | **`moltbot.home.jetzinger.com` via Traefik IngressRoute** | **FR150: Gateway control UI + WebChat accessible via Tailscale** |
 | **Primary LLM** | **Claude Opus 4.5 via Anthropic OAuth** | **FR155: Frontier reasoning as primary brain (Claude Code subscription)** |
 | **Fallback LLM** | **LiteLLM proxy (`litellm.ml.svc:4000`)** | **FR156: Automatic failover to existing three-tier local stack (vLLM GPU → Ollama CPU → OpenAI)** |
 | **Messaging Channels** | **Telegram + WhatsApp (Baileys) + Discord (discord.js)** | **FR159-161: All use outbound long-polling/WebSocket — no inbound exposure needed** |
-| **MCP Tools** | **mcporter with Exa + additional research servers** | **FR165-166: Web research via MCP, installed to workspace NFS for persistence** |
+| **MCP Tools** | **mcporter with Exa + additional research servers** | **FR165-166: Web research via MCP, installed to local workspace for persistence** |
 | **Voice** | **ElevenLabs TTS/STT** | **FR169: Voice interaction via API, streaming responses** |
 | **Multi-Agent** | **Moltbot native sub-agent routing** | **FR171-173: Specialized agents callable from main conversation** |
 | **Browser Tool** | **Moltbot built-in browser automation** | **FR174-175: Web navigation, form filling, data extraction** |
-| **Skills** | **ClawdHub marketplace integration** | **FR177-180: Install/sync skills to workspace NFS** |
+| **Skills** | **ClawdHub marketplace integration** | **FR177-180: Install/sync skills to local workspace** |
 | **Secrets** | **Kubernetes Secrets (8 secret keys)** | **NFR91: Anthropic OAuth, Telegram, WhatsApp, Discord, ElevenLabs, Exa, LiteLLM fallback URL, gateway auth token** |
 | **DM Security** | **Allowlist-only pairing** | **NFR92: Single-user lockdown across all channels** |
 | **Observability** | **Loki logs + Blackbox Exporter (no native /metrics)** | **FR181-185: Log-derived Grafana panels + HTTP probe for uptime** |
@@ -1407,11 +1407,12 @@ stringData:
 │  ├── Canvas/A2UI Rich Content (FR176)                                       │
 │  └── ClawdHub Skills (FR177-180)                                            │
 │                                                                             │
-│  Persistent Storage (NFS PVC 10Gi):                                         │
+│  Persistent Storage (Local PVC 10Gi on k3s-worker-01):                      │
 │  ├── ~/.moltbot/ (gateway config)                                          │
 │  ├── ~/clawd/ (agent workspace, mcporter config, session data)             │
 │  ├── WhatsApp Baileys auth state                                            │
 │  └── ClawdHub installed skills                                              │
+│  Note: Backed up via Velero cluster backups (FR152b)                        │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1529,6 +1530,15 @@ spec:
     type: RollingUpdate
   template:
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k3s-worker-01
       containers:
         - name: moltbot
           image: moltbot/moltbot:latest
@@ -1578,7 +1588,7 @@ stringData:
   CLAWDBOT_GATEWAY_TOKEN: "<gateway-auth-token>"
 ```
 
-*Persistent Volume (FR151-152):*
+*Persistent Volume (FR151-152, FR152a, FR152b):*
 ```yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -1587,10 +1597,12 @@ metadata:
   namespace: apps
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: nfs-client
+  storageClassName: local-path
   resources:
     requests:
       storage: 10Gi
+# Note: Local storage binds to k3s-worker-01 via node affinity in Deployment
+# Velero cluster backups include this PVC for disaster recovery
 ```
 
 *IngressRoute (FR150):*
