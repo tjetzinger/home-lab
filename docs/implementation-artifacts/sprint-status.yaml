@@ -232,9 +232,9 @@ development_status:
   epic-22-retrospective: optional
 
   # Epic 23: OpenClaw Advanced Capabilities [Phase 5]
-  epic-23: backlog
-  23-1-enable-voice-interaction-via-elevenlabs: backlog
-  23-2-configure-multi-agent-sub-agent-routing: backlog
+  epic-23: in-progress
+  23-1-enable-voice-interaction-via-elevenlabs: done
+  23-2-configure-multi-agent-sub-agent-routing: done
   23-3-enable-browser-automation-tool: backlog
   23-4-enable-rich-content-via-canvas-a2ui: backlog
   23-5-integrate-clawdhub-skills-marketplace: backlog
