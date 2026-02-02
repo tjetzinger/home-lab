@@ -1,30 +1,28 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: openclaw
-  namespace: apps
   labels:
+    app.kubernetes.io/managed-by: kubectl
     app.kubernetes.io/name: openclaw
     app.kubernetes.io/part-of: home-lab
-    app.kubernetes.io/managed-by: kubectl
+  name: openclaw
+  namespace: apps
 spec:
   replicas: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 1
-      maxSurge: 0
   selector:
     matchLabels:
       app.kubernetes.io/name: openclaw
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
   template:
     metadata:
       labels:
         app.kubernetes.io/name: openclaw
         app.kubernetes.io/part-of: home-lab
     spec:
-      # Pin to k3s-worker-01 for local storage persistence
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -37,7 +35,16 @@ spec:
       initContainers:
         - name: fix-permissions
           image: busybox:1.37
-          command: ["sh", "-c", "chown -R 1000:1000 /data/openclaw /data/clawd 2>/dev/null; mkdir -p /data/openclaw/memory/lancedb && chown -R 1000:1000 /data/openclaw/memory"]
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 0
+          command:
+            - sh
+            - -c
+            - >-
+              chown -R 1000:1000 /data/openclaw /data/clawd 2>/dev/null;
+              mkdir -p /data/openclaw/memory/lancedb &&
+              chown -R 1000:1000 /data/openclaw/memory
           volumeMounts:
             - name: openclaw-data
               mountPath: /data/openclaw
@@ -45,11 +52,9 @@ spec:
             - name: openclaw-data
               mountPath: /data/clawd
               subPath: clawd
-          securityContext:
-            runAsUser: 0
       containers:
         - name: openclaw
-          image: docker.io/library/openclaw:2026.1.29
+          image: docker.io/library/openclaw:2026.2.1
           imagePullPolicy: Never
           command:
             - node
@@ -60,6 +65,9 @@ spec:
             - --port
             - "18789"
             - --allow-unconfigured
+          envFrom:
+            - secretRef:
+                name: openclaw-secrets
           ports:
             - name: gateway
               containerPort: 18789
@@ -67,9 +75,13 @@ spec:
             - name: bridge
               containerPort: 18790
               protocol: TCP
-          envFrom:
-            - secretRef:
-                name: openclaw-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 4Gi
           volumeMounts:
             - name: openclaw-data
               mountPath: /home/node/.openclaw
@@ -77,14 +89,41 @@ spec:
             - name: openclaw-data
               mountPath: /home/node/clawd
               subPath: clawd
+        - name: sandbox-browser
+          image: docker.io/library/openclaw-sandbox-browser:bookworm-slim
+          imagePullPolicy: Never
+          ports:
+            - name: cdp
+              containerPort: 9222
+            - name: vnc
+              containerPort: 5900
+            - name: novnc
+              containerPort: 6080
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "250m"
+              cpu: 250m
+              memory: 256Mi
             limits:
-              memory: "2Gi"
-              cpu: "1000m"
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            tcpSocket:
+              port: 9222
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9222
+            initialDelaySeconds: 10
+            periodSeconds: 30
       volumes:
         - name: openclaw-data
           persistentVolumeClaim:
             claimName: openclaw-data
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi

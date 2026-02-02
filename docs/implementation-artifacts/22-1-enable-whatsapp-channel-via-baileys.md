@@ -1,6 +1,6 @@
 # Story 22.1: Enable WhatsApp Channel via Baileys
 
-Status: ready-for-dev
+Status: blocked
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -16,7 +16,7 @@ So that **I can interact with my personal AI from my primary messaging app**.
 
 2. **Authorized user receives LLM responses** — When an authorized user (on the allowlist in `openclaw.json`) sends a DM via WhatsApp, the message is processed by the LLM and a response is returned (FR160). The allowlist-only DM security policy applies (FR162, configured in Epic 21).
 
-3. **Baileys auth state persists across pod restarts** — When the OpenClaw pod restarts, the Baileys auth state is restored from NFS PVC at `~/clawd/` and no re-pairing is required (NFR100).
+3. **Baileys auth state persists across pod restarts** — When the OpenClaw pod restarts, the Baileys auth state is restored from local-path PVC at `~/.openclaw/credentials/whatsapp/default/` and no re-pairing is required (NFR100).
 
 4. **Auto-reconnect after network interruption** — When the WhatsApp channel experiences a network interruption and connectivity is restored, the channel automatically reconnects within 60 seconds (NFR97). The disconnection does not affect Telegram or other channels (NFR101).
 
@@ -25,22 +25,19 @@ So that **I can interact with my personal AI from my primary messaging app**.
 
 ## Tasks / Subtasks
 
-> **DRAFT TASKS** - Generated from requirements analysis. Will be validated and refined against actual codebase when dev-story runs.
+> **REFINED TASKS** - Validated against actual codebase via gap analysis (2026-02-02).
 
-- [ ] Task 1: Obtain WhatsApp Baileys credentials (AC: #1)
-  - [ ] 1.1 Research Baileys pairing process — determine if phone-based QR scan or multi-device pairing code is required
-  - [ ] 1.2 Exec into openclaw pod and initiate Baileys pairing (likely via gateway CLI or config)
-  - [ ] 1.3 Complete WhatsApp device pairing on Tom's phone (QR code scan or link code)
-  - [ ] 1.4 Verify Baileys auth state files are created on NFS at `/home/node/clawd/` (or appropriate Baileys session path)
-  - [ ] 1.5 Patch `WHATSAPP_CREDENTIALS` into `openclaw-secrets` K8s Secret via `kubectl patch` if needed (NOT committed to git)
+- [x] Task 1: Configure WhatsApp channel in openclaw.json (AC: #1, #2)
+  - [x] 1.1 Add `channels.whatsapp` config to `/home/node/.openclaw/openclaw.json` — minimal valid schema: `{ dmPolicy: "allowlist", allowFrom: ["+491718664082"] }` (note: `enabled` and `streamMode` are NOT valid WhatsApp schema keys — causes gateway crash)
+  - [x] 1.2 Tom's WhatsApp number: +491718664082 (E.164 format)
+  - [x] 1.3 Restart pod via `kubectl rollout restart deployment/openclaw -n apps` — pod running 0 restarts
+  - [x] 1.4 Doctor output confirms: `WhatsApp: not linked` (config accepted, awaiting QR pairing)
 
-- [ ] Task 2: Configure WhatsApp channel in openclaw.json (AC: #1, #2)
-  - [ ] 2.1 Exec into the openclaw pod and edit `/home/node/.openclaw/openclaw.json`
-  - [ ] 2.2 Add WhatsApp channel configuration (following the same pattern as Telegram channel from Story 21.5)
-  - [ ] 2.3 Configure dmPolicy=allowlist with Tom's WhatsApp number/ID in allowFrom
-  - [ ] 2.4 Verify the gateway reads `WHATSAPP_CREDENTIALS` from environment variable (injected via K8s Secret envFrom) if required
-  - [ ] 2.5 Restart pod or trigger config hot-reload to activate WhatsApp connector
-  - [ ] 2.6 Verify gateway logs show WhatsApp channel connected via Baileys WebSocket
+- [x] Task 2: Complete WhatsApp QR pairing (AC: #1)
+  - [x] 2.1 QR pairing initiated via Control UI at `https://openclaw.home.jetzinger.com/channels`
+  - [x] 2.2 Tom scanned QR code from WhatsApp app (Linked Devices)
+  - [x] 2.3 Baileys auth state created: `creds.json` (1731 bytes) at `/home/node/.openclaw/credentials/whatsapp/default/` on local-path PVC
+  - [x] 2.4 Doctor confirms: `WhatsApp: linked (auth age 2m)`, Web Channel: `+491718664082` (jid `491718664082:13@s.whatsapp.net`)
 
 - [ ] Task 3: Validate DM allowlist security (AC: #2)
   - [ ] 3.1 Send a DM from Tom's WhatsApp account — expect LLM response via Opus 4.5
@@ -48,7 +45,7 @@ So that **I can interact with my personal AI from my primary messaging app**.
   - [ ] 3.3 Verify response round-trip completes within reasonable time (NFR86: <10s excluding LLM inference)
 
 - [ ] Task 4: Validate Baileys auth state persistence (AC: #3)
-  - [ ] 4.1 Identify where Baileys stores auth state files on NFS (expected: `/home/node/clawd/` subpath)
+  - [ ] 4.1 Confirm auth state files exist at `/home/node/.openclaw/credentials/whatsapp/default/` on local-path PVC
   - [ ] 4.2 Perform pod restart via `kubectl rollout restart deployment/openclaw -n apps`
   - [ ] 4.3 Verify Baileys auth state is restored — no re-pairing required after restart
   - [ ] 4.4 Send a test WhatsApp DM after restart — verify response received
@@ -61,7 +58,27 @@ So that **I can interact with my personal AI from my primary messaging app**.
 
 ## Gap Analysis
 
-_This section will be populated by dev-story when gap analysis runs._
+**Scan Date:** 2026-02-02
+
+**What Exists:**
+- OpenClaw v2026.2.1 has built-in WhatsApp/Baileys support (`@whiskeysockets/baileys` dependency)
+- WhatsApp registered in channel registry with QR link pairing (`selectionLabel: "WhatsApp (QR link)"`)
+- `WHATSAPP_CREDENTIALS` placeholder in `openclaw-secrets` (not used by Baileys — file-based auth)
+- Deployment already has local-path PVC mounts for `.openclaw` and `clawd` directories
+- Telegram channel configured with `dmPolicy: "allowlist"` — WhatsApp follows identical pattern
+- CLI: `node dist/entry.js configure --section channels` for interactive WhatsApp setup
+- Agent tool: `whatsapp_login` for QR code generation
+
+**What's Missing:**
+- No `channels.whatsapp` section in `openclaw.json`
+- No WhatsApp auth state (credentials directory doesn't exist yet)
+- Tom's WhatsApp phone number (E.164 format) for allowFrom
+
+**Key Corrections from Draft:**
+- Auth state stored at `/home/node/.openclaw/credentials/whatsapp/default/creds.json` (NOT `~/clawd/`)
+- `WHATSAPP_CREDENTIALS` env var is NOT used by Baileys — auth is file-based on NFS
+- Removed subtasks 1.5 (patch secret) and 2.4 (verify env var) as unnecessary
+- Reordered: config first (Task 1), then QR pairing (Task 2) — gateway needs config before pairing
 
 ---
 
@@ -151,6 +168,17 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 ### Debug Log References
 
+- Gateway crashed on first config attempt with `enabled` and `streamMode` keys — WhatsApp schema is stricter than Telegram. Minimal valid config: `{ dmPolicy, allowFrom }` only.
+- Pod auto-recovered after CrashLoopBackOff (2 restarts) then stable after config fix.
+
 ### Completion Notes List
 
+- Task 1: WhatsApp channel config added to openclaw.json with `dmPolicy: "allowlist"` and `allowFrom: ["+491718664082"]`. Doctor confirms `WhatsApp: not linked` (awaiting QR pairing). Key learning: WhatsApp channel schema does NOT accept `enabled` or `streamMode` keys (unlike Telegram).
+- Task 2: QR pairing initially completed via Control UI (Doctor: `WhatsApp: linked`), but session was invalidated with 401 Unauthorized after stream error 515. Subsequent QR pairing attempts failed — WhatsApp app reports "couldn't link device". Likely WhatsApp rate-limiting on repeated link attempts. Story blocked pending retry.
+- **BLOCKED**: WhatsApp QR pairing fails after initial session invalidation. Tasks 3-5 cannot proceed without a working WhatsApp connection. Recommend retrying after a cooldown period (several hours) using port-forward method for more reliable localhost pairing.
+
 ### File List
+
+## Change Log
+
+- Tasks refined based on codebase gap analysis (2026-02-02): Corrected auth state path, removed unnecessary env var subtasks, reordered config-first approach
