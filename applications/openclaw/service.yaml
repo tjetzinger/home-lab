@@ -21,3 +21,7 @@ spec:
       port: 18790
       targetPort: bridge
       protocol: TCP
+    - name: novnc
+      port: 6080
+      targetPort: 6080
+      protocol: TCP

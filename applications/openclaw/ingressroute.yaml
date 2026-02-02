@@ -15,6 +15,7 @@ spec:
     kind: ClusterIssuer
   dnsNames:
     - openclaw.home.jetzinger.com
+    - openclaw-browser.home.jetzinger.com
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -55,6 +56,72 @@ spec:
       services:
         - name: openclaw
           port: 18789
+      middlewares:
+        - name: https-redirect
+          namespace: apps
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: novnc-root-redirect
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: openclaw
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  redirectRegex:
+    regex: "^https?://[^/]+/?$"
+    replacement: "https://openclaw-browser.home.jetzinger.com/vnc_lite.html"
+    permanent: false
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: openclaw-browser-ingress
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: openclaw
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`openclaw-browser.home.jetzinger.com`) && Path(`/`)
+      services:
+        - name: openclaw
+          port: 6080
+      middlewares:
+        - name: novnc-root-redirect
+          namespace: apps
+    - kind: Rule
+      match: Host(`openclaw-browser.home.jetzinger.com`) && !Path(`/`)
+      services:
+        - name: openclaw
+          port: 6080
+  tls:
+    secretName: openclaw-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: openclaw-browser-ingress-redirect
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: openclaw
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`openclaw-browser.home.jetzinger.com`)
+      services:
+        - name: openclaw
+          port: 6080
       middlewares:
         - name: https-redirect
           namespace: apps

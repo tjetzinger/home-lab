@@ -95,7 +95,13 @@ kubectl exec -n apps deployment/openclaw -c openclaw -- \
 
 ## Browser Debugging (VNC)
 
-Port-forward the noVNC web interface for visual browser debugging:
+The noVNC web interface is exposed via Traefik ingress:
+
+```
+https://openclaw-browser.home.jetzinger.com
+```
+
+Alternatively, use port-forward:
 
 ```bash
 kubectl port-forward -n apps deployment/openclaw 6080:6080
