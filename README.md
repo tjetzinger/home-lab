@@ -2,7 +2,7 @@
 
 A production-ready Kubernetes home lab running on Proxmox VE, demonstrating platform engineering skills through hands-on infrastructure operation. This project bridges my automotive systems engineering background with modern cloud-native technologies, showcasing the ability to design, deploy, and maintain production workloads on Kubernetes.
 
-**Status:** ✅ Operational (20 epics complete)
+**Status:** ✅ Operational (24 epics complete)
 **Cluster:** 5-node K3s v1.34.3+k3s1 (including GPU worker)
 **Workloads:** Full ML inference stack, Document management, Workflow automation, Git hosting
 **Observability:** Prometheus, Grafana, Loki, Alertmanager
@@ -130,6 +130,80 @@ ssh k3s-gpu-worker "gpu-mode gaming"  # Release GPU
 - **Open-WebUI**: ChatGPT-like interface at https://chat.home.jetzinger.com
 - **Paperless-AI**: Document classification and RAG queries
 - **n8n**: Workflow automation with LLM integration
+- **OpenClaw**: Personal AI assistant (see below)
+
+---
+
+## OpenClaw Personal AI Assistant
+
+OpenClaw is a self-hosted AI assistant running on the K3s cluster, accessible via Telegram and Discord. It provides frontier-quality conversational AI with automatic fallback to local inference when cloud APIs are unavailable.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        OpenClaw Gateway (apps namespace)                     │
+│                     https://openclaw.home.jetzinger.com                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                         │
+│  │  Telegram   │  │   Discord   │  │   Web UI    │                         │
+│  │  (outbound) │  │  (outbound) │  │  (Traefik)  │                         │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                         │
+│         │                │                │                                 │
+│         └────────────────┼────────────────┘                                 │
+│                          │                                                  │
+│                          ▼                                                  │
+│                 ┌─────────────────┐                                         │
+│                 │   Agent Engine  │                                         │
+│                 │    + LanceDB    │                                         │
+│                 │  (long-term     │                                         │
+│                 │   memory)       │                                         │
+│                 └────────┬────────┘                                         │
+│                          │                                                  │
+│         ┌────────────────┴────────────────┐                                 │
+│         │                                 │                                 │
+│         ▼                                 ▼                                 │
+│  ┌─────────────────┐           ┌─────────────────────┐                     │
+│  │  Claude Opus    │           │   LiteLLM Fallback  │                     │
+│  │     4.5         │──────────▶│  (existing stack)   │                     │
+│  │   (PRIMARY)     │  on fail  │                     │                     │
+│  │                 │           │  vLLM → Ollama →    │                     │
+│  │ Anthropic OAuth │           │  OpenAI             │                     │
+│  └─────────────────┘           └─────────────────────┘                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Features
+
+| Feature | Implementation |
+|---------|---------------|
+| **Primary LLM** | Claude Opus 4.5 via Anthropic OAuth (frontier reasoning) |
+| **Fallback Chain** | LiteLLM → vLLM (GPU) → Ollama (CPU) → OpenAI (cloud) |
+| **Messaging** | Telegram, Discord with DM allowlist security |
+| **Memory** | LanceDB with OpenAI embeddings for long-term context |
+| **Voice** | ElevenLabs TTS/STT (optional) |
+| **Monitoring** | Grafana dashboard (LogQL), P1 alerts via ntfy.sh |
+
+### Inverse Fallback Pattern
+
+Unlike typical setups where local models are primary, OpenClaw uses an "inverse fallback" approach:
+
+1. **Primary:** Claude Opus 4.5 (best reasoning quality)
+2. **Fallback:** Existing LiteLLM three-tier stack (when cloud unavailable)
+
+This ensures the best possible responses while maintaining high availability.
+
+### Accessing OpenClaw
+
+| Access Method | URL/Details |
+|---------------|-------------|
+| **Control UI** | https://openclaw.home.jetzinger.com (Tailscale required) |
+| **Telegram** | DM the bot (allowlisted users only) |
+| **Discord** | Bot in private server (allowlisted users only) |
+
+See [ADR-011](docs/adrs/ADR-011-openclaw-personal-ai-assistant.md) for detailed architectural decisions.
 
 ---
 
@@ -342,9 +416,9 @@ See [Epic 8](docs/implementation-artifacts/) stories for operational procedures.
 
 ---
 
-## Implementation Journey: 20 Epics
+## Implementation Journey: 24 Epics
 
-This project was built incrementally across 20 epics, each delivering specific infrastructure capabilities. All planning and implementation artifacts are available in [docs/](docs/).
+This project was built incrementally across 24 epics, each delivering specific infrastructure capabilities. All planning and implementation artifacts are available in [docs/](docs/).
 
 | Epic | Name | Outcome |
 |------|------|---------|
@@ -368,6 +442,10 @@ This project was built incrementally across 20 epics, each delivering specific i
 | **18** | K8s Dashboard | Cluster visualization and resource monitoring |
 | **19** | Self-Hosted Git | Gitea with PostgreSQL backend and SSH access |
 | **20** | Reasoning Models | DeepSeek-R1 7B with R1-Mode for chain-of-thought reasoning |
+| **21** | OpenClaw Core Gateway | Personal AI assistant with Opus 4.5, LiteLLM fallback, Telegram |
+| **22** | OpenClaw Multi-Channel | Discord channel, MCP research tools, cross-channel context |
+| **23** | OpenClaw Advanced | Voice interaction, sub-agent routing, browser automation |
+| **24** | OpenClaw Observability | Loki log dashboard, Blackbox probes, P1 alerts, ADR documentation |
 
 **Detailed Documentation:**
 - **Epic definitions:** [docs/planning-artifacts/epics.md](docs/planning-artifacts/epics.md)
@@ -416,6 +494,7 @@ BMAD is a multi-agent AI workflow framework that enforces systematic software de
 |------------|---------|-----------|-----|
 | **Grafana** | Metrics visualization | monitoring | https://grafana.home.jetzinger.com |
 | **Open-WebUI** | ChatGPT-like interface | apps | https://chat.home.jetzinger.com |
+| **OpenClaw** | Personal AI assistant | apps | https://openclaw.home.jetzinger.com |
 | **Paperless-ngx** | Document management | docs | https://paperless.home.jetzinger.com |
 | **Paperless-AI** | AI document classification | docs | https://paperless-ai.home.jetzinger.com |
 | **Gitea** | Self-hosted Git | apps | https://git.home.jetzinger.com |

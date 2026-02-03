@@ -38,6 +38,14 @@ These ADRs document operational decisions made during implementation and ongoing
 | [ADR-009](ADR-009-k3s-svclb-monitoring.md) | K3s SVCLB Monitoring | Handle K3s ServiceLB (svclb) pod metrics and alerting (daemonset pods for MetalLB load balancing) | Accepted |
 | [ADR-010](ADR-010-k3s-sqlite-to-etcd-migration.md) | K3s SQLite to etcd Migration | Migrate K3s datastore from SQLite to etcd for production-grade high availability and backup capabilities | Accepted |
 
+### AI Platform Decisions (Phase 5)
+
+These ADRs document decisions for the OpenClaw personal AI assistant platform:
+
+| ADR | Title | Description | Status |
+|-----|-------|-------------|--------|
+| [ADR-011](ADR-011-openclaw-personal-ai-assistant.md) | OpenClaw Personal AI Assistant | Deploy self-hosted AI assistant with Opus 4.5 primary, LiteLLM fallback, Telegram/Discord channels, log-based observability | Accepted |
+
 ## ADR Lifecycle
 
 ### Status Definitions

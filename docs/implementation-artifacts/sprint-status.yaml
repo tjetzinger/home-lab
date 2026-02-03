@@ -244,5 +244,5 @@ development_status:
   epic-24: in-progress
   24-1-configure-loki-log-collection-and-grafana-dashboard: done
   24-2-configure-blackbox-exporter-and-alertmanager-rules: done
-  24-3-document-openclaw-architecture-adr-and-readme: backlog
+  24-3-document-openclaw-architecture-adr-and-readme: done
   epic-24-retrospective: optional
