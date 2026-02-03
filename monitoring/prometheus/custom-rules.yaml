@@ -8,6 +8,7 @@
 # Custom alert rules for home-lab specific services:
 # - PostgreSQL database availability (P1)
 # - NFS storage provisioner availability (P1)
+# - OpenClaw gateway down (P1) - Story 24.2, FR185
 # - OpenClaw CrashLoopBackOff (P2) - Story 21.4, NFR102
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -82,6 +83,26 @@ spec:
             runbook_url: "https://github.com/tjetzinger/home-lab/blob/main/docs/runbooks/egpu-hotplug.md"
             impact: "AI inference latency increased. Using CPU-only Ollama with smaller models."
             action: "If gaming, this is expected. Otherwise run 'gpu-mode ml' on k3s-gpu-worker to restore GPU inference."
+
+        # OpenClaw Gateway Down Alert (P1)
+        # Story: 24.2 - Configure Blackbox Exporter & Alertmanager Rules
+        # FR185: Alertmanager fires alert when gateway unreachable
+        # NFR104: Alert fires after 3 consecutive probe failures (90s)
+        - alert: OpenClawGatewayDown
+          expr: |
+            probe_success{job="probe/monitoring/openclaw-gateway-probe"} == 0
+          for: 90s  # 3 consecutive probe failures at 30s interval
+          labels:
+            severity: critical
+            component: ai-gateway
+            service: openclaw
+            priority: P1
+          annotations:
+            summary: "OpenClaw gateway unreachable"
+            description: "OpenClaw gateway has been unreachable for over 90 seconds. Blackbox probe is failing."
+            runbook_url: "https://github.com/tjetzinger/home-lab/blob/main/docs/runbooks/openclaw-recovery.md"
+            impact: "Telegram/Discord channels, Control UI, and all AI assistant functionality unavailable."
+            action: "Check pod status: kubectl get pods -n apps -l app.kubernetes.io/name=openclaw. Check logs: kubectl logs -n apps deploy/openclaw -c openclaw --tail=50"
 
         # OpenClaw CrashLoopBackOff Alert (P2)
         # Story: 21.4 - Enable Telegram Channel with DM Security

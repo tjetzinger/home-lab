@@ -268,3 +268,7 @@ kubeScheduler:
   enabled: false  # K3s runs these internally
 kubeProxy:
   enabled: true  # K3s uses kube-proxy
+
+# Note: Prometheus Blackbox Exporter is deployed separately via blackbox-exporter-values.yaml
+# Story: 24.2 - Configure Blackbox Exporter & Alertmanager Rules
+# FR184: HTTP probe monitoring for OpenClaw gateway

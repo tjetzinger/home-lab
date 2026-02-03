@@ -1,0 +1,41 @@
+# Prometheus Probe CRD for OpenClaw gateway monitoring
+# Story: 24.2 - Configure Blackbox Exporter & Alertmanager Rules
+# FR184: HTTP probe monitoring for OpenClaw gateway
+# NFR104: Blackbox probe runs every 30 seconds
+#
+# This Probe resource configures Prometheus to scrape Blackbox Exporter
+# for HTTP health checks against the OpenClaw gateway.
+#
+# NOTE: Uses internal ClusterIP service URL for reliable in-cluster monitoring.
+# External TLS is terminated at Traefik; TLS cert expiry monitored via cert-manager.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: openclaw-gateway-probe
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: openclaw-probe
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+    release: kube-prometheus-stack  # Required for Prometheus Operator discovery
+spec:
+  # Probe interval - 30 seconds per NFR104
+  interval: 30s
+
+  # Blackbox module to use (no TLS - internal service)
+  module: http_2xx_no_tls
+
+  # Blackbox Exporter service URL
+  prober:
+    url: prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+
+  # Target configuration - use internal service URL for reliable monitoring
+  targets:
+    staticConfig:
+      static:
+        - http://openclaw.apps.svc.cluster.local:18789
+      labels:
+        service: openclaw
+        component: ai-gateway
+        external_url: openclaw.home.jetzinger.com
