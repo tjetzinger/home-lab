@@ -224,25 +224,25 @@ development_status:
   epic-21-retrospective: optional
 
   # Epic 22: OpenClaw Research Tools & Multi-Channel [Phase 5]
-  epic-22: in-progress
-  22-1-enable-whatsapp-channel-via-baileys: blocked
+  epic-22: done
+  22-1-enable-whatsapp-channel-via-baileys: skipped
   22-2-enable-discord-channel: done
   22-3-configure-mcp-research-tools-via-mcporter: done  # Handled via Control UI - Exa runs as skill, mcporter installed via UI
   22-4-cross-channel-conversation-context: done
   epic-22-retrospective: optional
 
   # Epic 23: OpenClaw Advanced Capabilities [Phase 5]
-  epic-23: in-progress
+  epic-23: done
   23-1-enable-voice-interaction-via-elevenlabs: done
   23-2-configure-multi-agent-sub-agent-routing: done
   23-3-enable-browser-automation-tool: done
-  23-4-enable-rich-content-via-canvas-a2ui: backlog
-  23-5-integrate-clawdhub-skills-marketplace: backlog
+  23-4-enable-rich-content-via-canvas-a2ui: skipped  # Obsolete - Canvas/A2UI not needed
+  23-5-integrate-clawdhub-skills-marketplace: skipped
   epic-23-retrospective: optional
 
   # Epic 24: OpenClaw Observability & Portfolio Documentation [Phase 5]
-  epic-24: backlog
-  24-1-configure-loki-log-collection-and-grafana-dashboard: backlog
+  epic-24: in-progress
+  24-1-configure-loki-log-collection-and-grafana-dashboard: done
   24-2-configure-blackbox-exporter-and-alertmanager-rules: backlog
   24-3-document-openclaw-architecture-adr-and-readme: backlog
   epic-24-retrospective: optional

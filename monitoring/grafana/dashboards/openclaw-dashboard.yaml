@@ -1,0 +1,566 @@
+# OpenClaw Gateway Grafana Dashboard
+# Story: 24.1 - Configure Loki Log Collection & Grafana Dashboard
+# Epic: 24 - OpenClaw Observability & Portfolio Documentation
+#
+# FRs:
+# - FR181: Collect gateway logs into Loki
+# - FR182: Grafana dashboard with log-derived metrics
+# - FR183: Dashboard: message volume, LLM usage, MCP tools, errors
+#
+# NFRs:
+# - NFR103: 7-day log retention (configured in Loki)
+#
+# Note: OpenClaw does NOT expose /metrics - this dashboard uses Loki LogQL queries
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-dashboard
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack-grafana
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/part-of: home-lab
+    grafana_dashboard: "1"
+    release: kube-prometheus-stack
+data:
+  openclaw-dashboard.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "OpenClaw AI Gateway - Log-based monitoring via Loki (no native metrics)",
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": "Loki",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 50 },
+                  { "color": "red", "value": 100 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+          "id": 1,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["sum"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "9.5.0",
+          "targets": [
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} [24h]))",
+              "legendFormat": "Total Logs",
+              "refId": "A"
+            }
+          ],
+          "title": "Total Log Lines (24h)",
+          "type": "stat"
+        },
+        {
+          "datasource": "Loki",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 5 },
+                  { "color": "red", "value": 20 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["sum"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "9.5.0",
+          "targets": [
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"error|failed\" [1h]))",
+              "legendFormat": "Errors",
+              "refId": "A"
+            }
+          ],
+          "title": "Errors (1h)",
+          "type": "stat"
+        },
+        {
+          "datasource": "Loki",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+          "id": 3,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["sum"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "9.5.0",
+          "targets": [
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"\\\\[telegram\\\\]\" [1h]))",
+              "legendFormat": "Telegram",
+              "refId": "A"
+            }
+          ],
+          "title": "Telegram Activity (1h)",
+          "type": "stat"
+        },
+        {
+          "datasource": "Loki",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["sum"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "9.5.0",
+          "targets": [
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"\\\\[discord\\\\]\" [1h]))",
+              "legendFormat": "Discord",
+              "refId": "A"
+            }
+          ],
+          "title": "Discord Activity (1h)",
+          "type": "stat"
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Loki",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+          "hiddenSeries": false,
+          "id": 5,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": false,
+            "rightSide": true,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 2,
+          "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
+          "percentage": false,
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": true,
+          "steppedLine": false,
+          "targets": [
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"\\\\[telegram\\\\]\" [$__interval]))",
+              "legendFormat": "Telegram",
+              "refId": "A"
+            },
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"\\\\[discord\\\\]\" [$__interval]))",
+              "legendFormat": "Discord",
+              "refId": "B"
+            },
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"\\\\[ws\\\\].*webchat\" [$__interval]))",
+              "legendFormat": "WebUI",
+              "refId": "C"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Activity by Channel",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": "log lines",
+              "logBase": 1,
+              "max": null,
+              "min": "0",
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Loki",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+          "hiddenSeries": false,
+          "id": 6,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": false,
+            "rightSide": true,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 2,
+          "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
+          "percentage": false,
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "alias": "Errors",
+              "color": "#F2495C"
+            }
+          ],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"error|failed\" [$__interval]))",
+              "legendFormat": "Errors",
+              "refId": "A"
+            },
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"Non-fatal unhandled rejection\" [$__interval]))",
+              "legendFormat": "Unhandled Rejections",
+              "refId": "B"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Error Rate Over Time",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": "errors",
+              "logBase": 1,
+              "max": null,
+              "min": "0",
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Loki",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+          "hiddenSeries": false,
+          "id": 7,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": false,
+            "rightSide": true,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 2,
+          "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
+          "percentage": false,
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"\\\\[ws\\\\].*connected\" [$__interval]))",
+              "legendFormat": "WebSocket Connected",
+              "refId": "A"
+            },
+            {
+              "datasource": "Loki",
+              "expr": "sum(count_over_time({app=\"openclaw\"} |~ \"\\\\[ws\\\\].*disconnected\" [$__interval]))",
+              "legendFormat": "WebSocket Disconnected",
+              "refId": "B"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "WebSocket Session Activity",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": "connections",
+              "logBase": 1,
+              "max": null,
+              "min": "0",
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "datasource": "Loki",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 20 },
+          "id": 8,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "targets": [
+            {
+              "datasource": "Loki",
+              "expr": "{app=\"openclaw\"} |~ \"error|failed|warn\"",
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "title": "Recent Errors & Warnings",
+          "type": "logs"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 30,
+      "style": "dark",
+      "tags": ["openclaw", "ai-gateway", "loki"],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {
+        "refresh_intervals": [
+          "5s",
+          "10s",
+          "30s",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h"
+        ]
+      },
+      "timezone": "",
+      "title": "OpenClaw AI Gateway",
+      "uid": "openclaw-gateway",
+      "version": 1
+    }
