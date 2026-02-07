@@ -54,17 +54,16 @@ spec:
               subPath: clawd
       containers:
         - name: openclaw
-          image: docker.io/library/openclaw:2026.2.1
-          imagePullPolicy: Never
+          image: ghcr.io/openclaw/openclaw:latest
+          imagePullPolicy: Always
           command:
-            - node
-            - dist/entry.js
-            - gateway
-            - --bind
-            - lan
-            - --port
-            - "18789"
-            - --allow-unconfigured
+            - /bin/sh
+            - -c
+            - |
+              set -a
+              [ -f /home/node/.openclaw/workspace/.env ] && . /home/node/.openclaw/workspace/.env
+              set +a
+              exec node dist/entry.js gateway --bind lan --port 18789
           envFrom:
             - secretRef:
                 name: openclaw-secrets
@@ -74,6 +73,9 @@ spec:
               protocol: TCP
             - name: bridge
               containerPort: 18790
+              protocol: TCP
+            - name: canvas
+              containerPort: 18793
               protocol: TCP
           resources:
             requests:
@@ -118,6 +120,41 @@ spec:
             tcpSocket:
               port: 9222
             initialDelaySeconds: 10
+            periodSeconds: 30
+        - name: second-brain
+          image: node:22-alpine
+          imagePullPolicy: IfNotPresent
+          workingDir: /workspace/second-brain-app
+          command:
+            - /bin/sh
+            - -c
+            - npm run build && npm run start -- -p 3000
+          ports:
+            - name: second-brain
+              containerPort: 3000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: openclaw-data
+              mountPath: /workspace
+              subPath: openclaw/workspace
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
             periodSeconds: 30
       volumes:
         - name: openclaw-data

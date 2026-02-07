@@ -1,0 +1,97 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: openclaw-env-backup
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: openclaw
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: home-lab
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 86400  # 24 hours
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: openclaw
+            app.kubernetes.io/component: backup
+            app.kubernetes.io/part-of: home-lab
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: In
+                        values:
+                          - k3s-worker-01
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: busybox:1.37
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "Starting OpenClaw backup at $(date)"
+
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  BACKUP_FILE="/backup/openclaw-backup-${TIMESTAMP}.tar.gz"
+
+                  # Check source exists
+                  if [ ! -d /source ]; then
+                    echo "ERROR: Source directory not found"
+                    exit 1
+                  fi
+
+                  # Show source contents
+                  echo "Source directory contents:"
+                  ls -la /source/
+
+                  # Create compressed backup of entire PVC
+                  echo "Creating backup: ${BACKUP_FILE}"
+                  tar -czf "${BACKUP_FILE}" -C /source .
+
+                  # Show backup size
+                  echo "Backup completed successfully"
+                  echo "Backup size: $(ls -lh "${BACKUP_FILE}" | awk '{print $5}')"
+
+                  # Rotate: keep last 7 days
+                  echo "Applying retention policy (keep last 7 backups)"
+                  ls -t /backup/openclaw-backup-*.tar.gz 2>/dev/null | tail -n +8 | xargs rm -f 2>/dev/null || true
+
+                  # List current backups
+                  echo "Current backups:"
+                  ls -lh /backup/openclaw-backup-*.tar.gz 2>/dev/null || echo "No backups found"
+
+                  echo "Backup job finished at $(date)"
+              volumeMounts:
+                - name: source
+                  mountPath: /source
+                  readOnly: true
+                - name: backup
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            - name: source
+              persistentVolumeClaim:
+                claimName: openclaw-data
+            - name: backup
+              persistentVolumeClaim:
+                claimName: openclaw-backup

@@ -241,7 +241,7 @@ development_status:
   epic-23-retrospective: optional
 
   # Epic 24: OpenClaw Observability & Portfolio Documentation [Phase 5]
-  epic-24: in-progress
+  epic-24: done
   24-1-configure-loki-log-collection-and-grafana-dashboard: done
   24-2-configure-blackbox-exporter-and-alertmanager-rules: done
   24-3-document-openclaw-architecture-adr-and-readme: done

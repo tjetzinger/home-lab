@@ -1,4 +1,19 @@
 ---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: openclaw-websocket
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: openclaw
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  forwardingTimeouts:
+    dialTimeout: 30s
+    responseHeaderTimeout: 0s
+    idleConnTimeout: 3600s
+---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -16,6 +31,7 @@ spec:
   dnsNames:
     - openclaw.home.jetzinger.com
     - openclaw-browser.home.jetzinger.com
+    - brain.home.jetzinger.com
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -35,6 +51,7 @@ spec:
       services:
         - name: openclaw
           port: 18789
+          serversTransport: openclaw-websocket
   tls:
     secretName: openclaw-tls
 ---
@@ -122,6 +139,49 @@ spec:
       services:
         - name: openclaw
           port: 6080
+      middlewares:
+        - name: https-redirect
+          namespace: apps
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: second-brain-ingress
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: openclaw
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`brain.home.jetzinger.com`)
+      services:
+        - name: openclaw
+          port: 3000
+  tls:
+    secretName: openclaw-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: second-brain-ingress-redirect
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: openclaw
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`brain.home.jetzinger.com`)
+      services:
+        - name: openclaw
+          port: 3000
       middlewares:
         - name: https-redirect
           namespace: apps
