@@ -139,6 +139,15 @@ mariadb:
 redis:
   enabled: false
 
+# Resource limits
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 3Gi
+
 # Pod security context for NFS volume permissions (Story 10.4)
 # fsGroup: Changes group ownership of volumes to 1024
 # supplementalGroups: Ensures ALL processes keep group 1024, even after dropping privileges

@@ -98,7 +98,7 @@ spec:
               memory: "1Gi"
             limits:
               cpu: "2000m"
-              memory: "6Gi"
+              memory: "1Gi"
           volumeMounts:
             - name: home
               mountPath: /home/dev
