@@ -38,7 +38,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `dev` - Nginx proxy, dev containers
 - `kubernetes-dashboard` - Cluster dashboard
 
-**Storage:** External NFS via Synology DS920+
+**Storage:** NFS via Synology DS920+ for shared workloads; `local-path` (Rancher) for node-local PVCs (e.g., openclaw)
 **Access:** Tailscale VPN only (no public API exposure)
 **Ingress:** `{service}.home.jetzinger.com` via Traefik + Let's Encrypt
 

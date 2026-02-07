@@ -122,13 +122,13 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 30
         - name: second-brain
-          image: node:22-alpine
+          image: node:22-slim
           imagePullPolicy: IfNotPresent
           workingDir: /workspace/second-brain-app
           command:
             - /bin/sh
             - -c
-            - npm run build && npm run start -- -p 3000
+            - find node_modules -maxdepth 1 -name '.*-*' -type d -exec rm -rf {} + 2>/dev/null; npm install && npm run build && npm run start -- -p 3000
           ports:
             - name: second-brain
               containerPort: 3000
@@ -139,7 +139,7 @@ spec:
               memory: 256Mi
             limits:
               cpu: 500m
-              memory: 1Gi
+              memory: 2Gi
           volumeMounts:
             - name: openclaw-data
               mountPath: /workspace
@@ -148,13 +148,13 @@ spec:
             httpGet:
               path: /
               port: 3000
-            initialDelaySeconds: 60
+            initialDelaySeconds: 120
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /
               port: 3000
-            initialDelaySeconds: 15
+            initialDelaySeconds: 120
             periodSeconds: 30
       volumes:
         - name: openclaw-data
