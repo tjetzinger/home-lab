@@ -133,7 +133,7 @@ spec:
           command:
             - /bin/sh
             - -c
-            - mkdir -p logs && node node_modules/.bin/next dev -p 3000 2>&1 | tee logs/next.log
+            - rm -f .next/dev/lock; mkdir -p logs && node node_modules/.bin/next dev -p 3000 2>&1 | tee logs/next.log
           ports:
             - name: second-brain
               containerPort: 3000
@@ -143,8 +143,8 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              cpu: 500m
-              memory: 1Gi
+              cpu: "1"
+              memory: 3Gi
           volumeMounts:
             - name: openclaw-data
               mountPath: /workspace
