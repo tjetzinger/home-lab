@@ -15,6 +15,7 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 600  # 10 minute timeout
       backoffLimit: 3
       ttlSecondsAfterFinished: 86400  # 24 hours
       template:
@@ -60,7 +61,11 @@ spec:
 
                   # Create compressed backup of entire PVC
                   echo "Creating backup: ${BACKUP_FILE}"
-                  tar -czf "${BACKUP_FILE}" -C /source .
+                  tar -czf "${BACKUP_FILE}" -C /source \
+                    --exclude='*/node_modules' \
+                    --exclude='*/.next' \
+                    --exclude='*/playwright-browsers' \
+                    .
 
                   # Show backup size
                   echo "Backup completed successfully"
