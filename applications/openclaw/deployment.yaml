@@ -43,9 +43,10 @@ spec:
             - -c
             - >-
               chown -R 1000:1000 /data/openclaw /data/clawd 2>/dev/null;
-              mkdir -p /data/openclaw/memory/lancedb &&
-              chown -R 1000:1000 /data/openclaw/memory;
-              chown -R 1000:1000 /data/openclaw/workspace/second-brain-app/.next /data/openclaw/workspace/second-brain-app/node_modules 2>/dev/null
+              mkdir -p /data/openclaw/memory/lancedb;
+              chown -R 1000:1000 /data/openclaw/memory 2>/dev/null;
+              chown -R 1000:1000 /data/openclaw/workspace/second-brain-app/.next /data/openclaw/workspace/second-brain-app/node_modules 2>/dev/null;
+              true
           volumeMounts:
             - name: openclaw-data
               mountPath: /data/openclaw
@@ -130,11 +131,9 @@ spec:
             runAsGroup: 1000
           workingDir: /workspace/second-brain-app
           command:
-            - node
-            - node_modules/.bin/next
-            - start
-            - -p
-            - "3000"
+            - /bin/sh
+            - -c
+            - mkdir -p logs && node node_modules/.bin/next dev -p 3000 2>&1 | tee logs/next.log
           ports:
             - name: second-brain
               containerPort: 3000
@@ -145,7 +144,7 @@ spec:
               memory: 256Mi
             limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 1Gi
           volumeMounts:
             - name: openclaw-data
               mountPath: /workspace
