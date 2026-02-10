@@ -1,0 +1,73 @@
+# legacy-use IngressRoute for Traefik
+# 3-part structure: Certificate + HTTPS route + HTTP redirect
+---
+# Certificate for TLS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: legacy-use-tls
+  namespace: legacy-use
+  labels:
+    app.kubernetes.io/name: legacy-use
+    app.kubernetes.io/instance: legacy-use
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  secretName: legacy-use-tls
+  duration: 2160h
+  renewBefore: 720h
+  dnsNames:
+    - legacy-use.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# Main IngressRoute for HTTPS
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: legacy-use-https
+  namespace: legacy-use
+  labels:
+    app.kubernetes.io/name: legacy-use
+    app.kubernetes.io/instance: legacy-use
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`legacy-use.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: legacy-use-frontend
+          port: 80
+  tls:
+    secretName: legacy-use-tls
+---
+# HTTP to HTTPS redirect
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: legacy-use-redirect
+  namespace: legacy-use
+  labels:
+    app.kubernetes.io/name: legacy-use
+    app.kubernetes.io/instance: legacy-use-redirect
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`legacy-use.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: legacy-use
+      services:
+        - name: legacy-use-frontend
+          port: 80

@@ -1,0 +1,46 @@
+# legacy-use Services
+# ClusterIP services for backend and frontend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: legacy-use-backend
+  namespace: legacy-use
+  labels:
+    app.kubernetes.io/name: legacy-use
+    app.kubernetes.io/instance: legacy-use-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: legacy-use
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      port: 8088
+      targetPort: 8088
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: legacy-use-frontend
+  namespace: legacy-use
+  labels:
+    app.kubernetes.io/name: legacy-use
+    app.kubernetes.io/instance: legacy-use-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: legacy-use
+    app.kubernetes.io/component: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5173
+      protocol: TCP

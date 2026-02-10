@@ -1,0 +1,20 @@
+# PersistentVolumeClaim for DinD image cache
+# Uses local-path so Docker images persist across pod restarts
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: legacy-use-dind-storage
+  namespace: legacy-use
+  labels:
+    app.kubernetes.io/name: legacy-use
+    app.kubernetes.io/instance: legacy-use-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi

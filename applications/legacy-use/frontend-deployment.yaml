@@ -1,0 +1,66 @@
+# legacy-use Frontend Deployment
+# Vite/React frontend served on port 5173
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legacy-use-frontend
+  namespace: legacy-use
+  labels:
+    app.kubernetes.io/name: legacy-use
+    app.kubernetes.io/instance: legacy-use-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: legacy-use
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: legacy-use
+        app.kubernetes.io/instance: legacy-use-frontend
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/part-of: home-lab
+    spec:
+      containers:
+        - name: frontend
+          image: tjetzinger/legacy-use-frontend:1.2.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              sed -i "s/allowedHosts: \['.local.legacy-use.com'\]/allowedHosts: true/" /web/vite.config.js
+              exec npm start
+          ports:
+            - name: http
+              containerPort: 5173
+              protocol: TCP
+          env:
+            - name: VITE_PROXY_TARGET
+              value: "legacy-use-backend"
+            - name: VITE_PUBLIC_DISABLE_TRACKING
+              value: "true"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              cpu: 500m
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      restartPolicy: Always
