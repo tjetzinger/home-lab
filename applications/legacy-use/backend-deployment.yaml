@@ -28,10 +28,17 @@ spec:
         app.kubernetes.io/component: backend
         app.kubernetes.io/part-of: home-lab
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: backend
           image: tjetzinger/legacy-use-backend:1.2.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
           ports:
             - name: http
               containerPort: 8088

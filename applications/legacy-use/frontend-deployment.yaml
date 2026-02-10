@@ -1,5 +1,5 @@
 # legacy-use Frontend Deployment
-# Vite/React frontend served on port 5173
+# Nginx serving pre-built React SPA with API proxy to backend
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,42 +25,98 @@ spec:
         app.kubernetes.io/component: frontend
         app.kubernetes.io/part-of: home-lab
     spec:
-      containers:
-        - name: frontend
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: build-static
           image: tjetzinger/legacy-use-frontend:1.2.0
           imagePullPolicy: IfNotPresent
+          workingDir: /web
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
           command:
             - /bin/sh
             - -c
             - |
-              sed -i "s/allowedHosts: \['.local.legacy-use.com'\]/allowedHosts: true/" /web/vite.config.js
-              exec npm start
-          ports:
-            - name: http
-              containerPort: 5173
-              protocol: TCP
+              pnpm build-lazy && cp -a /web/build/. /static/
           env:
-            - name: VITE_PROXY_TARGET
-              value: "legacy-use-backend"
             - name: VITE_PUBLIC_DISABLE_TRACKING
               value: "true"
           resources:
             requests:
-              cpu: 100m
+              cpu: 500m
               memory: 1Gi
             limits:
-              cpu: 500m
+              cpu: "2"
               memory: 2Gi
+          volumeMounts:
+            - name: static-files
+              mountPath: /static
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command:
+            - nginx
+            - -c
+            - /etc/nginx/custom/nginx.conf
+            - -g
+            - "daemon off;"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
           readinessProbe:
             httpGet:
-              path: /
-              port: 5173
-            initialDelaySeconds: 5
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /
-              port: 5173
-            initialDelaySeconds: 10
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
             periodSeconds: 30
+          volumeMounts:
+            - name: static-files
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+            - name: nginx-config
+              mountPath: /etc/nginx/custom
+              readOnly: true
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+            - name: nginx-tmp
+              mountPath: /tmp
+      volumes:
+        - name: static-files
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: legacy-use-frontend-config
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
       restartPolicy: Always
