@@ -252,5 +252,5 @@ development_status:
   25-1-upgrade-vllm-to-support-qwen3: done
   25-2-upgrade-ollama-to-qwen3-and-update-litellm: done
   25-3-deploy-docling-server: done
-  25-4-deploy-paperless-gpt-and-remove-paperless-ai: backlog
+  25-4-deploy-paperless-gpt-and-remove-paperless-ai: done
   epic-25-retrospective: optional

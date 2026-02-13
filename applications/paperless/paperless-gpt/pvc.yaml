@@ -1,0 +1,31 @@
+# Paperless-GPT PersistentVolumeClaim for home-lab
+# Namespace: docs
+#
+# Story: 25.4 - Deploy Paperless-GPT and Remove Paperless-AI
+# Epic: 25 - Document Processing Pipeline Upgrade
+#
+# FRs:
+# - FR196: Prompt template customization persists across restarts
+#
+# NFRs:
+# - NFR112: Changes take effect without pod restart (hot-reload from PVC)
+#
+# Purpose: Persist prompt templates (/app/prompts) and SQLite DB (/app/paperless-gpt.db)
+# Single mount at /app/data covers both (Go binary writes to subdirs)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-gpt-data
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-gpt
+    app.kubernetes.io/instance: paperless-gpt
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 1Gi

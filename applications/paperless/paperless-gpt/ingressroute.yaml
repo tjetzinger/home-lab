@@ -1,0 +1,79 @@
+# Paperless-GPT IngressRoute for home-lab
+# Namespace: docs
+#
+# Story: 25.4 - Deploy Paperless-GPT and Remove Paperless-AI
+# Epic: 25 - Document Processing Pipeline Upgrade
+#
+# FRs:
+# - FR198: Web UI accessible at paperless-gpt.home.jetzinger.com
+#
+# NFRs:
+# - NFR7: All ingress traffic uses TLS 1.2+ with valid certificates
+#
+# 3-part IngressRoute pattern: Certificate + HTTPS route + HTTP redirect
+---
+# Certificate for TLS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: paperless-gpt-tls
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-gpt
+    app.kubernetes.io/instance: paperless-gpt
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: document-ai
+spec:
+  secretName: paperless-gpt-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - paperless-gpt.home.jetzinger.com
+---
+# Main IngressRoute for HTTPS
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: paperless-gpt-ingress
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-gpt
+    app.kubernetes.io/instance: paperless-gpt
+    app.kubernetes.io/component: document-ai
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`paperless-gpt.home.jetzinger.com`)
+      services:
+        - name: paperless-gpt-svc
+          port: 8080
+  tls:
+    secretName: paperless-gpt-tls
+---
+# HTTP to HTTPS redirect
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: paperless-gpt-ingress-redirect
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-gpt
+    app.kubernetes.io/instance: paperless-gpt-redirect
+    app.kubernetes.io/component: document-ai
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`paperless-gpt.home.jetzinger.com`)
+      middlewares:
+        - name: https-redirect
+          namespace: docs
+      services:
+        - name: paperless-gpt-svc
+          port: 8080

@@ -1,0 +1,93 @@
+# Paperless-GPT Deployment for home-lab
+# Namespace: docs
+#
+# Story: 25.4 - Deploy Paperless-GPT and Remove Paperless-AI
+# Epic: 25 - Document Processing Pipeline Upgrade
+#
+# FRs:
+# - FR192: Paperless-GPT deployed with Docling OCR provider
+# - FR193: Docling integration for two-stage document processing
+# - FR194: LiteLLM integration for LLM-based metadata generation
+# - FR195: Title, tags, correspondent, document type auto-generation
+# - FR196: Prompt template customization via web UI
+# - FR197: Manual review and automatic processing workflows
+#
+# NFRs:
+# - NFR107: Document processing completes within 60 seconds
+# - NFR108: Classification accuracy 85%+ for common document types
+# - NFR110: Pod uses <512MB memory idle
+#
+# Image: icereed/paperless-gpt:v0.24.0 (~38MB, Go binary + embedded React SPA)
+# Port: 8080 (LISTEN_INTERFACE=:8080)
+# Health: No /health endpoint — probe on GET /
+# Single replica only (SQLite backend — concurrent writes corrupt)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperless-gpt
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-gpt
+    app.kubernetes.io/instance: paperless-gpt
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: document-ai
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paperless-gpt
+      app.kubernetes.io/instance: paperless-gpt
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperless-gpt
+        app.kubernetes.io/instance: paperless-gpt
+        app.kubernetes.io/part-of: home-lab
+        app.kubernetes.io/component: document-ai
+    spec:
+      containers:
+        - name: paperless-gpt
+          image: icereed/paperless-gpt:v0.24.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: paperless-gpt-config
+            - secretRef:
+                name: paperless-gpt-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /app/prompts
+              subPath: prompts
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: paperless-gpt-data
+      restartPolicy: Always

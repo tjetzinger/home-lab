@@ -1,0 +1,61 @@
+# Paperless-GPT ConfigMap for home-lab
+# Namespace: docs
+#
+# Story: 25.4 - Deploy Paperless-GPT and Remove Paperless-AI
+# Epic: 25 - Document Processing Pipeline Upgrade
+#
+# FRs:
+# - FR192: Paperless-GPT deployed with Docling OCR provider
+# - FR193: Docling integration for two-stage document processing
+# - FR194: LiteLLM integration for LLM-based metadata generation
+# - FR197: Manual review (paperless-gpt tag) and automatic processing (paperless-gpt-auto tag)
+#
+# NFRs:
+# - NFR112: Prompt template changes take effect without pod restart
+#
+# Environment Variables Reference:
+# https://github.com/icereed/paperless-gpt
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: paperless-gpt-config
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-gpt
+    app.kubernetes.io/instance: paperless-gpt
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: document-ai
+    app.kubernetes.io/managed-by: kubectl
+data:
+  # Paperless-ngx connection
+  # Service DNS: paperless-paperless-ngx.docs.svc.cluster.local:8000
+  PAPERLESS_BASE_URL: "http://paperless-paperless-ngx.docs.svc.cluster.local:8000"
+
+  # OCR Provider - Docling (Story 25.3)
+  # Service DNS: docling.docs.svc.cluster.local:5001
+  OCR_PROVIDER: "docling"
+  DOCLING_URL: "http://docling.docs.svc.cluster.local:5001"
+  DOCLING_OCR_PIPELINE: "standard"
+  DOCLING_OCR_ENGINE: "easyocr"
+
+  # LLM Provider - LiteLLM (OpenAI-compatible proxy)
+  # Three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+  # Service DNS: litellm.ml.svc.cluster.local:4000
+  LLM_PROVIDER: "openai"
+  OPENAI_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
+  LLM_MODEL: "vllm-qwen"
+  LLM_LANGUAGE: "English"
+
+  # Tag-based workflow triggers
+  MANUAL_TAG: "paperless-gpt"
+  AUTO_TAG: "paperless-gpt-auto"
+
+  # Auto-generation toggles (all enabled for full metadata extraction)
+  AUTO_GENERATE_TITLE: "true"
+  AUTO_GENERATE_TAGS: "true"
+  AUTO_GENERATE_CORRESPONDENTS: "true"
+  AUTO_GENERATE_CREATED_DATE: "true"
+  AUTO_GENERATE_DOCUMENT_TYPE: "true"
+
+  # System
+  LOG_LEVEL: "info"

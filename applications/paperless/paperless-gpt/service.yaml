@@ -1,0 +1,33 @@
+# Paperless-GPT Service for home-lab
+# Namespace: docs
+#
+# Story: 25.4 - Deploy Paperless-GPT and Remove Paperless-AI
+# Epic: 25 - Document Processing Pipeline Upgrade
+#
+# FRs:
+# - FR198: Web UI accessible via ingress
+#
+# Service named paperless-gpt-svc to avoid K8s env var collision
+# K8s auto-injects {SERVICE_NAME}_PORT which conflicts with app config
+# (Lesson learned from Paperless-AI: paperless-ai → paperless-ai-svc)
+apiVersion: v1
+kind: Service
+metadata:
+  name: paperless-gpt-svc
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: paperless-gpt
+    app.kubernetes.io/instance: paperless-gpt
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: document-ai
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: paperless-gpt
+    app.kubernetes.io/instance: paperless-gpt
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
