@@ -2,7 +2,7 @@
 stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
 completedAt: '2026-01-29'
-lastModified: '2026-01-31'
+lastModified: '2026-02-12'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -199,6 +199,25 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR190: System automatically captures conversation context into a LanceDB vector store and recalls relevant memories on subsequent conversations
 - FR191: Operator can manage the memory index via `openclaw ltm` CLI commands (stats, list, search)
 
+**Document Processing Pipeline Upgrade (17 FRs)**
+- FR192: Paperless-GPT deployed in `docs` namespace replacing Paperless-AI
+- FR193: Paperless-GPT configured with Docling as OCR provider
+- FR194: Paperless-GPT connected to LiteLLM proxy for LLM inference
+- FR195: Documents auto-classified with title, tags, correspondent, document type, and custom fields
+- FR196: Prompt templates customizable via Paperless-GPT web UI without pod restart
+- FR197: Paperless-GPT supports manual review and automatic processing tag workflows
+- FR198: Paperless-GPT accessible via ingress at `paperless-gpt.home.jetzinger.com` with HTTPS
+- FR199: Docling server deployed with Granite-Docling 258M VLM pipeline
+- FR200: Docling provides layout-aware PDF parsing preserving table structure, code blocks, equations
+- FR201: Docling outputs structured markdown/JSON consumed by Paperless-GPT
+- FR202: Docling runs on CPU with minimal resource footprint
+- FR203: vLLM image upgraded from v0.5.5 to v0.10.2+ for Qwen3 support
+- FR204: vLLM ML-mode model upgraded to Qwen/Qwen3-8B-AWQ
+- FR205: LiteLLM configmap updated with Qwen3-8B-AWQ model path for vllm-qwen alias
+- FR206: Ollama model upgraded from qwen2.5:3b to qwen3:4b
+- FR207: LiteLLM configmap updated with qwen3:4b model for ollama-qwen alias
+- FR208: Paperless-AI deployment, configmap, service, and ingress removed
+
 **Development Proxy (3 FRs)**
 - FR41: Operator can configure Nginx to proxy to local dev servers
 - FR42: Developer can access local dev servers via cluster ingress
@@ -383,6 +402,18 @@ This document provides the complete epic and story breakdown for home-lab, decom
 **OpenClaw Memory (2 NFRs)**
 - NFR105: Memory embedding latency does not exceed 500ms per message using OpenAI API (`text-embedding-3-small`); local Xenova not supported by memory-lancedb plugin
 - NFR106: LanceDB memory data persists across pod restarts via local PVC (`openclaw-data`) on k3s-worker-01
+
+**Document Processing Pipeline Upgrade (10 NFRs)**
+- NFR107: Document metadata generation completes within 5 seconds via GPU vLLM (Qwen3-8B-AWQ)
+- NFR108: Auto-tagging accuracy achieves 90%+ for common document types via GPU inference
+- NFR109: Auto-tagging accuracy achieves 70%+ via CPU fallback (qwen3:4b on Ollama)
+- NFR110: Qwen3 models produce valid structured output for 95%+ of classification requests
+- NFR111: CPU Ollama (qwen3:4b) completes document classification within 60 seconds
+- NFR112: Paperless-GPT prompt template changes take effect without pod restart
+- NFR113: Docling server extracts structured text from PDFs within 30 seconds
+- NFR114: Docling Granite-Docling VLM pipeline runs on CPU with <1GB memory footprint
+- NFR115: vLLM v0.10.2+ maintains compatibility with existing CLI arguments
+- NFR116: vLLM upgrade does not disrupt DeepSeek-R1 deployment
 
 ### Additional Requirements
 
@@ -5715,6 +5746,181 @@ So that **I can understand the technical decisions, integration patterns, and AI
 
 ---
 
+---
+
+## Epic 25: Document Processing Pipeline Upgrade
+
+**Goal:** Replace Paperless-AI with Paperless-GPT, add Docling for layout-aware document parsing, and upgrade the ML inference stack to Qwen3 models. Establishes a two-stage document processing pipeline where Docling extracts document structure and Qwen3 generates metadata.
+
+**Brainstorming Session:** `docs/analysis/brainstorming-session-2026-02-12.md`
+
+**Dependencies:** Existing Paperless-ngx (Epic 10), LiteLLM (Epic 14), vLLM (Epic 12)
+
+**Architecture Decision:** Option C — Qwen3-8B-AWQ on GPU (primary), qwen3:4b on Ollama CPU (fallback). No worker-02 Proxmox upgrade needed.
+
+**FRs:** FR192-FR208
+**NFRs:** NFR107-NFR116
+
+### Story 25.1: Upgrade vLLM to Support Qwen3
+
+As a **cluster operator**,
+I want **to upgrade vLLM from v0.5.5 to v0.10.2+ and deploy Qwen3-8B-AWQ**,
+So that **the GPU inference tier delivers significantly improved document classification accuracy and multilingual support**.
+
+**Acceptance Criteria:**
+
+**Given** vLLM is currently running v0.5.5 with Qwen2.5-7B-Instruct-AWQ
+**When** I update the vLLM deployment image to `vllm/vllm-openai:v0.10.2` (or newer stable)
+**Then** the vLLM pod starts successfully on k3s-gpu-worker (FR203)
+**And** existing CLI arguments (`--enforce-eager`, `--quantization awq_marlin`, `--gpu-memory-utilization 0.90`, `--max-model-len 8192`) remain compatible (NFR115)
+
+**Given** vLLM v0.10.2+ is running
+**When** I update the model argument to `Qwen/Qwen3-8B-AWQ`
+**Then** the model downloads and loads within 120 seconds (FR204)
+**And** vLLM health endpoint responds at `/health`
+**And** the model serves inference requests via OpenAI-compatible API
+
+**Given** Qwen3-8B-AWQ is serving on vLLM
+**When** I send a document classification prompt
+**Then** the response includes valid structured metadata (title, tags, correspondent) (NFR110)
+**And** inference throughput achieves 30-50 tokens/second on RTX 3060
+
+**Given** the vLLM upgrade is complete
+**When** I verify the DeepSeek-R1 deployment manifest (`deployment-r1.yaml`)
+**Then** R1 mode continues to function with the upgraded vLLM image (NFR116)
+**And** `gpu-mode r1` successfully switches to DeepSeek-R1
+
+**FRs covered:** FR203, FR204
+**NFRs covered:** NFR107, NFR110, NFR115, NFR116
+
+---
+
+### Story 25.2: Upgrade Ollama to Qwen3 and Update LiteLLM
+
+As a **cluster operator**,
+I want **to upgrade Ollama from qwen2.5:3b to qwen3:4b and update LiteLLM model routing**,
+So that **the CPU fallback tier delivers improved metadata quality when the GPU is unavailable**.
+
+**Acceptance Criteria:**
+
+**Given** Ollama is running on k3s-worker-02 with qwen2.5:3b (1.9GB)
+**When** I pull the qwen3:4b model via `ollama pull qwen3:4b`
+**Then** the model downloads successfully and fits within worker-02's 8GB RAM (FR206)
+**And** `ollama list` shows qwen3:4b available
+
+**Given** qwen3:4b is available on Ollama
+**When** I remove the old qwen2.5:3b model
+**Then** disk space is reclaimed
+**And** qwen3:4b responds to inference requests
+
+**Given** Ollama and vLLM models are updated
+**When** I update the LiteLLM configmap with new model paths:
+- `vllm-qwen` → `openai/Qwen/Qwen3-8B-AWQ`
+- `ollama-qwen` → `ollama/qwen3:4b`
+**Then** LiteLLM reloads configuration (FR205, FR207)
+**And** the fallback chain `vllm-qwen → ollama-qwen → openai-gpt4o` routes correctly
+
+**Given** LiteLLM is updated
+**When** vLLM is unavailable (GPU off / gaming mode)
+**Then** requests to `vllm-qwen` automatically fall back to `ollama-qwen` (qwen3:4b)
+**And** document classification completes within 60 seconds on CPU (NFR111)
+**And** classification accuracy achieves 70%+ for common document types (NFR109)
+
+**Given** LiteLLM is updated
+**When** I access Open-WebUI and request model `vllm-qwen`
+**Then** Open-WebUI transparently receives Qwen3 responses without configuration changes
+
+**FRs covered:** FR205, FR206, FR207
+**NFRs covered:** NFR108, NFR109, NFR111
+
+---
+
+### Story 25.3: Deploy Docling Server
+
+As a **cluster operator**,
+I want **to deploy a Docling server with the Granite-Docling VLM pipeline in the docs namespace**,
+So that **incoming documents are parsed with layout-aware structure extraction before LLM processing**.
+
+**Acceptance Criteria:**
+
+**Given** the `docs` namespace has Paperless-ngx, Tika, and Gotenberg running
+**When** I deploy a Docling server pod with `DOCLING_OCR_PIPELINE=vlm`
+**Then** the Docling server starts and responds at its health endpoint (FR199)
+**And** the pod uses <1GB memory (NFR114)
+**And** the pod runs on CPU without GPU requirements (FR202)
+
+**Given** Docling server is running
+**When** I submit a PDF with complex tables and mixed German/English text
+**Then** Docling returns structured markdown preserving table structure, reading order, and text content (FR200, FR201)
+**And** extraction completes within 30 seconds for typical documents (NFR113)
+
+**Given** Docling server is running
+**When** I submit a scanned PDF (image-only)
+**Then** Granite-Docling 258M VLM pipeline performs OCR and returns structured text
+**And** German and English text are correctly extracted
+
+**Given** Docling server is deployed
+**When** Tika and Gotenberg are verified
+**Then** Tika continues to handle email and Office format text extraction (unchanged)
+**And** Gotenberg continues to convert Office documents to PDF (unchanged)
+
+**FRs covered:** FR199, FR200, FR201, FR202
+**NFRs covered:** NFR113, NFR114
+
+---
+
+### Story 25.4: Deploy Paperless-GPT and Remove Paperless-AI
+
+As a **cluster operator**,
+I want **to deploy Paperless-GPT with Docling OCR provider and remove Paperless-AI**,
+So that **documents are processed through the two-stage pipeline (Docling → LLM) with improved metadata quality and customizable prompts**.
+
+**Acceptance Criteria:**
+
+**Given** Docling server and LiteLLM are operational
+**When** I deploy Paperless-GPT with configuration:
+- `OCR_PROVIDER=docling`
+- `DOCLING_URL=http://docling:8000`
+- `LLM_PROVIDER=openai`
+- `LLM_MODEL=vllm-qwen`
+- `OPENAI_API_BASE=http://litellm.ml.svc.cluster.local:4000/v1`
+- `PAPERLESS_BASE_URL=http://paperless-paperless-ngx.docs.svc.cluster.local:8000`
+**Then** Paperless-GPT starts and connects to all dependencies (FR192, FR193, FR194)
+
+**Given** Paperless-GPT is running
+**When** I tag a document with `paperless-gpt` in Paperless-ngx
+**Then** Paperless-GPT processes the document through Docling → LLM pipeline
+**And** title, tags, correspondent, and document type are generated (FR195)
+**And** the web UI shows the document for manual review before applying metadata (FR197)
+
+**Given** Paperless-GPT is running
+**When** I tag a document with `paperless-gpt-auto` in Paperless-ngx
+**Then** metadata is generated and applied automatically without manual review (FR197)
+
+**Given** Paperless-GPT web UI is accessible
+**When** I modify a prompt template via the web interface
+**Then** the change takes effect without pod restart (FR196, NFR112)
+
+**Given** Paperless-GPT is configured with ingress
+**When** I access `paperless-gpt.home.jetzinger.com`
+**Then** the web UI loads with HTTPS via Let's Encrypt certificate (FR198)
+
+**Given** Paperless-GPT is fully operational and validated
+**When** I remove Paperless-AI deployment, configmap, service, and ingress
+**Then** all Paperless-AI resources are cleaned up from `docs` namespace (FR208)
+**And** the `paperless-ai.home.jetzinger.com` ingress is removed
+**And** Paperless-ngx continues to function normally
+
+**Given** Paperless-GPT processes a document with GPU unavailable
+**When** LiteLLM falls back to Ollama qwen3:4b
+**Then** metadata is still generated (degraded quality acceptable) (NFR109, NFR111)
+**And** classification accuracy achieves 70%+ for common document types
+
+**FRs covered:** FR192, FR193, FR194, FR195, FR196, FR197, FR198, FR208
+**NFRs covered:** NFR107, NFR108, NFR109, NFR110, NFR111, NFR112
+
+---
+
 **Workflow Status:** All epics and stories through Phase 5 have been created with detailed acceptance criteria, including:
 - Phase 1-4: All 96 previous stories (Epics 1-20)
 - Phase 5: 16 new OpenClaw stories (Epics 21-24):
@@ -5722,5 +5928,10 @@ So that **I can understand the technical decisions, integration patterns, and AI
   - OpenClaw Research & Multi-Channel (Epic 22) with Exa MCP tools + WhatsApp/Discord
   - OpenClaw Advanced Capabilities (Epic 23) with voice, sub-agents, browser, skills
   - OpenClaw Observability & Documentation (Epic 24) with log-based monitoring + portfolio docs
+- Phase 6: Document Processing Pipeline Upgrade (Epic 25):
+  - vLLM Qwen3 upgrade (Story 25.1) with Qwen3-8B-AWQ on GPU
+  - Ollama Qwen3 upgrade + LiteLLM update (Story 25.2) with qwen3:4b CPU fallback
+  - Docling server deployment (Story 25.3) with Granite-Docling 258M VLM pipeline
+  - Paperless-GPT deployment + Paperless-AI removal (Story 25.4) with two-stage pipeline
 
 Ready to add to sprint-status.yaml and begin implementation.

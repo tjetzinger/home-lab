@@ -23,9 +23,10 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-01-31
+**Date:** 2025-12-27 | **Last Updated:** 2026-02-12
 
 **Changelog:**
+- 2026-02-12: Added Document Processing Pipeline Upgrade (FR192-FR207, NFR107-NFR116) - Replace Paperless-AI with Paperless-GPT, add Docling server for layout-aware PDF parsing, upgrade vLLM to Qwen3-8B-AWQ, upgrade Ollama to qwen3:4b. Two-stage pipeline: Docling extracts structure → LLM generates metadata. Supersedes FR87-89, FR104-108, FR110, NFR46-47, NFR58-62, NFR63-64.
 - 2026-01-31: Added OpenClaw long-term memory with LanceDB (FR189-FR191, NFR105-NFR106) - memory-lancedb plugin with OpenAI text-embedding-3-small for automatic memory capture and recall across conversations
 - 2026-01-30: Updated OpenClaw storage architecture (FR151, FR152, FR152a, FR152b, NFR100) - Changed from NFS to local persistent storage on k3s-worker-01 to eliminate network complexity and corruption vectors; added node affinity and Velero backup requirements
 - 2026-01-29: Added OpenClaw personal AI assistant (FR149-FR163, NFR86-NFR97) - Self-hosted multi-channel AI assistant on K3s with Opus 4.5 primary, LiteLLM fallback, Telegram channel, MCP research tools via mcporter (Exa)
@@ -104,10 +105,10 @@ The assistant integrates MCP research tools via mcporter (Exa and others) for re
 - Storage: NFS via Synology DS920+
 - Networking: Traefik ingress, MetalLB, Tailscale
 - Observability: Prometheus, Grafana
-- AI/ML: Ollama (Qwen 2.5 14B unified model), n8n
+- AI/ML: vLLM (Qwen3-8B-AWQ GPU), Ollama (qwen3:4b CPU fallback), LiteLLM proxy, n8n
 - GPU: NVIDIA RTX 3060 via eGPU (future)
 - Gaming: Steam + Proton on Intel NUC host OS (shared GPU with K8s)
-- Document Management: Paperless-ngx
+- Document Management: Paperless-ngx, Paperless-GPT, Docling (Granite-Docling 258M)
 - Development: Dev Containers via Nginx proxy (VS Code + Claude Code)
 
 ## Success Criteria
@@ -530,29 +531,63 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - FR85: User can split, merge, rotate, and compress PDFs via web interface
 - FR86: Stirling-PDF accessible via ingress with HTTPS
 
-### AI-Powered Document Classification (Paperless-AI)
+### AI-Powered Document Classification (Paperless-AI) — SUPERSEDED by Epic 25
 
-- FR87: Paperless-AI deployed connecting Paperless-ngx to Ollama on GPU worker (Intel NUC + RTX 3060)
-- FR88: Documents auto-tagged using LLM-based classification via GPU-accelerated inference
-- FR89: Correspondents and document types auto-populated from document content
-- FR104: Ollama configured with Qwen 2.5 14B model for reliable JSON-structured document metadata extraction (Story 12.8)
-- FR105: Paperless-AI model configurable via ConfigMap without code changes (Story 12.8)
-- FR106: clusterzx/paperless-ai deployed with web-based configuration UI replacing basic processor (Story 12.9)
-- FR107: RAG-based document chat enables natural language queries across document archive (Story 12.9)
-- FR108: Document classification rules configurable via web interface without YAML editing (Story 12.9)
+- FR87: ~~Paperless-AI deployed connecting Paperless-ngx to Ollama on GPU worker~~ → Superseded by FR192 (Paperless-GPT)
+- FR88: ~~Documents auto-tagged using LLM-based classification via GPU-accelerated inference~~ → Superseded by FR195
+- FR89: ~~Correspondents and document types auto-populated from document content~~ → Superseded by FR195
+- FR104: ~~Ollama configured with Qwen 2.5 14B model for reliable JSON-structured document metadata extraction~~ → Superseded by FR199, FR201
+- FR105: ~~Paperless-AI model configurable via ConfigMap without code changes~~ → Superseded by FR196
+- FR106: ~~clusterzx/paperless-ai deployed with web-based configuration UI~~ → Superseded by FR192
+- FR107: ~~RAG-based document chat enables natural language queries across document archive~~ → Removed (RAG chat not in scope for Paperless-GPT)
+- FR108: ~~Document classification rules configurable via web interface~~ → Superseded by FR196
 
-### vLLM GPU Integration (Story 12.10)
+### Document Processing Pipeline Upgrade (Epic 25)
 
-- FR109: vLLM deployed with qwen2.5:14b model on GPU worker (k3s-gpu-worker) for primary inference
-- FR110: Paperless-AI configured with `AI_PROVIDER=custom` pointing to LiteLLM unified endpoint
-- FR111: Ollama serves slim models (llama3.2:1b, qwen2.5:3b) as first fallback tier
-- FR112: k3s-worker-02 resources reduced from 32GB to 8GB RAM after vLLM migration
+#### Paperless-GPT Deployment
+
+- FR192: Paperless-GPT deployed in `docs` namespace replacing Paperless-AI as the AI document processing tool
+- FR193: Paperless-GPT configured with Docling as OCR provider (`OCR_PROVIDER=docling`)
+- FR194: Paperless-GPT connected to LiteLLM proxy for LLM inference (`LLM_PROVIDER=openai`, endpoint `http://litellm.ml.svc.cluster.local:4000/v1`)
+- FR195: Documents auto-classified with title, tags, correspondent, document type, and custom fields via LLM
+- FR196: Prompt templates customizable via Paperless-GPT web UI without pod restart
+- FR197: Paperless-GPT supports manual review workflow via `paperless-gpt` tag and automatic processing via `paperless-gpt-auto` tag
+- FR198: Paperless-GPT accessible via ingress at `paperless-gpt.home.jetzinger.com` with HTTPS
+
+#### Docling Server Deployment
+
+- FR199: Docling server deployed in `docs` namespace with Granite-Docling 258M VLM pipeline (`DOCLING_OCR_PIPELINE=vlm`)
+- FR200: Docling provides layout-aware PDF parsing preserving table structure, code blocks, equations, and reading order
+- FR201: Docling outputs structured markdown/JSON consumed by Paperless-GPT for LLM metadata generation
+- FR202: Docling runs on CPU (no GPU required) with minimal resource footprint
+
+#### vLLM Qwen3 Upgrade
+
+- FR203: vLLM image upgraded from `v0.5.5` to `v0.10.2+` for Qwen3 model support
+- FR204: vLLM ML-mode model upgraded from `Qwen/Qwen2.5-7B-Instruct-AWQ` to `Qwen/Qwen3-8B-AWQ`
+- FR205: LiteLLM configmap updated with Qwen3-8B-AWQ model path for `vllm-qwen` alias (downstream apps unaffected)
+
+#### Ollama Qwen3 Upgrade
+
+- FR206: Ollama model upgraded from `qwen2.5:3b` to `qwen3:4b` for improved CPU fallback quality
+- FR207: LiteLLM configmap updated with `qwen3:4b` model for `ollama-qwen` alias
+
+#### Paperless-AI Removal
+
+- FR208: Paperless-AI deployment, configmap, service, and ingress removed from `docs` namespace
+
+### vLLM GPU Integration (Story 12.10) — Partially Superseded by Epic 25
+
+- FR109: ~~vLLM deployed with qwen2.5:14b model on GPU worker~~ → Superseded by FR204 (Qwen3-8B-AWQ)
+- FR110: ~~Paperless-AI configured with `AI_PROVIDER=custom` pointing to LiteLLM~~ → Superseded by FR194 (Paperless-GPT → LiteLLM)
+- FR111: ~~Ollama serves slim models (llama3.2:1b, qwen2.5:3b) as first fallback tier~~ → Superseded by FR206 (qwen3:4b)
+- FR112: k3s-worker-02 resources reduced from 32GB to 8GB RAM after vLLM migration (unchanged)
 
 ### LiteLLM Inference Proxy (Story 14.x)
 
 - FR113: LiteLLM proxy deployed in `ml` namespace providing unified OpenAI-compatible endpoint
 - FR114: LiteLLM configured with three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
-- FR115: Paperless-AI configured to use LiteLLM endpoint instead of direct vLLM connection
+- FR115: ~~Paperless-AI configured to use LiteLLM endpoint~~ → Superseded by FR194 (Paperless-GPT → LiteLLM)
 - FR116: LiteLLM automatically routes to next fallback tier when primary backend health check fails
 - FR117: OpenAI API key stored securely via Kubernetes secret for cloud fallback tier
 - FR118: LiteLLM exposes Prometheus metrics for inference routing and fallback events
@@ -759,26 +794,47 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - NFR44: Stirling-PDF web interface loads within 5 seconds
 - NFR45: PDF merge/split operations complete within 30 seconds for documents up to 100 pages
 
-### AI Classification Performance (Paperless-AI)
+### AI Classification Performance (Paperless-AI) — SUPERSEDED by Epic 25
 
-- NFR46: Document classification completes within 60 seconds using GPU-accelerated Ollama
-- NFR47: Auto-tagging accuracy achieves 80%+ for common document types (invoices, contracts, receipts)
-- NFR58: Qwen 2.5 14B produces valid JSON output for 95%+ of document classification requests (Story 12.8)
-- NFR59: RAG document search returns relevant context within 5 seconds (Story 12.9)
-- NFR60: Web UI configuration changes take effect without pod restart (Story 12.9)
-- NFR61: CPU Ollama with Qwen 2.5 14B achieves acceptable inference speed for document classification (Story 12.8)
-- NFR62: Document classification latency <60 seconds with CPU Ollama (acceptable for batch processing) (Story 12.8)
+- NFR46: ~~Document classification completes within 60 seconds using GPU-accelerated Ollama~~ → Superseded by NFR107
+- NFR47: ~~Auto-tagging accuracy achieves 80%+ for common document types~~ → Superseded by NFR108, NFR109
+- NFR58: ~~Qwen 2.5 14B produces valid JSON output for 95%+~~ → Superseded by NFR110
+- NFR59: ~~RAG document search returns relevant context within 5 seconds~~ → Removed (RAG not in Paperless-GPT scope)
+- NFR60: ~~Web UI configuration changes take effect without pod restart~~ → Superseded by NFR112
+- NFR61: ~~CPU Ollama with Qwen 2.5 14B achieves acceptable inference speed~~ → Superseded by NFR111
+- NFR62: ~~Document classification latency <60 seconds with CPU Ollama~~ → Superseded by NFR111
 
-### vLLM GPU Performance (Story 12.10)
+### Document Processing Pipeline Performance (Epic 25)
 
-- NFR63: vLLM achieves <5 second document classification latency with GPU-accelerated qwen2.5:14b
-- NFR64: vLLM serves qwen2.5:14b with 35-40 tokens/second throughput on RTX 3060
+#### Paperless-GPT Performance
+
+- NFR107: Document metadata generation completes within 5 seconds via GPU vLLM (Qwen3-8B-AWQ)
+- NFR108: Auto-tagging accuracy achieves 90%+ for common document types via GPU inference (Qwen3-8B-AWQ)
+- NFR109: Auto-tagging accuracy achieves 70%+ via CPU fallback (qwen3:4b on Ollama)
+- NFR110: Qwen3 models produce valid structured output for 95%+ of classification requests
+- NFR111: CPU Ollama (qwen3:4b) completes document classification within 60 seconds (batch processing acceptable)
+- NFR112: Paperless-GPT prompt template changes take effect without pod restart
+
+#### Docling Server Performance
+
+- NFR113: Docling server extracts structured text from PDFs within 30 seconds for typical documents
+- NFR114: Docling Granite-Docling VLM pipeline runs on CPU with <1GB memory footprint
+
+#### vLLM Upgrade Compatibility
+
+- NFR115: vLLM v0.10.2+ maintains compatibility with existing CLI arguments (`--enforce-eager`, `--quantization awq_marlin`)
+- NFR116: vLLM upgrade does not disrupt DeepSeek-R1 deployment (R1 mode continues to function)
+
+### vLLM GPU Performance (Story 12.10) — Partially Superseded by Epic 25
+
+- NFR63: ~~vLLM achieves <5 second document classification latency with qwen2.5:14b~~ → Superseded by NFR107 (Qwen3-8B-AWQ)
+- NFR64: ~~vLLM serves qwen2.5:14b with 35-40 tokens/second~~ → Updated: Qwen3-8B-AWQ expected 30-50 tok/s on RTX 3060
 
 ### LiteLLM Inference Proxy (Story 14.x)
 
 - NFR65: LiteLLM failover detection completes within 5 seconds of backend unavailability
 - NFR66: LiteLLM adds <100ms latency to inference requests during normal operation
-- NFR67: Paperless-AI document processing continues (degraded) during Gaming Mode via fallback chain
+- NFR67: ~~Paperless-AI document processing continues (degraded) during Gaming Mode~~ → Updated: Paperless-GPT document processing continues (degraded) during Gaming Mode via fallback chain
 - NFR68: OpenAI fallback tier only activated when both vLLM and Ollama are unavailable
 - NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
 

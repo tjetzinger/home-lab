@@ -2,13 +2,15 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
-lastModified: '2026-01-31'
-updateReason: 'OpenClaw memory architecture correction (2026-01-31): Updated memory-lancedb from local Xenova to OpenAI text-embedding-3-small (plugin does not support local embeddings). Updated NFR105, CLI commands, and architecture diagram. Previous: OpenClaw long-term memory architecture (2026-01-31, FR189-FR191, NFR105-NFR106).'
+lastModified: '2026-02-13'
+updateReason: 'Document Processing Pipeline Upgrade (2026-02-13): Replaced Paperless-AI with Paperless-GPT + Docling two-stage pipeline. Upgraded vLLM from v0.5.5 to v0.10.2+ with Qwen3-8B-AWQ. Upgraded Ollama from qwen2.5:3b to qwen3:4b. Added Docling server architecture. Updated AI/ML, LiteLLM, GPU, requirements coverage sections. FR192-FR208, NFR107-NFR116. ADR-012. Previous: OpenClaw memory architecture correction (2026-01-31).'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
   - 'docs/planning-artifacts/research/domain-k8s-platform-career-positioning-research-2025-12-27.md'
   - 'docs/analysis/brainstorming-session-2025-12-27.md'
+  - 'docs/analysis/brainstorming-session-2026-02-12.md'
+  - 'docs/adrs/ADR-012-document-processing-pipeline-upgrade.md'
 workflowType: 'architecture'
 project_name: 'home-lab'
 user_name: 'Tom'
@@ -23,7 +25,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements:** 188 FRs across 25 capability areas
+**Functional Requirements:** 208 FRs across 26 capability areas
 - Cluster Operations (6): K3s lifecycle, node management
 - Workload Management (7): Deployments, Helm, ingress
 - Storage Management (5): NFS, PVCs, dynamic provisioning
@@ -34,7 +36,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Development Proxy (3): Nginx to local dev servers
 - Cluster Maintenance (5): Upgrades, backups, Velero
 - Portfolio & Documentation (6): ADRs, GitHub, blog
-- Document Management (26): Paperless-ngx, Redis, OCR, Tika, Gotenberg, Stirling-PDF, Paperless-AI (enhanced with RAG, GPU, model config), Email integration
+- Document Management (26): Paperless-ngx, Redis, OCR, Tika, Gotenberg, Stirling-PDF, Email integration
 - Dev Containers (5): VS Code SSH, Claude Code, git worktrees
 - Gaming Platform (6): Steam, Proton, mode switching, fallback routing, default ML Mode at boot
 - Multi-Subnet Networking (4): Tailscale mesh, Flannel over VPN
@@ -48,8 +50,9 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - **LiteLLM External Providers (4): Groq, Google AI, Mistral free tiers as parallel model options**
 - **Blog Article (3): Portfolio documentation, Epic 9 completion**
 - **OpenClaw Personal AI Assistant (40): Gateway, Opus 4.5 + LiteLLM fallback, Telegram/WhatsApp/Discord, mcporter/Exa MCP tools, ElevenLabs voice, multi-agent, browser automation, Canvas/A2UI, ClawdHub skills, Loki/Blackbox observability, documentation**
+- **Document Processing Pipeline Upgrade (17): Paperless-GPT, Docling server, vLLM Qwen3-8B-AWQ, Ollama qwen3:4b, Paperless-AI removal (supersedes FR87-89, FR104-111)**
 
-**Non-Functional Requirements:** 104 NFRs
+**Non-Functional Requirements:** 116 NFRs
 - Reliability: 95% uptime, 5-min recovery, automatic pod rescheduling
 - Security: TLS 1.2+, Tailscale-only access, encrypted secrets
 - Performance: 30s Ollama response, 5s dashboard load
@@ -186,103 +189,107 @@ Traditional "starter templates" don't apply. Instead, we evaluate infrastructure
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Primary GPU LLM** | **vLLM + Qwen 2.5 14B** | **FR109: OpenAI-compatible API, optimized GPU inference, serves Paperless-AI** |
+| **Primary GPU LLM** | **vLLM v0.10.2+ with Qwen3-8B-AWQ** | **FR203-204: OpenAI-compatible API, optimized GPU inference, 90% classification accuracy** |
 | **GPU Worker** | **Intel NUC + RTX 3060 12GB eGPU** | **FR71: Hot-pluggable GPU worker via Tailscale** |
 | **GPU Networking** | **Dual-stack: 192.168.0.x (local) + Tailscale (K3s)** | **FR71, FR74: Hot-plug capability, cross-subnet support** |
-| **VRAM Usage** | **~8-9GB (Qwen 2.5 14B quantized)** | **Leaves 3-4GB headroom for KV cache; gaming requires mode switch** |
-| **Graceful Degradation** | **vLLM GPU → OpenAI API fallback (Epic 13)** | **FR73: Cloud fallback when GPU unavailable, routed via n8n** |
-| **Ollama Role** | **Experimental only (slim models)** | **FR111: llama3.2:1b + qwen2.5:3b on k3s-worker-02 (8GB RAM)** |
+| **VRAM Usage** | **~5-6GB (Qwen3-8B-AWQ quantized)** | **Leaves 6GB headroom for KV cache; gaming requires mode switch** |
+| **Graceful Degradation** | **vLLM GPU → Ollama CPU → OpenAI cloud (three-tier via LiteLLM)** | **FR114: Automatic failover chain** |
+| **Ollama Role** | **CPU fallback tier (qwen3:4b)** | **FR206: Always-on CPU inference on k3s-worker-02 (8GB RAM), 70% classification accuracy** |
 | Model Storage | NFS PVC | Persist downloaded models |
 | GPU Scheduling | NVIDIA GPU Operator | Automatic driver installation, GPU resource management |
 
-**GPU Inference Strategy (Story 12.10):**
+**GPU Inference Strategy (Epic 25 — supersedes Story 12.10):**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  vLLM on GPU (k3s-gpu-worker): Qwen 2.5 14B                │
-│  VRAM: ~8-9GB on RTX 3060 (12GB total)                     │
+│  vLLM v0.10.2+ on GPU (k3s-gpu-worker): Qwen3-8B-AWQ      │
+│  VRAM: ~5-6GB on RTX 3060 (12GB total)                     │
 ├─────────────────────────────────────────────────────────────┤
 │  Primary Use Cases (GPU-accelerated):                       │
-│  ├── Document classification (Paperless-AI via /v1/chat)   │
-│  ├── Code generation & review (GPT-4 level quality)        │
-│  ├── General inference (n8n workflows - future)            │
-│  └── Complex reasoning tasks                                │
+│  ├── Document classification (Paperless-GPT via LiteLLM)   │
+│  ├── Chat inference (Open-WebUI via LiteLLM)               │
+│  ├── General inference (n8n workflows)                      │
+│  └── Complex reasoning tasks (thinking mode /think)        │
 ├─────────────────────────────────────────────────────────────┤
 │  Why vLLM over Ollama for GPU:                             │
-│  ├── OpenAI-compatible API (works with AI_PROVIDER=custom) │
+│  ├── OpenAI-compatible API (standard /v1/chat/completions) │
 │  ├── Optimized GPU inference (PagedAttention)              │
 │  ├── Better batching and throughput                        │
-│  └── Standard /v1/completions endpoint                     │
+│  └── Required for AWQ quantization support                 │
 ├─────────────────────────────────────────────────────────────┤
-│  Fallback Strategy (Epic 13):                              │
-│  ├── Primary: vLLM GPU (~5s latency)                       │
-│  └── Fallback: OpenAI gpt-4o-mini via n8n routing          │
+│  Three-Tier Fallback (via LiteLLM):                        │
+│  ├── Tier 1: vLLM GPU (30-50 tok/s, 90% accuracy)         │
+│  ├── Tier 2: Ollama CPU qwen3:4b (70% accuracy)           │
+│  └── Tier 3: OpenAI gpt-4o-mini (cloud, pay-per-use)      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Qwen 2.5 14B Performance on vLLM:**
-- **Speed:** ~35-40 tok/s on RTX 3060
-- **Code quality:** ★★★★★ (rivals GPT-4 on HumanEval)
-- **JSON output:** ★★★★★ (reliable structured output)
-- **Reasoning:** ★★★★★ (strong instruction following)
-- **Multilingual:** ★★★★★ (excellent German support for Paperless)
+**Qwen3-8B-AWQ Performance on vLLM:**
+- **Speed:** ~30-50 tok/s on RTX 3060
+- **Classification:** 90% accuracy (distillabs benchmarks)
+- **JSON output:** ★★★★★ (reliable structured output, NFR110: 95%+)
+- **Reasoning:** ★★★★★ (strong instruction following, ~85% IFEval strict)
+- **Thinking mode:** Toggle `/think` for complex documents requiring deeper reasoning
+- **Multilingual:** ★★★★★ (119 languages, significantly better German support than Qwen2.5's 29)
 
 **GPU Worker Architecture:**
 ```
 Intel NUC (192.168.0.x local network)
   └─ Tailscale VPN (stable IP for K3s)
       └─ K3s node join via Tailscale IP
-          └─ vLLM Pod scheduled with GPU resource request
+          └─ vLLM v0.10.2+ Pod scheduled with GPU resource request
               └─ NVIDIA GPU Operator manages drivers/runtime
-                  └─ Qwen 2.5 14B loaded (~8-9GB VRAM)
+                  └─ Qwen3-8B-AWQ loaded (~5-6GB VRAM)
 ```
 
 **Hot-Plug Workflow (FR74):**
 1. GPU worker boots → Tailscale connects → K3s detects node
 2. Operator uncordons node: `kubectl uncordon k3s-gpu-worker`
 3. vLLM Pod schedules to GPU node (GPU resource request)
-4. GPU worker shutdown → Node marked NotReady → Fallback to OpenAI (Epic 13)
+4. GPU worker shutdown → Node marked NotReady → LiteLLM auto-fails over to Ollama CPU
 
-**Ollama (Experimental - k3s-worker-02):**
+**Ollama (CPU Fallback Tier - k3s-worker-02):**
 ```
-k3s-worker-02 (8GB RAM - reduced from 32GB)
-  └─ Ollama Pod (CPU inference only)
-      └─ Slim models for experimentation:
-          ├── llama3.2:1b (~1GB, fast chat)
-          └── qwen2.5:3b (~2GB, light inference)
+k3s-worker-02 (8GB RAM)
+  └─ Ollama Pod (CPU inference)
+      └─ qwen3:4b (Q4, ~2.5GB RAM)
+          ├── 70% classification accuracy
+          ├── 119 language support
+          └── Always-on when GPU unavailable
 ```
 
 **Integration Patterns:**
-- vLLM exposes OpenAI-compatible API at `http://vllm.ml.svc.cluster.local:8000/v1`
-- Paperless-AI uses `AI_PROVIDER=custom` with vLLM endpoint
-- Model parameter: `"model": "qwen2.5:14b"`
-- Ollama available at `http://ollama.ml.svc.cluster.local:11434` for experiments
+- vLLM exposes OpenAI-compatible API at `http://vllm-api.ml.svc.cluster.local:8000/v1`
+- All consumers connect via LiteLLM proxy at `http://litellm.ml.svc.cluster.local:4000/v1`
+- LiteLLM model alias `vllm-qwen` → `openai/Qwen/Qwen3-8B-AWQ`
+- LiteLLM model alias `ollama-qwen` → `ollama/qwen3:4b`
+- Ollama available at `http://ollama.ml.svc.cluster.local:11434`
 
 ### Dual-Use GPU Architecture (ML + Gaming)
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **GPU Sharing Model** | **Exclusive Mode Switching** | **Qwen 2.5 14B uses ~8-9GB, gaming needs 6-10GB - no coexistence possible** |
+| **GPU Sharing Model** | **Exclusive Mode Switching** | **Qwen3-8B-AWQ uses ~5-6GB, gaming needs 6-10GB - no coexistence possible** |
 | **Host Gaming** | **Steam + Proton on Ubuntu 22.04** | **FR95-96: Native host performance, Windows game compatibility via Proton** |
 | **Mode Switching** | **Manual script with kubectl** | **FR97: Operator-controlled, explicit state transitions** |
 | **GPU Detection** | **vLLM health check + n8n routing** | **FR94, NFR50: Detect GPU unavailability within 10 seconds** |
-| **Fallback Strategy** | **OpenAI gpt-4o-mini via n8n routing (Epic 13)** | **NFR54: Cloud fallback when GPU unavailable** |
+| **Fallback Strategy** | **Three-tier via LiteLLM (vLLM → Ollama → OpenAI)** | **FR114: Automatic failover when GPU unavailable** |
 
-**VRAM Budget (Quality-Optimized Model):**
+**VRAM Budget (Qwen3-8B-AWQ):**
 ```
 RTX 3060: 12GB VRAM total
-├── vLLM (Qwen 2.5 14B): ~8-9GB
-├── KV Cache headroom: ~2-3GB
+├── vLLM (Qwen3-8B-AWQ): ~5-6GB
+├── KV Cache headroom: ~6GB
 ├── Gaming (any): 6-10GB → Always requires mode switch
-└── Trade-off: Better AI quality vs no hybrid mode
+└── Trade-off: Efficient VRAM usage, excellent quality
 ```
 
 **Operational Modes:**
 
 | Mode | GPU Owner | vLLM Status | Inference Path | Use Case |
 |------|-----------|-------------|----------------|----------|
-| **ML Mode** | K8s (vLLM) | Running on GPU | GPU-accelerated (~35-40 tok/s) | Default, AI/ML workloads |
-| **Gaming Mode** | Host (Steam) | Scaled to 0 | OpenAI fallback (Epic 13) | Any gaming session |
+| **ML Mode** | K8s (vLLM) | Running on GPU | GPU-accelerated (30-50 tok/s) | Default, AI/ML workloads |
+| **Gaming Mode** | Host (Steam) | Scaled to 0 | Ollama CPU fallback → OpenAI cloud | Any gaming session |
 
 **Mode Switching Architecture:**
 ```
@@ -291,14 +298,14 @@ RTX 3060: 12GB VRAM total
 ├─────────────────────────────────────────────────────────────┤
 │  Host OS Layer:                                             │
 │  ├── Steam + Proton (native, FR95-96)                       │
-│  ├── NVIDIA Driver 535+ (shared with K8s)                   │
+│  ├── NVIDIA Driver 535+ (shared with K8s via GPU Operator)   │
 │  ├── nvidia-drm.modeset=1 (PRIME support for eGPU)          │
 │  └── Mode switching script: /usr/local/bin/gpu-mode         │
 ├─────────────────────────────────────────────────────────────┤
 │  K8s Worker Layer:                                          │
 │  ├── K3s agent (joins via Tailscale)                        │
 │  ├── NVIDIA GPU Operator + Device Plugin                    │
-│  └── vLLM pod with Qwen 2.5 14B (~8-9GB VRAM)              │
+│  └── vLLM v0.10.2+ pod with Qwen3-8B-AWQ (~5-6GB VRAM)     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -332,7 +339,7 @@ if (vllmHealth.status !== 200) {
   // Fallback to OpenAI API when GPU unavailable
   return { endpoint: 'https://api.openai.com/v1', model: 'gpt-4o-mini', mode: 'cloud' };
 }
-return { endpoint: 'http://vllm.ml.svc:8000/v1', model: 'qwen2.5:14b', mode: 'gpu' };
+return { endpoint: 'http://vllm.ml.svc:8000/v1', model: 'Qwen/Qwen3-8B-AWQ', mode: 'gpu' };
 ```
 
 **NFR Compliance:**
@@ -361,7 +368,7 @@ Boot Sequence:
 │  2. k3s agent joins cluster via Tailscale                │
 │  3. gpu-mode-default.service waits for kubectl ready     │
 │  4. Runs: gpu-mode ml → scales vLLM to 1                 │
-│  5. vLLM pod starts, loads Qwen 2.5 14B (~60-90s)       │
+│  5. vLLM pod starts, loads Qwen3-8B-AWQ (~60-90s)       │
 │  6. ML Mode active, GPU inference available              │
 └──────────────────────────────────────────────────────────┘
 
@@ -393,7 +400,7 @@ WantedBy=multi-user.target
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Inference Proxy** | **LiteLLM** | **FR113: Unified OpenAI-compatible endpoint, handles multi-backend routing** |
-| **Primary Backend** | **vLLM (GPU)** | **FR114: Highest quality/speed when GPU available (~35-40 tok/s)** |
+| **Primary Backend** | **vLLM (GPU)** | **FR114: Highest quality/speed when GPU available (30-50 tok/s, Qwen3-8B-AWQ)** |
 | **First Fallback** | **Ollama (CPU)** | **FR114: On-premises fallback, <5s latency (NFR54), no API costs** |
 | **Second Fallback** | **OpenAI API** | **FR114: Cloud fallback for guaranteed availability** |
 | **API Key Storage** | **Kubernetes Secret** | **FR117: Secure storage for OpenAI API credentials** |
@@ -406,9 +413,10 @@ WantedBy=multi-user.target
 │  Endpoint: http://litellm.ml.svc.cluster.local:4000/v1          │
 ├─────────────────────────────────────────────────────────────────┤
 │  Unified OpenAI-compatible API for all consumers:               │
-│  ├── Paperless-AI (document classification)                     │
-│  ├── n8n workflows (automation)                                 │
-│  └── Future AI integrations                                     │
+│  ├── Paperless-GPT (document classification via Docling)        │
+│  ├── Open-WebUI (chat interface)                                │
+│  ├── OpenClaw (AI assistant fallback)                           │
+│  └── n8n workflows (automation)                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │  Fallback Chain (automatic failover):                           │
 │                                                                 │
@@ -417,9 +425,9 @@ WantedBy=multi-user.target
 │  │   vLLM       │───►│   Ollama     │───►│   OpenAI     │       │
 │  │   (GPU)      │    │   (CPU)      │    │   (Cloud)    │       │
 │  └──────────────┘    └──────────────┘    └──────────────┘       │
-│  • ~35-40 tok/s      • <5s latency       • gpt-4o-mini          │
-│  • Qwen 2.5 14B      • qwen2.5:3b        • 100% availability    │
-│  • Best quality      • On-premises       • Pay-per-use          │
+│  • 30-50 tok/s       • <60s classify      • gpt-4o-mini          │
+│  • Qwen3-8B-AWQ     • qwen3:4b           • 100% availability    │
+│  • 90% accuracy      • 70% accuracy      • Pay-per-use          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -427,22 +435,22 @@ WantedBy=multi-user.target
 ```yaml
 # applications/litellm/config.yaml
 model_list:
-  - model_name: "default"
+  - model_name: "vllm-qwen"
     litellm_params:
-      model: "openai/Qwen/Qwen2.5-7B-Instruct-AWQ"
+      model: "openai/Qwen/Qwen3-8B-AWQ"
       api_base: "http://vllm-api.ml.svc.cluster.local:8000/v1"
       api_key: "not-needed"
     model_info:
       mode: "chat"
 
-  - model_name: "default"  # Same name = fallback
+  - model_name: "vllm-qwen"  # Same name = fallback
     litellm_params:
-      model: "ollama/qwen2.5:3b"
+      model: "ollama/qwen3:4b"
       api_base: "http://ollama.ml.svc.cluster.local:11434"
     model_info:
       mode: "chat"
 
-  - model_name: "default"  # Same name = fallback
+  - model_name: "vllm-qwen"  # Same name = fallback
     litellm_params:
       model: "gpt-4o-mini"
       api_key: "os.environ/OPENAI_API_KEY"
@@ -453,7 +461,7 @@ router_settings:
   routing_strategy: "simple-shuffle"  # Try in order
   num_retries: 2
   timeout: 30
-  fallbacks: [{"default": ["default"]}]
+  fallbacks: [{"vllm-qwen": ["vllm-qwen"]}]
 
 general_settings:
   master_key: "os.environ/LITELLM_MASTER_KEY"
@@ -462,43 +470,41 @@ general_settings:
 **Service Integration Pattern:**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Before (Direct vLLM):                                          │
-│  Paperless-AI ──────────────────────────► vLLM                  │
-│  (Fails during Gaming Mode)                                     │
-├─────────────────────────────────────────────────────────────────┤
-│  After (LiteLLM Proxy):                                         │
+│  All consumers connect via LiteLLM (unified endpoint):          │
 │                                                                 │
-│  Paperless-AI ───► LiteLLM ───┬──► vLLM (GPU)    [Primary]     │
-│                               ├──► Ollama (CPU)   [Fallback 1] │
-│                               └──► OpenAI (Cloud) [Fallback 2] │
+│  Paperless-GPT ──► LiteLLM ───┬──► vLLM (GPU)    [Primary]     │
+│  Open-WebUI   ──►             ├──► Ollama (CPU)   [Fallback 1] │
+│  OpenClaw     ──►             └──► OpenAI (Cloud) [Fallback 2] │
+│  n8n          ──►                                               │
 │                                                                 │
 │  (Works in all modes with graceful degradation)                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Paperless-AI Configuration Change:**
+**Consumer Configuration (all use same pattern):**
 ```yaml
-# Before (direct vLLM):
-AI_PROVIDER: custom
-CUSTOM_BASE_URL: http://vllm-api.ml.svc.cluster.local:8000/v1
+# Paperless-GPT:
+LLM_PROVIDER: openai
+OPENAI_API_BASE: http://litellm.ml.svc.cluster.local:4000/v1
+LLM_MODEL: vllm-qwen
 
-# After (via LiteLLM):
-AI_PROVIDER: custom
-CUSTOM_BASE_URL: http://litellm.ml.svc.cluster.local:4000/v1
+# Open-WebUI:
+OPENAI_API_BASE_URL: http://litellm.ml.svc.cluster.local:4000/v1
+# Default model: vllm-qwen
 ```
 
 **Operational Behavior by Mode:**
 
 | Mode | vLLM | Ollama | LiteLLM Routing | Performance |
 |------|------|--------|-----------------|-------------|
-| **ML Mode** | Running | Running | vLLM (Tier 1) | ~35-40 tok/s, best quality |
-| **Gaming Mode** | Scaled to 0 | Running | Ollama (Tier 2) | <5s latency, on-premises |
+| **ML Mode** | Running | Running | vLLM (Tier 1) | 30-50 tok/s, 90% accuracy |
+| **Gaming Mode** | Scaled to 0 | Running | Ollama (Tier 2) | <60s classify, 70% accuracy |
 | **Full Outage** | Down | Down | OpenAI (Tier 3) | Cloud, pay-per-use |
 
 **NFR Compliance (LiteLLM):**
 - NFR65: Failover detection <5s via health check polling
 - NFR66: <100ms latency overhead during normal operation (proxy passthrough)
-- NFR67: Paperless-AI continues (degraded) during Gaming Mode via Ollama fallback
+- NFR67: Paperless-GPT continues (degraded) during Gaming Mode via Ollama fallback
 - NFR68: OpenAI only used when both local backends unavailable
 - NFR69: Health endpoint responds <1s for K8s readiness probes
 
@@ -684,75 +690,118 @@ helm install stirling-pdf stirling-pdf/stirling-pdf-chart -n docs
 - Split multi-document PDFs into individual files
 - Merge related documents into single PDF
 
-### AI Document Classification Architecture (Paperless-AI)
+### AI Document Classification Architecture (Paperless-GPT + Docling)
+
+_Supersedes previous Paperless-AI architecture (ADR-012, 2026-02-12)_
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **AI Connector** | **clusterzx/paperless-ai** | **FR106: Web UI config, RAG chat, active community (4.9k stars vs 10)** |
-| **LLM Model** | **Qwen 2.5 14B** | **FR104, NFR58: Single quality model, excellent JSON output, strong German support** |
-| **LLM Backend** | **vLLM on GPU worker (k3s-gpu-worker)** | **FR109-110: GPU-accelerated inference via OpenAI-compatible API** |
-| **Fallback Strategy** | **OpenAI gpt-4o-mini (Epic 13)** | **FR73: Cloud fallback when GPU unavailable, routed via n8n** |
-| **Model Config** | **ConfigMap-based** | **FR105: Model selection without code changes** |
-| Deployment | Deployment in `docs` namespace | Watches Paperless API for new documents |
-| RAG Storage | NFS PVC for embeddings index | FR107: Persistent RAG index for document chat |
+| **AI Connector** | **icereed/paperless-gpt** | **FR192: Native Docling OCR integration, customizable prompt templates, hOCR searchable PDFs, 5 LLM backends** |
+| **OCR/Parsing** | **Docling server (Granite-Docling 258M VLM)** | **FR199-201: Layout-aware PDF parsing preserving tables, code blocks, equations, reading order** |
+| **LLM (GPU)** | **Qwen3-8B-AWQ via vLLM** | **FR204, NFR108: 90% classification accuracy, 30-50 tok/s on GPU** |
+| **LLM (CPU Fallback)** | **qwen3:4b via Ollama** | **FR206, NFR109: 70% accuracy, fits in worker-02 8GB RAM without upgrade** |
+| **LLM Routing** | **LiteLLM proxy** | **FR194: vLLM → Ollama → OpenAI three-tier fallback. Downstream apps unaffected by model swap** |
+| **Prompt Config** | **Web UI (hot-reload)** | **FR196, NFR112: Prompt templates editable per document type without pod restart** |
+| **Processing Modes** | **Manual review + auto processing** | **FR197: `paperless-gpt` tag for manual review, `paperless-gpt-auto` for automatic** |
+| Deployment | Deployment in `docs` namespace | Replaces Paperless-AI (FR208) |
+| Ingress | `paperless-gpt.home.jetzinger.com` | FR198: HTTPS via cert-manager |
 
-**GPU-Accelerated Architecture (Story 12.10):**
+**Two-Stage Document Processing Pipeline (ADR-012):**
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  vLLM on GPU: Qwen 2.5 14B (~8-9GB VRAM)                   │
-│                                                             │
-│  Primary backend for Paperless-AI:                          │
-│  ├── Document classification (~5s latency)                  │
-│  ├── Excellent JSON output (95%+ valid)                    │
-│  ├── Strong German + English support                        │
-│  └── OpenAI-compatible API (/v1/chat/completions)          │
-│                                                             │
-│  Fallback (Epic 13 via n8n):                               │
-│  └── OpenAI gpt-4o-mini when GPU unavailable               │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  Stage 1: Structure Extraction (Docling)                        │
+│                                                                 │
+│  Incoming PDF → Docling Server (Granite-Docling 258M, CPU)     │
+│  ├── Layout-aware OCR via VLM pipeline                         │
+│  ├── Table structure preserved                                  │
+│  ├── Code blocks, equations extracted                           │
+│  ├── Reading order maintained                                   │
+│  └── Output: Structured markdown/JSON                          │
+├─────────────────────────────────────────────────────────────────┤
+│  Stage 2: Metadata Generation (LLM via LiteLLM)               │
+│                                                                 │
+│  Structured text → LiteLLM proxy → Qwen3 LLM                  │
+│  ├── Title extraction                                           │
+│  ├── Tag classification                                         │
+│  ├── Correspondent identification                               │
+│  ├── Document type assignment                                   │
+│  └── Custom field population                                    │
+├─────────────────────────────────────────────────────────────────┤
+│  Results → Paperless-ngx API (metadata written back)           │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Implementation Path (Stories 12.8 → 12.10):**
+**Key Insight:** Granite-Docling (258M) and Qwen3 serve complementary roles. Granite-Docling extracts document *structure*. Qwen3 *reasons* about the extracted content to generate metadata. Each model does what it's best at.
 
-| Story | Change | Impact |
-|-------|--------|--------|
-| **12.8** | Upgrade llama3.2:1b → Qwen 2.5 14B | NFR58: 95%+ valid JSON, better quality |
-| **12.9** | Migrate to clusterzx/paperless-ai | FR106-108: Web UI, RAG chat, configurable rules |
-| **12.10** | Connect Paperless-AI to vLLM GPU | FR109-110: <5s classification latency |
-
-**Integration Pattern:**
+**Complete Data Flow:**
 ```
-New Document → Paperless API → clusterzx/paperless-ai → vLLM (GPU) → Update Tags/Correspondent/Type
-                                      │
-                                      └─→ RAG Index → Document Chat (FR107)
+Incoming doc → Paperless-ngx
+       |                              |
+       | (Office docs)                | (stored PDF)
+       v                              v
+    Gotenberg → PDF              Paperless-GPT triggered (tag-based)
+                                       |
+                                       v
+                            Docling server (Granite-Docling 258M, CPU)
+                            → structured markdown/JSON
+                                       |
+                                       v
+                            LiteLLM proxy
+                            → vLLM Qwen3-8B-AWQ (GPU, if available)
+                            → Ollama qwen3:4b (CPU fallback)
+                                       |
+                                       v
+                            Title, tags, correspondent, custom fields
+                            → written back to Paperless-ngx API
 ```
 
-**Auto-populated Fields (FR89):**
-- Tags: Document category, year, source
-- Correspondent: Sender/organization extracted from content
-- Document Type: Invoice, contract, receipt, letter, etc.
+**Docling Server Configuration:**
+```yaml
+# Deployment in docs namespace
+env:
+  DOCLING_OCR_PIPELINE: "vlm"  # Granite-Docling 258M VLM pipeline
+# Resources: <1GB memory, CPU-only (NFR114)
+# No GPU required (FR202)
+```
 
-**clusterzx/paperless-ai Configuration (Story 12.10):**
+**Paperless-GPT Configuration:**
 ```yaml
 # Deployment environment variables
 env:
-  PAPERLESS_URL: "http://paperless-paperless-ngx.docs.svc.cluster.local:8000"
-  PAPERLESS_TOKEN: "<from-secret>"
-  AI_PROVIDER: "custom"  # OpenAI-compatible endpoint
-  CUSTOM_BASE_URL: "http://vllm.ml.svc.cluster.local:8000/v1"
-  LLM_MODEL: "qwen2.5:14b"
-  # RAG configuration
-  ENABLE_RAG: "true"
-  RAG_STORAGE_PATH: "/data/rag-index"
+  PAPERLESS_BASE_URL: "http://paperless-paperless-ngx.docs.svc.cluster.local:8000"
+  PAPERLESS_API_TOKEN: "<from-secret>"
+  OCR_PROVIDER: "docling"
+  DOCLING_URL: "http://docling:8000"
+  LLM_PROVIDER: "openai"
+  LLM_MODEL: "vllm-qwen"
+  OPENAI_API_BASE: "http://litellm.ml.svc.cluster.local:4000/v1"
+  OPENAI_API_KEY: "<from-litellm-secret>"
 ```
 
+**Auto-populated Fields (FR195):**
+- Tags: Document category, year, source
+- Correspondent: Sender/organization extracted from content
+- Document Type: Invoice, contract, receipt, letter, etc.
+- Custom Fields: Document-specific metadata
+
+**LLM Quality by Tier:**
+
+| Tier | Model | Accuracy | Speed | When Used |
+|------|-------|----------|-------|-----------|
+| GPU (vLLM) | Qwen3-8B-AWQ | 90% | 30-50 tok/s | GPU worker online (ML mode) |
+| CPU (Ollama) | qwen3:4b | 70% | ~4-6 tok/s | GPU off (gaming mode / worker down) |
+| Cloud (OpenAI) | gpt-4o-mini | High | Fast | Both local backends unavailable |
+
 **NFR Compliance:**
-- NFR58: Qwen 2.5 14B produces valid JSON 95%+ of requests
-- NFR59: RAG search returns context within 5 seconds
-- NFR60: Web UI config changes without pod restart
-- **NFR63: vLLM achieves <5 second document classification latency with GPU-accelerated qwen2.5:14b**
-- **NFR64: vLLM serves qwen2.5:14b with 35-40 tokens/second throughput on RTX 3060**
+- NFR107: Document metadata generation <5s via GPU vLLM
+- NFR108: 90% auto-tagging accuracy via GPU (Qwen3-8B-AWQ)
+- NFR109: 70% auto-tagging accuracy via CPU fallback (qwen3:4b)
+- NFR110: Qwen3 produces valid structured output 95%+ of requests
+- NFR111: CPU classification completes within 60 seconds
+- NFR112: Prompt template changes take effect without pod restart
+- NFR113: Docling extracts structured text within 30 seconds
+- NFR114: Docling runs on CPU with <1GB memory
 
 ### Email Integration Architecture
 
@@ -965,9 +1014,9 @@ kubectl taint node k3s-nas-worker \
 │  └── LiteLLM Proxy (http://litellm.ml.svc.cluster.local:4000/v1)           │
 │       │                                                                     │
 │       ├── Local Models:                                                     │
-│       │   ├── vLLM: qwen2.5:14b (GPU, primary)                             │
+│       │   ├── vLLM: Qwen3-8B-AWQ (GPU, primary)                            │
 │       │   ├── vLLM: deepseek-r1:14b (GPU, R1-Mode)                         │
-│       │   └── Ollama: qwen2.5:3b (CPU, fallback)                           │
+│       │   └── Ollama: qwen3:4b (CPU, fallback)                             │
 │       │                                                                     │
 │       └── External Providers:                                               │
 │           ├── Groq: llama-3.3-70b-versatile (fast, free tier)              │
@@ -1194,11 +1243,11 @@ NAMESPACE="ml"
 
 case "$1" in
   ml)
-    # Default mode: Qwen 2.5 14B for general use
+    # Default mode: Qwen3-8B-AWQ for general use
     kubectl set env deployment/$VLLM_DEPLOYMENT -n $NAMESPACE \
-      MODEL_NAME="Qwen/Qwen2.5-14B-Instruct-AWQ"
+      MODEL_NAME="Qwen/Qwen3-8B-AWQ"
     kubectl scale deployment/$VLLM_DEPLOYMENT --replicas=1 -n $NAMESPACE
-    echo "ML Mode: Qwen 2.5 14B loaded for general inference"
+    echo "ML Mode: Qwen3-8B-AWQ loaded for general inference"
     ;;
   r1)
     # Reasoning mode: DeepSeek-R1 14B for complex tasks
@@ -1228,9 +1277,9 @@ esac
 ```yaml
 # Extended model_list for R1-Mode
 model_list:
-  - model_name: "default"  # General inference
+  - model_name: "vllm-qwen"  # General inference
     litellm_params:
-      model: "openai/Qwen/Qwen2.5-14B-Instruct-AWQ"
+      model: "openai/Qwen/Qwen3-8B-AWQ"
       api_base: "http://vllm-api.ml.svc.cluster.local:8000/v1"
 
   - model_name: "reasoning"  # Complex reasoning tasks
@@ -1240,7 +1289,7 @@ model_list:
 ```
 
 **NFR Compliance:**
-- NFR81: Model loading completes within 90 seconds (similar to Qwen 2.5 14B)
+- NFR81: Model loading completes within 90 seconds (similar to Qwen3-8B-AWQ)
 - NFR82: DeepSeek-R1 achieves 30+ tokens/second on RTX 3060
 
 ### LiteLLM External Providers Architecture
@@ -1285,22 +1334,22 @@ model_list:
 ```yaml
 # applications/litellm/config.yaml (extended)
 model_list:
-  # === FALLBACK CHAIN (model_name: "default") ===
+  # === FALLBACK CHAIN (model_name: "vllm-qwen") ===
   # Tier 1: Local GPU (primary)
-  - model_name: "default"
+  - model_name: "vllm-qwen"
     litellm_params:
-      model: "openai/Qwen/Qwen2.5-14B-Instruct-AWQ"
+      model: "openai/Qwen/Qwen3-8B-AWQ"
       api_base: "http://vllm-api.ml.svc.cluster.local:8000/v1"
       api_key: "not-needed"
 
   # Tier 2: Local CPU (fallback)
-  - model_name: "default"
+  - model_name: "vllm-qwen"
     litellm_params:
-      model: "ollama/qwen2.5:3b"
+      model: "ollama/qwen3:4b"
       api_base: "http://ollama.ml.svc.cluster.local:11434"
 
   # Tier 3: Paid (emergency only)
-  - model_name: "default"
+  - model_name: "vllm-qwen"
     litellm_params:
       model: "gpt-4o-mini"
       api_key: "os.environ/OPENAI_API_KEY"
@@ -1435,8 +1484,8 @@ stringData:
 │                                                                             │
 │  FALLBACK: LiteLLM Proxy (litellm.ml.svc:4000/v1)                         │
 │  ├── Uses existing three-tier fallback chain:                               │
-│  │   ├── Tier 1: vLLM GPU (Qwen 2.5 7B, ~35-40 tok/s)                    │
-│  │   ├── Tier 2: Ollama CPU (qwen2.5:3b, <5s latency)                     │
+│  │   ├── Tier 1: vLLM GPU (Qwen3-8B-AWQ, 30-50 tok/s)                    │
+│  │   ├── Tier 2: Ollama CPU (qwen3:4b, 70% accuracy)                      │
 │  │   └── Tier 3: OpenAI (gpt-4o-mini, emergency)                          │
 │  └── Internal cluster DNS resolution (NFR99)                               │
 │                                                                             │
@@ -1886,7 +1935,13 @@ home-lab/
 │   │   ├── tika-deployment.yaml       # Apache Tika for Office docs
 │   │   ├── gotenberg-deployment.yaml  # PDF conversion service
 │   │   ├── email-bridge/              # Private email IMAP bridge (StatefulSet)
-│   │   └── paperless-ai-deployment.yaml # AI auto-tagging service
+│   │   ├── paperless-gpt/            # AI metadata generation (replaces paperless-ai)
+│   │   │   ├── deployment.yaml       # Paperless-GPT with Docling OCR
+│   │   │   ├── service.yaml          # ClusterIP service
+│   │   │   └── ingressroute.yaml     # paperless-gpt.home.jetzinger.com
+│   │   └── docling/                  # Layout-aware document parser
+│   │       ├── deployment.yaml       # Docling server with Granite-Docling 258M
+│   │       └── service.yaml          # ClusterIP service
 │   ├── stirling-pdf/
 │   │   ├── values-homelab.yaml        # Stirling-PDF Helm config
 │   │   └── ingress.yaml               # stirling.home.jetzinger.com
@@ -1942,7 +1997,7 @@ home-lab/
 | AI/ML Workloads (FR36-40) | `applications/ollama/`, `n8n/` | values, ingress |
 | Development Proxy (FR41-43) | `applications/nginx/` | deployment, configmap |
 | Portfolio & Documentation (FR49-54) | `docs/` | ADRs, runbooks |
-| Document Management (FR55-93) | `applications/paperless/`, `applications/stirling-pdf/` | values, ingress, pvc, tika, gotenberg, bridge, paperless-ai |
+| Document Management (FR55-93, FR192-208) | `applications/paperless/`, `applications/stirling-pdf/` | values, ingress, pvc, tika, gotenberg, bridge, paperless-gpt, docling |
 | Dev Containers (FR59-63) | `applications/dev-containers/` | Dockerfile, template, ssh config |
 | OpenClaw AI Assistant (FR149-188) | `applications/openclaw/` | deployment, service, ingressroute, pvc, secret, blackbox-probe |
 
@@ -1955,8 +2010,8 @@ home-lab/
 | `monitoring` | Prometheus, Grafana, Loki, Alertmanager | Observability |
 | `data` | PostgreSQL | Stateful data services |
 | `apps` | n8n, Open-WebUI, OpenClaw | General applications |
-| `ml` | Ollama | AI/ML workloads |
-| `docs` | Paperless-ngx, Redis | Document management |
+| `ml` | vLLM, Ollama, LiteLLM | AI/ML inference |
+| `docs` | Paperless-ngx, Paperless-GPT, Docling, Tika, Gotenberg, Redis | Document management |
 | `dev` | Nginx proxy, dev containers | Development tools + remote dev environments |
 
 ### Network Boundaries
@@ -2005,8 +2060,8 @@ Synology: /volume1/k8s-data/
 
 ### Requirements Coverage ✅
 
-**Functional Requirements:** 188/188 covered
-**Non-Functional Requirements:** 104/104 covered
+**Functional Requirements:** 208/208 covered
+**Non-Functional Requirements:** 116/116 covered
 
 All requirements have explicit architectural support documented in Core Architectural Decisions and Project Structure sections.
 
@@ -2017,15 +2072,15 @@ All requirements have explicit architectural support documented in Core Architec
 - FR75-80: Paperless configuration & NFS integration — covered by Document Management Architecture
 - FR81-83: Tika/Gotenberg Office docs — covered by Office Document Processing Architecture
 - FR84-86: Stirling-PDF — covered by PDF Editor Architecture
-- FR87-89: Paperless-AI with GPU Ollama — covered by AI Document Classification Architecture
+- FR87-89: ~~Paperless-AI with GPU Ollama~~ — superseded by FR192-208 (Paperless-GPT + Docling, Epic 25)
 - FR90-93: Email integration (private email/Gmail) — covered by Email Integration Architecture
 - FR94: vLLM graceful degradation (host GPU usage) — covered by Dual-Use GPU Architecture
 - FR95-99: Steam Gaming Platform — covered by Dual-Use GPU Architecture
 - FR100-103: Multi-Subnet GPU Worker Networking — covered by Multi-Subnet GPU Worker Network Architecture
-- **FR104-105: Ollama model upgrade to Qwen 2.5 14B, ConfigMap-based model config — covered by AI Document Classification Architecture (Story 12.8)**
-- **FR106-108: clusterzx/paperless-ai migration with Web UI, RAG chat, configurable rules — covered by AI Document Classification Architecture (Story 12.9)**
-- **FR109-112: vLLM GPU integration for Paperless-AI, OpenAI-compatible endpoint, Ollama slim models, k3s-worker-02 resource reduction — covered by AI/ML Architecture + AI Document Classification Architecture (Story 12.10)**
-- **FR113-118: LiteLLM Inference Proxy with three-tier fallback (vLLM → Ollama → OpenAI), Paperless-AI integration, OpenAI API key secret, Prometheus metrics — covered by LiteLLM Inference Proxy Architecture (Epic 14)**
+- **FR104-108: ~~Paperless-AI model upgrade + migration~~ — superseded by FR192-208 (Paperless-GPT + Docling, Epic 25)**
+- **FR109-111: ~~vLLM GPU + Ollama slim models~~ — superseded by FR203-207 (Qwen3-8B-AWQ + qwen3:4b, Epic 25)**
+- **FR112: k3s-worker-02 resource reduction — unchanged**
+- **FR113-118: LiteLLM Inference Proxy with three-tier fallback (vLLM → Ollama → OpenAI), OpenAI API key secret, Prometheus metrics — covered by LiteLLM Inference Proxy Architecture (Epic 14). FR115 superseded by FR194 (Paperless-GPT → LiteLLM)**
 - **FR119: k3s-gpu-worker boots into ML Mode by default via systemd service — covered by Dual-Use GPU Architecture (Default Boot Behavior)**
 - **FR120-122: Tailscale Subnet Routers for 192.168.2.0/24 and 192.168.0.0/24 — covered by Tailscale Subnet Router Architecture**
 - **FR123-125: Synology NAS K3s Worker VM with labels/taints — covered by Synology NAS K3s Worker Architecture**
@@ -2037,10 +2092,7 @@ All requirements have explicit architectural support documented in Core Architec
 - **FR146-148: Blog Article completion (Epic 9) — portfolio documentation requirement**
 - NFR50-54: Gaming Platform performance requirements — covered by Dual-Use GPU Architecture
 - NFR55-57: Multi-Subnet networking requirements — covered by Multi-Subnet GPU Worker Network Architecture
-- **NFR58: Qwen 2.5 14B JSON output quality (95%+) — covered by AI Document Classification Architecture (Story 12.8)**
-- **NFR59-60: RAG search latency, Web UI config hot-reload — covered by AI Document Classification Architecture (Story 12.9)**
-- **NFR61-62: CPU Ollama performance, classification latency (<60s) — covered by AI Document Classification Architecture (Story 12.8)**
-- **NFR63-64: vLLM GPU performance (<5s classification latency, 35-40 tok/s throughput) — covered by AI Document Classification Architecture (Story 12.10)**
+- **NFR46-47, NFR58-64: ~~Paperless-AI classification/GPU performance~~ — superseded by NFR107-116 (Paperless-GPT + Docling pipeline, Epic 25)**
 - **NFR65-69: LiteLLM failover latency (<5s), proxy overhead (<100ms), degraded operation during Gaming Mode, health endpoint response time — covered by LiteLLM Inference Proxy Architecture (Epic 14)**
 - **NFR70: ML Mode auto-activates within 5 minutes of k3s-gpu-worker boot — covered by Dual-Use GPU Architecture (Default Boot Behavior)**
 - **NFR71-72: Tailscale Subnet Router route advertisement and failover — covered by Tailscale Subnet Router Architecture**
@@ -2066,6 +2118,18 @@ All requirements have explicit architectural support documented in Core Architec
 - **NFR100-104: OpenClaw Reliability (NFS persistence, channel isolation, crash alerting, log retention, blackbox probing) — covered by OpenClaw Personal AI Assistant Architecture**
 - **FR189-191: OpenClaw Long-Term Memory (LanceDB auto-recall/capture, OpenAI text-embedding-3-small, CLI management) — covered by OpenClaw Personal AI Assistant Architecture**
 - **NFR105-106: OpenClaw Memory (embedding latency, LanceDB persistence) — covered by OpenClaw Personal AI Assistant Architecture**
+- **FR192-198: Paperless-GPT deployment with Docling OCR, LiteLLM integration, prompt templates, manual/auto processing, ingress — covered by AI Document Classification Architecture (Paperless-GPT + Docling)**
+- **FR199-202: Docling server with Granite-Docling 258M VLM pipeline, layout-aware parsing, CPU-only — covered by AI Document Classification Architecture (Paperless-GPT + Docling)**
+- **FR203-204: vLLM upgrade v0.10.2+ with Qwen3-8B-AWQ — covered by AI/ML Architecture + AI Document Classification Architecture**
+- **FR205, FR207: LiteLLM configmap updates for Qwen3 model aliases — covered by LiteLLM Inference Proxy Architecture**
+- **FR206: Ollama upgrade from qwen2.5:3b to qwen3:4b — covered by AI/ML Architecture**
+- **FR208: Paperless-AI removal — covered by AI Document Classification Architecture (Paperless-GPT + Docling)**
+- **NFR107-108: Paperless-GPT GPU metadata generation speed and accuracy — covered by AI Document Classification Architecture**
+- **NFR109, NFR111: CPU fallback accuracy (70%) and classification latency (<60s) — covered by AI Document Classification Architecture**
+- **NFR110: Qwen3 structured output validity (95%+) — covered by AI Document Classification Architecture**
+- **NFR112: Prompt template hot-reload — covered by AI Document Classification Architecture**
+- **NFR113-114: Docling performance and memory footprint — covered by AI Document Classification Architecture**
+- **NFR115-116: vLLM upgrade CLI compatibility and DeepSeek-R1 continuity — covered by AI/ML Architecture + DeepSeek-R1 Architecture**
 
 ### Implementation Readiness ✅
 
@@ -2130,10 +2194,10 @@ This architecture is ready for implementation because:
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 26 core architectural decisions made (updated 2026-01-29: +1 OpenClaw architecture section)
+- 27 core architectural decisions made (updated 2026-02-13: Paperless-GPT + Docling replaces Paperless-AI, ADR-012)
 - 6 implementation pattern categories defined
 - 8 namespace boundaries established
-- 188 functional + 104 non-functional requirements supported
+- 208 functional + 116 non-functional requirements supported
 
 **AI Agent Implementation Guide**
 - Technology stack with Helm chart references
