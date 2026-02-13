@@ -1,0 +1,125 @@
+# Docling Server Deployment for home-lab
+# Namespace: docs
+#
+# Story: 25.3 - Deploy Docling Server
+# Epic: 25 - Document Processing Pipeline Upgrade
+#
+# FRs:
+# - FR199: Docling server starts and responds at health endpoint
+# - FR200: Structured markdown preserving table structure and reading order
+# - FR201: German and English text correctly extracted
+# - FR202: Runs on CPU without GPU requirements
+#
+# NFRs:
+# - NFR113: Extraction completes within 30 seconds for typical documents (1-5 pages)
+# - NFR114: Pod uses <1GB memory (target). Actual: ~700Mi idle, peaks to 2-3Gi during inference.
+#           Limit set to 4Gi per official K8s deployment examples. NFR114 deviation accepted.
+#           Prefers worker-01 (16GB RAM) via node affinity.
+#
+# Image: quay.io/docling-project/docling-serve-cpu:latest
+# Port: 5001
+# Health: GET /health
+# API: POST /v1/convert/source, POST /v1/convert/file
+# Pipeline: standard (default) — VLM not supported on CPU image (use external API if needed)
+# Options: page_range, do_ocr, table_mode, pipeline
+#
+# Memory optimization:
+# - Shared models between workers (halves model memory)
+# - Single converter cache (reduces idle memory)
+# - Reduced batch sizes (lower peak memory during inference)
+# - Lazy model loading (faster startup, loads on first request)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docling
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: docling
+    app.kubernetes.io/instance: docling-server
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: document-extraction
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: docling
+      app.kubernetes.io/instance: docling-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: docling
+        app.kubernetes.io/instance: docling-server
+        app.kubernetes.io/part-of: home-lab
+        app.kubernetes.io/component: document-extraction
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k3s-worker-01
+      containers:
+        - name: docling
+          image: quay.io/docling-project/docling-serve-cpu:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5001
+              protocol: TCP
+          env:
+            - name: DOCLING_SERVE_ENABLE_UI
+              value: "false"
+            # Memory optimization: lazy model loading (load on first request, not at boot)
+            - name: DOCLING_SERVE_LOAD_MODELS_AT_BOOT
+              value: "false"
+            # Memory optimization: share models between workers (halves model memory)
+            - name: DOCLING_SERVE_ENG_LOC_SHARE_MODELS
+              value: "true"
+            # Memory optimization: single converter cache
+            - name: DOCLING_SERVE_OPTIONS_CACHE_SIZE
+              value: "1"
+            # Memory optimization: reduce batch sizes for lower peak memory
+            - name: DOCLING_PERF_PAGE_BATCH_SIZE
+              value: "2"
+            - name: DOCLING_NUM_THREADS
+              value: "2"
+            # Keep single uvicorn worker (multiple workers cause task lookup failures)
+            - name: UVICORN_WORKERS
+              value: "1"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: 4000m
+              memory: 4Gi
+          # Startup probe: with lazy model loading, startup is faster
+          # Models load on first request instead of boot
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      restartPolicy: Always

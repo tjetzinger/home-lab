@@ -1,0 +1,29 @@
+# Docling Server Service for home-lab
+# Namespace: docs
+#
+# Story: 25.3 - Deploy Docling Server
+# Epic: 25 - Document Processing Pipeline Upgrade
+#
+# Internal-only service — no IngressRoute needed.
+# Paperless-GPT (Story 25.4) connects via http://docling.docs.svc.cluster.local:5001
+apiVersion: v1
+kind: Service
+metadata:
+  name: docling
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: docling
+    app.kubernetes.io/instance: docling-server
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: document-extraction
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: docling
+    app.kubernetes.io/instance: docling-server
+  ports:
+    - name: http
+      port: 5001
+      targetPort: http
+      protocol: TCP
