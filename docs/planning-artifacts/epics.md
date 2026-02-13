@@ -214,8 +214,8 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR203: vLLM image upgraded from v0.5.5 to v0.10.2+ for Qwen3 support
 - FR204: vLLM ML-mode model upgraded to Qwen/Qwen3-8B-AWQ
 - FR205: LiteLLM configmap updated with Qwen3-8B-AWQ model path for vllm-qwen alias
-- FR206: Ollama model upgraded from qwen2.5:3b to qwen3:4b
-- FR207: LiteLLM configmap updated with qwen3:4b model for ollama-qwen alias
+- FR206: Ollama model upgraded from qwen2.5:3b to phi4-mini
+- FR207: LiteLLM configmap updated with phi4-mini model for ollama-qwen alias
 - FR208: Paperless-AI deployment, configmap, service, and ingress removed
 
 **Development Proxy (3 FRs)**
@@ -406,9 +406,9 @@ This document provides the complete epic and story breakdown for home-lab, decom
 **Document Processing Pipeline Upgrade (10 NFRs)**
 - NFR107: Document metadata generation completes within 5 seconds via GPU vLLM (Qwen3-8B-AWQ)
 - NFR108: Auto-tagging accuracy achieves 90%+ for common document types via GPU inference
-- NFR109: Auto-tagging accuracy achieves 70%+ via CPU fallback (qwen3:4b on Ollama)
+- NFR109: Auto-tagging accuracy achieves 70%+ via CPU fallback (phi4-mini on Ollama)
 - NFR110: Qwen3 models produce valid structured output for 95%+ of classification requests
-- NFR111: CPU Ollama (qwen3:4b) completes document classification within 60 seconds
+- NFR111: CPU Ollama (phi4-mini) completes document classification within 60 seconds
 - NFR112: Paperless-GPT prompt template changes take effect without pod restart
 - NFR113: Docling server extracts structured text from PDFs within 30 seconds
 - NFR114: Docling Granite-Docling VLM pipeline runs on CPU with <1GB memory footprint
@@ -5756,7 +5756,7 @@ So that **I can understand the technical decisions, integration patterns, and AI
 
 **Dependencies:** Existing Paperless-ngx (Epic 10), LiteLLM (Epic 14), vLLM (Epic 12)
 
-**Architecture Decision:** Option C — Qwen3-8B-AWQ on GPU (primary), qwen3:4b on Ollama CPU (fallback). No worker-02 Proxmox upgrade needed.
+**Architecture Decision:** Option C (revised) — Qwen3-8B-AWQ on GPU (primary), phi4-mini (Microsoft Phi-4-mini 3.8B) on Ollama CPU (fallback). Pivoted from qwen3:4b due to unfixable thinking mode overhead on CPU. No worker-02 Proxmox upgrade needed.
 
 **FRs:** FR192-FR208
 **NFRs:** NFR107-NFR116
@@ -5795,34 +5795,34 @@ So that **the GPU inference tier delivers significantly improved document classi
 
 ---
 
-### Story 25.2: Upgrade Ollama to Qwen3 and Update LiteLLM
+### Story 25.2: Upgrade Ollama to Phi4-mini and Update LiteLLM
 
 As a **cluster operator**,
-I want **to upgrade Ollama from qwen2.5:3b to qwen3:4b and update LiteLLM model routing**,
-So that **the CPU fallback tier delivers improved metadata quality when the GPU is unavailable**.
+I want **to upgrade Ollama from qwen2.5:3b to phi4-mini (Microsoft Phi-4-mini 3.8B) and update LiteLLM model routing**,
+So that **the CPU fallback tier delivers improved metadata quality when the GPU is unavailable, without the Qwen3 thinking mode latency penalty**.
 
 **Acceptance Criteria:**
 
 **Given** Ollama is running on k3s-worker-02 with qwen2.5:3b (1.9GB)
-**When** I pull the qwen3:4b model via `ollama pull qwen3:4b`
-**Then** the model downloads successfully and fits within worker-02's 8GB RAM (FR206)
-**And** `ollama list` shows qwen3:4b available
+**When** I pull the phi4-mini model via `ollama pull phi4-mini`
+**Then** the model downloads successfully (~2.5GB Q4) and fits within worker-02's 8GB RAM (FR206)
+**And** `ollama list` shows phi4-mini available
 
-**Given** qwen3:4b is available on Ollama
-**When** I remove the old qwen2.5:3b model
+**Given** phi4-mini is available on Ollama
+**When** I remove the old qwen2.5:3b model and any qwen3:4b model
 **Then** disk space is reclaimed
-**And** qwen3:4b responds to inference requests
+**And** phi4-mini responds to inference requests without thinking mode overhead
 
 **Given** Ollama and vLLM models are updated
 **When** I update the LiteLLM configmap with new model paths:
 - `vllm-qwen` → `openai/Qwen/Qwen3-8B-AWQ`
-- `ollama-qwen` → `ollama/qwen3:4b`
+- `ollama-qwen` → `ollama/phi4-mini`
 **Then** LiteLLM reloads configuration (FR205, FR207)
 **And** the fallback chain `vllm-qwen → ollama-qwen → openai-gpt4o` routes correctly
 
 **Given** LiteLLM is updated
 **When** vLLM is unavailable (GPU off / gaming mode)
-**Then** requests to `vllm-qwen` automatically fall back to `ollama-qwen` (qwen3:4b)
+**Then** requests to `vllm-qwen` automatically fall back to `ollama-qwen` (phi4-mini)
 **And** document classification completes within 60 seconds on CPU (NFR111)
 **And** classification accuracy achieves 70%+ for common document types (NFR109)
 
@@ -5912,7 +5912,7 @@ So that **documents are processed through the two-stage pipeline (Docling → LL
 **And** Paperless-ngx continues to function normally
 
 **Given** Paperless-GPT processes a document with GPU unavailable
-**When** LiteLLM falls back to Ollama qwen3:4b
+**When** LiteLLM falls back to Ollama phi4-mini
 **Then** metadata is still generated (degraded quality acceptable) (NFR109, NFR111)
 **And** classification accuracy achieves 70%+ for common document types
 
@@ -5930,7 +5930,7 @@ So that **documents are processed through the two-stage pipeline (Docling → LL
   - OpenClaw Observability & Documentation (Epic 24) with log-based monitoring + portfolio docs
 - Phase 6: Document Processing Pipeline Upgrade (Epic 25):
   - vLLM Qwen3 upgrade (Story 25.1) with Qwen3-8B-AWQ on GPU
-  - Ollama Qwen3 upgrade + LiteLLM update (Story 25.2) with qwen3:4b CPU fallback
+  - Ollama Qwen3 upgrade + LiteLLM update (Story 25.2) with phi4-mini CPU fallback
   - Docling server deployment (Story 25.3) with Granite-Docling 258M VLM pipeline
   - Paperless-GPT deployment + Paperless-AI removal (Story 25.4) with two-stage pipeline
 

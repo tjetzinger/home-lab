@@ -2,8 +2,10 @@
 # Namespace: ml
 #
 # Story: 12.5 - Configure Hot-Plug and Graceful Degradation
+# Story: 25.2 - Upgrade Ollama to Phi4-mini and Update LiteLLM
 # FR: FR73 - Graceful degradation to Ollama CPU when GPU offline
 # FR: FR94 - vLLM gracefully degrades when GPU unavailable
+# FR: FR205, FR206, FR207 - Qwen3/phi4-mini model upgrades
 # AC: #2 - Configure n8n Fallback Routing
 #
 # Purpose: Provides endpoint configuration for n8n workflows to implement
@@ -59,13 +61,13 @@ data:
       return {
         endpoint: 'http://vllm-api.ml.svc.cluster.local:8000/v1/chat/completions',
         mode: 'gpu',
-        model: 'Qwen/Qwen2.5-7B-Instruct-AWQ'
+        model: 'Qwen/Qwen3-8B-AWQ'
       };
     } else {
       // Fallback to CPU Ollama (Ollama API format)
       return {
         endpoint: 'http://ollama.ml.svc.cluster.local:11434/api/chat',
         mode: 'cpu',
-        model: 'qwen2.5:3b'  // Use qwen2.5:3b for better quality fallback
+        model: 'phi4-mini'  // Use phi4-mini (Microsoft 3.8B) for CPU fallback
       };
     }

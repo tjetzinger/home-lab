@@ -74,7 +74,7 @@ data:
       # Slower but runs on CPU, available during Gaming Mode
       - model_name: ollama-qwen
         litellm_params:
-          model: ollama/qwen2.5:3b
+          model: ollama/phi4-mini
           api_base: http://ollama.ml.svc.cluster.local:11434
           timeout: 120  # Extended for cold cache model loading (~60s) + inference
         model_info:

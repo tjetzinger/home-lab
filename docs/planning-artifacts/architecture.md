@@ -3,7 +3,7 @@ stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
 lastModified: '2026-02-13'
-updateReason: 'Document Processing Pipeline Upgrade (2026-02-13): Replaced Paperless-AI with Paperless-GPT + Docling two-stage pipeline. Upgraded vLLM from v0.5.5 to v0.10.2+ with Qwen3-8B-AWQ. Upgraded Ollama from qwen2.5:3b to qwen3:4b. Added Docling server architecture. Updated AI/ML, LiteLLM, GPU, requirements coverage sections. FR192-FR208, NFR107-NFR116. ADR-012. Previous: OpenClaw memory architecture correction (2026-01-31).'
+updateReason: 'Phi4-mini pivot (2026-02-13): Pivoted Ollama CPU fallback from qwen3:4b to phi4-mini (Microsoft Phi-4-mini 3.8B) — Qwen3 thinking mode cannot be disabled on CPU (5+ min latency vs 60s target). Phi4-mini: no thinking overhead, 67.3% MMLU, ~2.5GB Q4. Previous: Document Processing Pipeline Upgrade (2026-02-13) — Paperless-GPT + Docling, vLLM Qwen3-8B-AWQ. FR192-FR208, NFR107-NFR116. ADR-012.'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -50,7 +50,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - **LiteLLM External Providers (4): Groq, Google AI, Mistral free tiers as parallel model options**
 - **Blog Article (3): Portfolio documentation, Epic 9 completion**
 - **OpenClaw Personal AI Assistant (40): Gateway, Opus 4.5 + LiteLLM fallback, Telegram/WhatsApp/Discord, mcporter/Exa MCP tools, ElevenLabs voice, multi-agent, browser automation, Canvas/A2UI, ClawdHub skills, Loki/Blackbox observability, documentation**
-- **Document Processing Pipeline Upgrade (17): Paperless-GPT, Docling server, vLLM Qwen3-8B-AWQ, Ollama qwen3:4b, Paperless-AI removal (supersedes FR87-89, FR104-111)**
+- **Document Processing Pipeline Upgrade (17): Paperless-GPT, Docling server, vLLM Qwen3-8B-AWQ, Ollama phi4-mini (Microsoft 3.8B), Paperless-AI removal (supersedes FR87-89, FR104-111)**
 
 **Non-Functional Requirements:** 116 NFRs
 - Reliability: 95% uptime, 5-min recovery, automatic pod rescheduling
@@ -194,7 +194,7 @@ Traditional "starter templates" don't apply. Instead, we evaluate infrastructure
 | **GPU Networking** | **Dual-stack: 192.168.0.x (local) + Tailscale (K3s)** | **FR71, FR74: Hot-plug capability, cross-subnet support** |
 | **VRAM Usage** | **~5-6GB (Qwen3-8B-AWQ quantized)** | **Leaves 6GB headroom for KV cache; gaming requires mode switch** |
 | **Graceful Degradation** | **vLLM GPU → Ollama CPU → OpenAI cloud (three-tier via LiteLLM)** | **FR114: Automatic failover chain** |
-| **Ollama Role** | **CPU fallback tier (qwen3:4b)** | **FR206: Always-on CPU inference on k3s-worker-02 (8GB RAM), 70% classification accuracy** |
+| **Ollama Role** | **CPU fallback tier (phi4-mini)** | **FR206: Always-on CPU inference on k3s-worker-02 (8GB RAM), 70% classification accuracy** |
 | Model Storage | NFS PVC | Persist downloaded models |
 | GPU Scheduling | NVIDIA GPU Operator | Automatic driver installation, GPU resource management |
 
@@ -219,7 +219,7 @@ Traditional "starter templates" don't apply. Instead, we evaluate infrastructure
 ├─────────────────────────────────────────────────────────────┤
 │  Three-Tier Fallback (via LiteLLM):                        │
 │  ├── Tier 1: vLLM GPU (30-50 tok/s, 90% accuracy)         │
-│  ├── Tier 2: Ollama CPU qwen3:4b (70% accuracy)           │
+│  ├── Tier 2: Ollama CPU phi4-mini (70% accuracy)           │
 │  └── Tier 3: OpenAI gpt-4o-mini (cloud, pay-per-use)      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -252,7 +252,7 @@ Intel NUC (192.168.0.x local network)
 ```
 k3s-worker-02 (8GB RAM)
   └─ Ollama Pod (CPU inference)
-      └─ qwen3:4b (Q4, ~2.5GB RAM)
+      └─ phi4-mini (Q4, ~2.5GB RAM)
           ├── 70% classification accuracy
           ├── 119 language support
           └── Always-on when GPU unavailable
@@ -262,7 +262,7 @@ k3s-worker-02 (8GB RAM)
 - vLLM exposes OpenAI-compatible API at `http://vllm-api.ml.svc.cluster.local:8000/v1`
 - All consumers connect via LiteLLM proxy at `http://litellm.ml.svc.cluster.local:4000/v1`
 - LiteLLM model alias `vllm-qwen` → `openai/Qwen/Qwen3-8B-AWQ`
-- LiteLLM model alias `ollama-qwen` → `ollama/qwen3:4b`
+- LiteLLM model alias `ollama-qwen` → `ollama/phi4-mini`
 - Ollama available at `http://ollama.ml.svc.cluster.local:11434`
 
 ### Dual-Use GPU Architecture (ML + Gaming)
@@ -426,7 +426,7 @@ WantedBy=multi-user.target
 │  │   (GPU)      │    │   (CPU)      │    │   (Cloud)    │       │
 │  └──────────────┘    └──────────────┘    └──────────────┘       │
 │  • 30-50 tok/s       • <60s classify      • gpt-4o-mini          │
-│  • Qwen3-8B-AWQ     • qwen3:4b           • 100% availability    │
+│  • Qwen3-8B-AWQ     • phi4-mini           • 100% availability    │
 │  • 90% accuracy      • 70% accuracy      • Pay-per-use          │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -445,7 +445,7 @@ model_list:
 
   - model_name: "vllm-qwen"  # Same name = fallback
     litellm_params:
-      model: "ollama/qwen3:4b"
+      model: "ollama/phi4-mini"
       api_base: "http://ollama.ml.svc.cluster.local:11434"
     model_info:
       mode: "chat"
@@ -699,7 +699,7 @@ _Supersedes previous Paperless-AI architecture (ADR-012, 2026-02-12)_
 | **AI Connector** | **icereed/paperless-gpt** | **FR192: Native Docling OCR integration, customizable prompt templates, hOCR searchable PDFs, 5 LLM backends** |
 | **OCR/Parsing** | **Docling server (Granite-Docling 258M VLM)** | **FR199-201: Layout-aware PDF parsing preserving tables, code blocks, equations, reading order** |
 | **LLM (GPU)** | **Qwen3-8B-AWQ via vLLM** | **FR204, NFR108: 90% classification accuracy, 30-50 tok/s on GPU** |
-| **LLM (CPU Fallback)** | **qwen3:4b via Ollama** | **FR206, NFR109: 70% accuracy, fits in worker-02 8GB RAM without upgrade** |
+| **LLM (CPU Fallback)** | **phi4-mini via Ollama** | **FR206, NFR109: 70% accuracy, fits in worker-02 8GB RAM without upgrade** |
 | **LLM Routing** | **LiteLLM proxy** | **FR194: vLLM → Ollama → OpenAI three-tier fallback. Downstream apps unaffected by model swap** |
 | **Prompt Config** | **Web UI (hot-reload)** | **FR196, NFR112: Prompt templates editable per document type without pod restart** |
 | **Processing Modes** | **Manual review + auto processing** | **FR197: `paperless-gpt` tag for manual review, `paperless-gpt-auto` for automatic** |
@@ -749,7 +749,7 @@ Incoming doc → Paperless-ngx
                                        v
                             LiteLLM proxy
                             → vLLM Qwen3-8B-AWQ (GPU, if available)
-                            → Ollama qwen3:4b (CPU fallback)
+                            → Ollama phi4-mini (CPU fallback)
                                        |
                                        v
                             Title, tags, correspondent, custom fields
@@ -790,13 +790,13 @@ env:
 | Tier | Model | Accuracy | Speed | When Used |
 |------|-------|----------|-------|-----------|
 | GPU (vLLM) | Qwen3-8B-AWQ | 90% | 30-50 tok/s | GPU worker online (ML mode) |
-| CPU (Ollama) | qwen3:4b | 70% | ~4-6 tok/s | GPU off (gaming mode / worker down) |
+| CPU (Ollama) | phi4-mini | 70% | ~4-6 tok/s | GPU off (gaming mode / worker down) |
 | Cloud (OpenAI) | gpt-4o-mini | High | Fast | Both local backends unavailable |
 
 **NFR Compliance:**
 - NFR107: Document metadata generation <5s via GPU vLLM
 - NFR108: 90% auto-tagging accuracy via GPU (Qwen3-8B-AWQ)
-- NFR109: 70% auto-tagging accuracy via CPU fallback (qwen3:4b)
+- NFR109: 70% auto-tagging accuracy via CPU fallback (phi4-mini)
 - NFR110: Qwen3 produces valid structured output 95%+ of requests
 - NFR111: CPU classification completes within 60 seconds
 - NFR112: Prompt template changes take effect without pod restart
@@ -1016,7 +1016,7 @@ kubectl taint node k3s-nas-worker \
 │       ├── Local Models:                                                     │
 │       │   ├── vLLM: Qwen3-8B-AWQ (GPU, primary)                            │
 │       │   ├── vLLM: deepseek-r1:14b (GPU, R1-Mode)                         │
-│       │   └── Ollama: qwen3:4b (CPU, fallback)                             │
+│       │   └── Ollama: phi4-mini (CPU, fallback)                             │
 │       │                                                                     │
 │       └── External Providers:                                               │
 │           ├── Groq: llama-3.3-70b-versatile (fast, free tier)              │
@@ -1345,7 +1345,7 @@ model_list:
   # Tier 2: Local CPU (fallback)
   - model_name: "vllm-qwen"
     litellm_params:
-      model: "ollama/qwen3:4b"
+      model: "ollama/phi4-mini"
       api_base: "http://ollama.ml.svc.cluster.local:11434"
 
   # Tier 3: Paid (emergency only)
@@ -1485,7 +1485,7 @@ stringData:
 │  FALLBACK: LiteLLM Proxy (litellm.ml.svc:4000/v1)                         │
 │  ├── Uses existing three-tier fallback chain:                               │
 │  │   ├── Tier 1: vLLM GPU (Qwen3-8B-AWQ, 30-50 tok/s)                    │
-│  │   ├── Tier 2: Ollama CPU (qwen3:4b, 70% accuracy)                      │
+│  │   ├── Tier 2: Ollama CPU (phi4-mini, 70% accuracy)                      │
 │  │   └── Tier 3: OpenAI (gpt-4o-mini, emergency)                          │
 │  └── Internal cluster DNS resolution (NFR99)                               │
 │                                                                             │
@@ -2078,7 +2078,7 @@ All requirements have explicit architectural support documented in Core Architec
 - FR95-99: Steam Gaming Platform — covered by Dual-Use GPU Architecture
 - FR100-103: Multi-Subnet GPU Worker Networking — covered by Multi-Subnet GPU Worker Network Architecture
 - **FR104-108: ~~Paperless-AI model upgrade + migration~~ — superseded by FR192-208 (Paperless-GPT + Docling, Epic 25)**
-- **FR109-111: ~~vLLM GPU + Ollama slim models~~ — superseded by FR203-207 (Qwen3-8B-AWQ + qwen3:4b, Epic 25)**
+- **FR109-111: ~~vLLM GPU + Ollama slim models~~ — superseded by FR203-207 (Qwen3-8B-AWQ + phi4-mini, Epic 25)**
 - **FR112: k3s-worker-02 resource reduction — unchanged**
 - **FR113-118: LiteLLM Inference Proxy with three-tier fallback (vLLM → Ollama → OpenAI), OpenAI API key secret, Prometheus metrics — covered by LiteLLM Inference Proxy Architecture (Epic 14). FR115 superseded by FR194 (Paperless-GPT → LiteLLM)**
 - **FR119: k3s-gpu-worker boots into ML Mode by default via systemd service — covered by Dual-Use GPU Architecture (Default Boot Behavior)**
@@ -2122,7 +2122,7 @@ All requirements have explicit architectural support documented in Core Architec
 - **FR199-202: Docling server with Granite-Docling 258M VLM pipeline, layout-aware parsing, CPU-only — covered by AI Document Classification Architecture (Paperless-GPT + Docling)**
 - **FR203-204: vLLM upgrade v0.10.2+ with Qwen3-8B-AWQ — covered by AI/ML Architecture + AI Document Classification Architecture**
 - **FR205, FR207: LiteLLM configmap updates for Qwen3 model aliases — covered by LiteLLM Inference Proxy Architecture**
-- **FR206: Ollama upgrade from qwen2.5:3b to qwen3:4b — covered by AI/ML Architecture**
+- **FR206: Ollama upgrade from qwen2.5:3b to phi4-mini — covered by AI/ML Architecture**
 - **FR208: Paperless-AI removal — covered by AI Document Classification Architecture (Paperless-GPT + Docling)**
 - **NFR107-108: Paperless-GPT GPU metadata generation speed and accuracy — covered by AI Document Classification Architecture**
 - **NFR109, NFR111: CPU fallback accuracy (70%) and classification latency (<60s) — covered by AI Document Classification Architecture**

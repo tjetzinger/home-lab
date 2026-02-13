@@ -250,7 +250,7 @@ development_status:
   # Epic 25: Document Processing Pipeline Upgrade [Phase 6]
   epic-25: in-progress
   25-1-upgrade-vllm-to-support-qwen3: done
-  25-2-upgrade-ollama-to-qwen3-and-update-litellm: backlog
+  25-2-upgrade-ollama-to-qwen3-and-update-litellm: done
   25-3-deploy-docling-server: backlog
   25-4-deploy-paperless-gpt-and-remove-paperless-ai: backlog
   epic-25-retrospective: optional

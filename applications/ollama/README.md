@@ -1,9 +1,9 @@
 # Ollama LLM Inference Service
 
-**Purpose:** CPU-based slim model inference for experimental/lightweight workloads
+**Purpose:** CPU fallback tier (Tier 2) in LiteLLM inference chain for document classification
 
-**Story:** 12.10 - Configure vLLM GPU Integration for Paperless-AI
-**Epic:** 12 - GPU/ML Inference Platform
+**Story:** 25.2 - Upgrade Ollama to Phi4-mini and Update LiteLLM
+**Epic:** 25 - Document Processing Pipeline Upgrade
 **Namespace:** `ml`
 
 ---
@@ -15,7 +15,7 @@ Ollama is deployed as a Deployment using the official Ollama Helm chart, providi
 **Note:** Document classification has been moved to vLLM (GPU-accelerated) as of Story 12.10.
 
 **Key Features:**
-- CPU-only inference with slim models (llama3.2:1b, qwen2.5:3b)
+- CPU-only inference with phi4-mini (Microsoft 3.8B) and llama3.2:1b
 - NFS-backed model storage for persistence
 - HTTPS ingress with Let's Encrypt TLS
 - Internal cluster access via ClusterIP service
@@ -110,7 +110,7 @@ kubectl run -it --rm curl-test --image=curlimages/curl --restart=Never -- \
 |-----------|-------------|-----------|----------------|--------------|
 | Ollama | 500m | 2000m | 2Gi | 4Gi |
 
-**Note:** Reduced allocation for slim models only. Document classification uses vLLM (GPU) as of Story 12.10.
+**Note:** Sized for phi4-mini (~2.5GB loaded). Primary classification uses vLLM (GPU); Ollama is CPU fallback.
 
 ---
 
@@ -131,10 +131,10 @@ kubectl exec -n ml $POD -- ollama list
 
 ### Currently Loaded Models
 
+- **phi4-mini** (2.5 GB) - Microsoft Phi-4-mini 3.8B, primary CPU fallback for document classification
 - **llama3.2:1b** (1.3 GB) - Small model for testing/lightweight inference
-- **qwen2.5:3b** (1.9 GB) - Slim Qwen model for experimental workloads
 
-**Note:** Large models (qwen2.5:14b) removed as of Story 12.10. Document classification now uses vLLM with GPU acceleration.
+**Note:** phi4-mini replaced qwen2.5:3b as of Story 25.2. Ollama serves as CPU fallback (Tier 2) in the LiteLLM inference chain: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud).
 
 ### Model Storage Details
 
@@ -670,10 +670,8 @@ Current performance:
 
 ## Future Enhancements
 
-- **Phase 2:** GPU support (Intel NUC with eGPU)
-- **Phase 2:** vLLM deployment for OpenAI-compatible API
-- **Phase 2:** Model quantization for improved CPU performance
-- **Phase 2:** Auto-scaling based on inference load
+- Auto-scaling based on inference load
+- Model warm-up automation on pod restart
 
 ---
 
@@ -701,3 +699,6 @@ Current performance:
 - 2026-01-13: Story 12.10 - Downgraded to slim models (llama3.2:1b, qwen2.5:3b), removed qwen2.5:14b
 - 2026-01-13: Reduced memory limit from 16Gi to 4Gi, CPU limit from 4000m to 2000m
 - 2026-01-13: Document classification moved to vLLM (GPU) on k3s-gpu-worker
+- 2026-02-13: Story 25.2 - Upgraded to phi4-mini (Microsoft 3.8B) replacing qwen2.5:3b
+- 2026-02-13: Removed qwen3:4b (thinking mode blocker) and qwen2.5:3b
+- 2026-02-13: Classification latency: ~27s on CPU (NFR111 target: <60s)

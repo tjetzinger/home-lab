@@ -23,10 +23,11 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-02-12
+**Date:** 2025-12-27 | **Last Updated:** 2026-02-13
 
 **Changelog:**
-- 2026-02-12: Added Document Processing Pipeline Upgrade (FR192-FR207, NFR107-NFR116) - Replace Paperless-AI with Paperless-GPT, add Docling server for layout-aware PDF parsing, upgrade vLLM to Qwen3-8B-AWQ, upgrade Ollama to qwen3:4b. Two-stage pipeline: Docling extracts structure → LLM generates metadata. Supersedes FR87-89, FR104-108, FR110, NFR46-47, NFR58-62, NFR63-64.
+- 2026-02-13: Pivoted Ollama CPU fallback from qwen3:4b to phi4-mini (Microsoft Phi-4-mini 3.8B). Qwen3 thinking mode cannot be reliably disabled on CPU via Ollama, causing 5+ min classification latency vs 60s target. Phi-4-mini has no thinking overhead, superior instruction following (67.3% MMLU), ~2.5GB Q4. Updated FR206, FR207, NFR109, NFR111.
+- 2026-02-12: Added Document Processing Pipeline Upgrade (FR192-FR207, NFR107-NFR116) - Replace Paperless-AI with Paperless-GPT, add Docling server for layout-aware PDF parsing, upgrade vLLM to Qwen3-8B-AWQ, upgrade Ollama to phi4-mini. Two-stage pipeline: Docling extracts structure → LLM generates metadata. Supersedes FR87-89, FR104-108, FR110, NFR46-47, NFR58-62, NFR63-64.
 - 2026-01-31: Added OpenClaw long-term memory with LanceDB (FR189-FR191, NFR105-NFR106) - memory-lancedb plugin with OpenAI text-embedding-3-small for automatic memory capture and recall across conversations
 - 2026-01-30: Updated OpenClaw storage architecture (FR151, FR152, FR152a, FR152b, NFR100) - Changed from NFS to local persistent storage on k3s-worker-01 to eliminate network complexity and corruption vectors; added node affinity and Velero backup requirements
 - 2026-01-29: Added OpenClaw personal AI assistant (FR149-FR163, NFR86-NFR97) - Self-hosted multi-channel AI assistant on K3s with Opus 4.5 primary, LiteLLM fallback, Telegram channel, MCP research tools via mcporter (Exa)
@@ -105,7 +106,7 @@ The assistant integrates MCP research tools via mcporter (Exa and others) for re
 - Storage: NFS via Synology DS920+
 - Networking: Traefik ingress, MetalLB, Tailscale
 - Observability: Prometheus, Grafana
-- AI/ML: vLLM (Qwen3-8B-AWQ GPU), Ollama (qwen3:4b CPU fallback), LiteLLM proxy, n8n
+- AI/ML: vLLM (Qwen3-8B-AWQ GPU), Ollama (phi4-mini CPU fallback), LiteLLM proxy, n8n
 - GPU: NVIDIA RTX 3060 via eGPU (future)
 - Gaming: Steam + Proton on Intel NUC host OS (shared GPU with K8s)
 - Document Management: Paperless-ngx, Paperless-GPT, Docling (Granite-Docling 258M)
@@ -569,8 +570,8 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 #### Ollama Qwen3 Upgrade
 
-- FR206: Ollama model upgraded from `qwen2.5:3b` to `qwen3:4b` for improved CPU fallback quality
-- FR207: LiteLLM configmap updated with `qwen3:4b` model for `ollama-qwen` alias
+- FR206: Ollama model upgraded from `qwen2.5:3b` to `phi4-mini` (Microsoft Phi-4-mini 3.8B) for improved CPU fallback quality
+- FR207: LiteLLM configmap updated with `phi4-mini` model for `ollama-qwen` alias
 
 #### Paperless-AI Removal
 
@@ -580,7 +581,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 - FR109: ~~vLLM deployed with qwen2.5:14b model on GPU worker~~ → Superseded by FR204 (Qwen3-8B-AWQ)
 - FR110: ~~Paperless-AI configured with `AI_PROVIDER=custom` pointing to LiteLLM~~ → Superseded by FR194 (Paperless-GPT → LiteLLM)
-- FR111: ~~Ollama serves slim models (llama3.2:1b, qwen2.5:3b) as first fallback tier~~ → Superseded by FR206 (qwen3:4b)
+- FR111: ~~Ollama serves slim models (llama3.2:1b, qwen2.5:3b) as first fallback tier~~ → Superseded by FR206 (phi4-mini)
 - FR112: k3s-worker-02 resources reduced from 32GB to 8GB RAM after vLLM migration (unchanged)
 
 ### LiteLLM Inference Proxy (Story 14.x)
@@ -810,9 +811,9 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 - NFR107: Document metadata generation completes within 5 seconds via GPU vLLM (Qwen3-8B-AWQ)
 - NFR108: Auto-tagging accuracy achieves 90%+ for common document types via GPU inference (Qwen3-8B-AWQ)
-- NFR109: Auto-tagging accuracy achieves 70%+ via CPU fallback (qwen3:4b on Ollama)
+- NFR109: Auto-tagging accuracy achieves 70%+ via CPU fallback (phi4-mini on Ollama)
 - NFR110: Qwen3 models produce valid structured output for 95%+ of classification requests
-- NFR111: CPU Ollama (qwen3:4b) completes document classification within 60 seconds (batch processing acceptable)
+- NFR111: CPU Ollama (phi4-mini) completes document classification within 60 seconds (batch processing acceptable)
 - NFR112: Paperless-GPT prompt template changes take effect without pod restart
 
 #### Docling Server Performance

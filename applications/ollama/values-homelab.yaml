@@ -1,17 +1,23 @@
 # Ollama Helm values for home-lab
 # Story: 12.10 - Configure vLLM GPU Integration for Paperless-AI
+# Story: 25.2 - Upgrade Ollama to Phi4-mini and Update LiteLLM
 # Epic: 12 - GPU/ML Inference Platform
+# Epic: 25 - Document Processing Pipeline Upgrade
 #
 # FRs:
 # - FR8: Deploy applications using Helm charts
 # - FR36: Deploy Ollama for LLM inference
-# - FR111: Ollama downgraded to slim models (llama3.2:1b, qwen2.5:3b)
+# - FR206: phi4-mini (Microsoft 3.8B) deployed as CPU fallback model
+# - FR207: LiteLLM updated with phi4-mini model path
 #
 # NFRs:
 # - NFR58: 95%+ valid JSON output
+# - NFR109: 70%+ classification accuracy on CPU fallback
+# - NFR111: CPU classification within 60 seconds
 #
-# Note: Document classification moved to vLLM (GPU). Ollama serves slim models
-# for experimental/lightweight inference only.
+# Note: Ollama serves as CPU fallback tier (Tier 2) in the LiteLLM inference chain.
+# Primary model: phi4-mini (Microsoft Phi-4-mini 3.8B, ~2.5GB Q4)
+# Also available: llama3.2:1b for lightweight/experimental use.
 #
 # Components: Ollama LLM inference service (Deployment)
 
@@ -48,14 +54,14 @@ service:
   labels:
     app.kubernetes.io/part-of: home-lab
 
-# Resource limits (sized for slim models: llama3.2:1b, qwen2.5:3b)
+# Resource limits (sized for phi4-mini ~2.5GB + llama3.2:1b)
 resources:
   requests:
     cpu: 500m  # 0.5 CPU cores for inference
     memory: 2Gi  # 2GB RAM for slim model loading
   limits:
     cpu: 2000m  # 2 CPU cores max for slim models
-    memory: 4Gi  # 4GB RAM for slim models only
+    memory: 4Gi  # 4GB RAM for phi4-mini (~2.5GB loaded)
 
 # Persistent storage for models
 persistentVolume:
@@ -85,7 +91,7 @@ podAnnotations: {}
 securityContext: {}
 podSecurityContext: {}
 
-# Node selector - deploy to k3s-worker-02 (slim models only after 12.10)
+# Node selector - deploy to k3s-worker-02 (CPU fallback tier)
 nodeSelector:
   kubernetes.io/hostname: k3s-worker-02
 
