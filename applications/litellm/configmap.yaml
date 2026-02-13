@@ -48,9 +48,10 @@ data:
     model_list:
       # Tier 1: vLLM on GPU worker (primary)
       # High performance, GPU-accelerated inference
+      # Updated: Story 25.1 - Qwen3-8B-AWQ replaces Qwen2.5-7B-Instruct-AWQ
       - model_name: vllm-qwen
         litellm_params:
-          model: openai/Qwen/Qwen2.5-7B-Instruct-AWQ
+          model: openai/Qwen/Qwen3-8B-AWQ
           api_base: http://vllm-api.ml.svc.cluster.local:8000/v1
           api_key: sk-none  # vLLM doesn't require auth, but LiteLLM needs a value
           timeout: 30  # Extended for streaming responses; failover still fast on connection errors

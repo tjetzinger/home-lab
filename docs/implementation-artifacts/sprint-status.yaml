@@ -1,4 +1,4 @@
-# generated: 2026-01-29
+# generated: 2026-02-13
 # project: home-lab
 # tracking_system: file-system
 # story_location: docs/implementation-artifacts
@@ -32,7 +32,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-01-29
+generated: 2026-02-13
 project: home-lab
 tracking_system: file-system
 story_location: docs/implementation-artifacts
@@ -246,3 +246,11 @@ development_status:
   24-2-configure-blackbox-exporter-and-alertmanager-rules: done
   24-3-document-openclaw-architecture-adr-and-readme: done
   epic-24-retrospective: optional
+
+  # Epic 25: Document Processing Pipeline Upgrade [Phase 6]
+  epic-25: in-progress
+  25-1-upgrade-vllm-to-support-qwen3: done
+  25-2-upgrade-ollama-to-qwen3-and-update-litellm: backlog
+  25-3-deploy-docling-server: backlog
+  25-4-deploy-paperless-gpt-and-remove-paperless-ai: backlog
+  epic-25-retrospective: optional

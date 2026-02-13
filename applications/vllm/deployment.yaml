@@ -1,15 +1,21 @@
 # vLLM Deployment for home-lab
 # Namespace: ml
 #
-# Story: 12.10 - Configure vLLM GPU Integration for Paperless-AI
-# FR: FR38 - Deploy vLLM for production inference
-# FR: FR72 - vLLM serves models via OpenAI-compatible API
-# FR: FR109 - vLLM serves qwen2.5:14b model for document classification
-# AC: #1 - Configure vLLM with qwen2.5:14b
+# Story: 25.1 - Upgrade vLLM to Support Qwen3
+# Epic: 25 - Document Processing Pipeline Upgrade
+#
+# FRs:
+# - FR203: vLLM upgrade to v0.8.5.post1 with Qwen3-8B-AWQ
+# - FR204: Model downloads and loads within 120 seconds
+#
+# NFRs:
+# - NFR107: Document metadata generation <5s via GPU vLLM
+# - NFR110: Qwen3 produces valid structured output 95%+ of requests
+# - NFR115: Existing CLI arguments remain compatible after upgrade
 #
 # GPU Worker: Intel NUC + RTX 3060 eGPU (12GB VRAM)
-# Model: Qwen/Qwen2.5-7B-Instruct-AWQ (4-bit quantized, ~4-5GB VRAM)
-# Note: 7B model chosen - 14B (9.4GB) leaves no room for KV cache on 12GB GPU
+# Model: Qwen/Qwen3-8B-AWQ (4-bit AWQ quantized, ~6GB VRAM)
+# Context: 8192 tokens (conservative for 12GB VRAM budget)
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -49,10 +55,10 @@ spec:
           effect: NoSchedule
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.5.5
+          image: vllm/vllm-openai:v0.8.5.post1
           args:
             - --model
-            - Qwen/Qwen2.5-7B-Instruct-AWQ
+            - Qwen/Qwen3-8B-AWQ
             - --quantization
             - awq_marlin
             - --gpu-memory-utilization

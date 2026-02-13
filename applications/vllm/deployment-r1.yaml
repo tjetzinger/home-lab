@@ -1,10 +1,17 @@
 # vLLM Deployment for DeepSeek-R1 7B (Reasoning Mode)
 # Namespace: ml
 #
-# Story: 20.1 - Deploy DeepSeek-R1 via vLLM
-# FR: FR138 - DeepSeek-R1 model deployed via vLLM on GPU worker
-# NFR: NFR81 - Model loading completes within 90 seconds (achieved: ~90s)
-# NFR: NFR82 - DeepSeek-R1 achieves 30+ tokens/second (achieved: ~55 tok/s)
+# Story: 25.1 - Upgrade vLLM to Support Qwen3 (image upgrade)
+# Story: 20.1 - Deploy DeepSeek-R1 via vLLM (original deployment)
+# Epic: 25 - Document Processing Pipeline Upgrade
+#
+# FRs:
+# - FR138: DeepSeek-R1 model deployed via vLLM on GPU worker
+#
+# NFRs:
+# - NFR81: Model loading completes within 90 seconds (achieved: ~90s)
+# - NFR82: DeepSeek-R1 achieves 30+ tokens/second (achieved: ~55 tok/s)
+# - NFR116: R1 mode continues to function after vLLM image upgrade
 #
 # GPU Worker: Intel NUC + RTX 3060 eGPU (12GB VRAM)
 # Model: casperhansen/deepseek-r1-distill-qwen-7b-awq (4-bit AWQ, ~5.2GB VRAM)
@@ -14,7 +21,7 @@
 #
 # Usage: This deployment is used when gpu-mode switches to R1 mode.
 # The gpu-mode script (Story 20.2) will manage switching between
-# deployment.yaml (Qwen) and deployment-r1.yaml (DeepSeek-R1).
+# deployment.yaml (Qwen3) and deployment-r1.yaml (DeepSeek-R1).
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -54,7 +61,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.5.5
+          image: vllm/vllm-openai:v0.8.5.post1
           args:
             - --model
             - casperhansen/deepseek-r1-distill-qwen-7b-awq
