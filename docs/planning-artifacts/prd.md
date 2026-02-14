@@ -23,9 +23,10 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-02-13
+**Date:** 2025-12-27 | **Last Updated:** 2026-02-14
 
 **Changelog:**
+- 2026-02-14: Added VLM OCR Pipeline for Docling (Story 25.5, FR209-FR214, NFR117-NFR120). Enables scanned/image-only PDF processing via Granite-Docling 258M served by Ollama through LiteLLM proxy. Model natively available on Ollama (`ibm/granite-docling:258m`). Graceful degradation to standard EasyOCR pipeline when VLM unavailable. Updates FR199, NFR114.
 - 2026-02-13: Pivoted Ollama CPU fallback from qwen3:4b to phi4-mini (Microsoft Phi-4-mini 3.8B). Qwen3 thinking mode cannot be reliably disabled on CPU via Ollama, causing 5+ min classification latency vs 60s target. Phi-4-mini has no thinking overhead, superior instruction following (67.3% MMLU), ~2.5GB Q4. Updated FR206, FR207, NFR109, NFR111.
 - 2026-02-12: Added Document Processing Pipeline Upgrade (FR192-FR207, NFR107-NFR116) - Replace Paperless-AI with Paperless-GPT, add Docling server for layout-aware PDF parsing, upgrade vLLM to Qwen3-8B-AWQ, upgrade Ollama to phi4-mini. Two-stage pipeline: Docling extracts structure → LLM generates metadata. Supersedes FR87-89, FR104-108, FR110, NFR46-47, NFR58-62, NFR63-64.
 - 2026-01-31: Added OpenClaw long-term memory with LanceDB (FR189-FR191, NFR105-NFR106) - memory-lancedb plugin with OpenAI text-embedding-3-small for automatic memory capture and recall across conversations
@@ -557,10 +558,19 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 #### Docling Server Deployment
 
-- FR199: Docling server deployed in `docs` namespace with Granite-Docling 258M VLM pipeline (`DOCLING_OCR_PIPELINE=vlm`)
+- FR199: ~~Docling server deployed in `docs` namespace with Granite-Docling 258M VLM pipeline (`DOCLING_OCR_PIPELINE=vlm`)~~ → Updated by FR209-FR214: VLM pipeline runs via remote services (Ollama through LiteLLM), not CPU-native
 - FR200: Docling provides layout-aware PDF parsing preserving table structure, code blocks, equations, and reading order
 - FR201: Docling outputs structured markdown/JSON consumed by Paperless-GPT for LLM metadata generation
 - FR202: Docling runs on CPU (no GPU required) with minimal resource footprint
+
+#### VLM OCR Pipeline for Docling (Story 25.5)
+
+- FR209: Docling server configured with `DOCLING_SERVE_ENABLE_REMOTE_SERVICES=true` to enable external VLM API calls for scanned/image-only PDF processing
+- FR210: Granite-Docling 258M model (`ibm/granite-docling:258m`) pulled and available on Ollama alongside phi4-mini
+- FR211: LiteLLM configmap updated with `granite-docling` model alias routing to Ollama `ibm/granite-docling:258m` (vision model, not in general text fallback chain)
+- FR212: Docling VLM pipeline calls LiteLLM at `http://litellm.ml.svc.cluster.local:4000/v1/chat/completions` with model `granite-docling` via per-request `vlm_pipeline_model_api` configuration (note: `picture_description_api` is for picture annotation in standard pipeline only)
+- FR213: Scanned/image-only PDFs processed through Docling VLM pipeline with OCR text extraction via Granite-Docling 258M, producing structured DocTags output
+- FR214: Docling gracefully degrades to standard pipeline (EasyOCR) when VLM API is unavailable (Ollama down or LiteLLM timeout)
 
 #### vLLM Qwen3 Upgrade
 
@@ -818,8 +828,15 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 #### Docling Server Performance
 
-- NFR113: Docling server extracts structured text from PDFs within 30 seconds for typical documents
-- NFR114: Docling Granite-Docling VLM pipeline runs on CPU with <1GB memory footprint
+- NFR113: Docling server extracts structured text from PDFs within 30 seconds for typical documents (standard pipeline)
+- NFR114: ~~Docling Granite-Docling VLM pipeline runs on CPU with <1GB memory footprint~~ → Updated: VLM inference offloaded to Ollama; Docling CPU footprint unchanged
+
+#### VLM OCR Pipeline Performance (Story 25.5)
+
+- NFR117: Granite-Docling 258M VLM inference via Ollama completes within 120 seconds per page on CPU (spike measured ~90s/page for single image; 30s original target was unrealistic for CPU vision inference)
+- NFR118: Ollama memory footprint increases by <500MB when Granite-Docling 258M is loaded alongside phi4-mini (spike measured +17Mi idle, 521MB on disk)
+- NFR119: Docling → LiteLLM → Ollama end-to-end VLM OCR latency <10 minutes per typical multi-page scanned document (batch processing via Paperless-GPT tags; async API recommended for >2 pages)
+- NFR120: VLM pipeline degrades gracefully to standard pipeline (EasyOCR) when Ollama or LiteLLM is unavailable — no pod crash or hang
 
 #### vLLM Upgrade Compatibility
 

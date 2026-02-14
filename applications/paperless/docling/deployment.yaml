@@ -2,6 +2,7 @@
 # Namespace: docs
 #
 # Story: 25.3 - Deploy Docling Server
+# Story: 25.5 - Enable VLM OCR Pipeline via Remote Services
 # Epic: 25 - Document Processing Pipeline Upgrade
 #
 # FRs:
@@ -9,19 +10,22 @@
 # - FR200: Structured markdown preserving table structure and reading order
 # - FR201: German and English text correctly extracted
 # - FR202: Runs on CPU without GPU requirements
+# - FR209: VLM pipeline routes inference through remote Ollama via LiteLLM (Story 25.5)
+# - FR214: Graceful degradation to standard pipeline when VLM backend unavailable (Story 25.5)
 #
 # NFRs:
 # - NFR113: Extraction completes within 30 seconds for typical documents (1-5 pages)
 # - NFR114: Pod uses <1GB memory (target). Actual: ~700Mi idle, peaks to 2-3Gi during inference.
 #           Limit set to 4Gi per official K8s deployment examples. NFR114 deviation accepted.
 #           Prefers worker-01 (16GB RAM) via node affinity.
+# - NFR117: VLM inference completes within 120 seconds per page on CPU (Story 25.5)
 #
 # Image: quay.io/docling-project/docling-serve-cpu:latest
 # Port: 5001
 # Health: GET /health
-# API: POST /v1/convert/source, POST /v1/convert/file
-# Pipeline: standard (default) — VLM not supported on CPU image (use external API if needed)
-# Options: page_range, do_ocr, table_mode, pipeline
+# API: POST /v1/convert/source, POST /v1/convert/file, POST /v1/convert/source/async
+# Pipeline: standard (default), vlm (via remote services with vlm_pipeline_model_api)
+# Options: page_range, do_ocr, table_mode, pipeline, vlm_pipeline_model_api
 #
 # Memory optimization:
 # - Shared models between workers (halves model memory)
@@ -88,6 +92,10 @@ spec:
               value: "2"
             - name: DOCLING_NUM_THREADS
               value: "2"
+            # Enable remote services for VLM pipeline (Story 25.5 - FR209)
+            # Allows per-request vlm_pipeline_model_api to call external VLM (Ollama via LiteLLM)
+            - name: DOCLING_SERVE_ENABLE_REMOTE_SERVICES
+              value: "true"
             # Keep single uvicorn worker (multiple workers cause task lookup failures)
             - name: UVICORN_WORKERS
               value: "1"

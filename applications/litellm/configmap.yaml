@@ -1,8 +1,10 @@
 # LiteLLM Configuration ConfigMap
 # Story: 14.6 - Configure External Provider Parallel Models
 # Story: 20.3 - Configure LiteLLM with DeepSeek-R1
+# Story: 25.5 - Enable VLM OCR Pipeline via Remote Services
 # Epic: 14 - LiteLLM Inference Proxy
 # Epic: 20 - Reasoning Model Support (DeepSeek-R1)
+# Epic: 25 - Document Processing Pipeline Upgrade
 #
 # FRs:
 # - FR113: LiteLLM proxy deployed in ml namespace providing unified OpenAI-compatible endpoint
@@ -15,6 +17,7 @@
 # - FR143: Google AI Studio (Gemini) free tier as parallel model option
 # - FR144: Mistral API free tier as parallel model option
 # - FR145: API keys for external providers stored via Kubernetes secrets
+# - FR211: LiteLLM routes granite-docling requests to Ollama (Story 25.5)
 #
 # NFRs:
 # - NFR65: Failover detection within 5 seconds
@@ -54,7 +57,7 @@ data:
           model: openai/Qwen/Qwen3-8B-AWQ
           api_base: http://vllm-api.ml.svc.cluster.local:8000/v1
           api_key: sk-none  # vLLM doesn't require auth, but LiteLLM needs a value
-          timeout: 30  # Extended for streaming responses; failover still fast on connection errors
+          timeout: 60  # Allow headroom for vLLM cold start; connection errors still fail fast
         model_info:
           mode: chat
 
@@ -87,6 +90,20 @@ data:
           model: gpt-4o-mini  # Cost-effective for document classification
           api_key: os.environ/OPENAI_API_KEY
           timeout: 30
+        model_info:
+          mode: chat
+
+      # ============================================================
+      # VLM/OCR MODEL (Story 25.5 - FR211)
+      # NOT part of the text fallback chain - used by Docling VLM pipeline only
+      # Usage: Docling sends VLM requests to "granite-docling" via LiteLLM
+      # ============================================================
+
+      - model_name: granite-docling
+        litellm_params:
+          model: ollama/ibm/granite-docling:258m
+          api_base: http://ollama.ml.svc.cluster.local:11434
+          timeout: 240  # VLM inference ~90s/page on CPU, allow headroom
         model_info:
           mode: chat
 

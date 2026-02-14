@@ -2,7 +2,7 @@
 stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
 completedAt: '2026-01-29'
-lastModified: '2026-02-12'
+lastModified: '2026-02-14'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,8 +10,8 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'OpenClaw memory implementation correction (2026-01-31): Updated FR189 and NFR105 — memory-lancedb plugin uses OpenAI text-embedding-3-small, not local Xenova (plugin does not support local embeddings). Updated CLI commands to actual openclaw ltm subcommand. Previous: OpenClaw long-term memory story (2026-01-31, FR189-191, NFR105-106).'
-currentStep: 'Workflow Complete - All validations passed, ready for implementation'
+updateReason: 'VLM OCR Pipeline for Docling (2026-02-14): Added Story 25.5 — FR209-FR214, NFR117-NFR120. Granite-Docling 258M via Ollama through LiteLLM proxy for scanned PDF OCR. Scoped workflow run: requirements extraction and story refinement only.'
+currentStep: 'Workflow Complete - Story 25.5 validated, ready for implementation'
 ---
 
 # home-lab - Epic Breakdown
@@ -5921,6 +5921,95 @@ So that **documents are processed through the two-stage pipeline (Docling → LL
 
 ---
 
+### Story 25.5: Enable VLM OCR Pipeline via Remote Services
+
+As a **cluster operator**,
+I want **to enable Docling's VLM pipeline for scanned/image-only PDFs by routing VLM inference through LiteLLM to Ollama serving Granite-Docling 258M**,
+So that **scanned documents are processed with layout-aware OCR while maintaining the existing LiteLLM proxy pattern and graceful degradation**.
+
+**✅ Validation Spike Completed (2026-02-14): GO**
+- docling-serve v1.12.0 accepts `vlm_pipeline_model_api` — issue #318 (schema drop) is fixed
+- Docling successfully calls remote Ollama and returns structured OCR output
+- `response_format: "doctags"` is a required field in `vlm_pipeline_model_api`
+- CPU inference latency: ~90s/page (NFR117 updated from 30s to 120s target)
+- Ollama memory: +17Mi idle with granite-docling:258m loaded (521MB on disk)
+- Test: image of data table → correctly extracted to markdown with full table structure
+- [#463](https://github.com/docling-project/docling-serve/issues/463) (env var defaults) still OPEN but not a blocker — per-request config works
+
+**Acceptance Criteria:**
+
+#### Phase 1: Validation Spike (Go/No-Go)
+
+**Given** Ollama is running on k3s-worker-02 with phi4-mini
+**When** I pull `ibm/granite-docling:258m` on Ollama
+**Then** the model is available alongside phi4-mini (FR210)
+**And** Ollama memory footprint increases by <500MB (NFR118)
+**And** I can verify the model responds to vision requests via `curl http://ollama:11434/v1/chat/completions`
+
+**Given** Docling server is running with standard pipeline on k3s-worker-01
+**When** I add `DOCLING_SERVE_ENABLE_REMOTE_SERVICES=true` to the Docling deployment
+**And** I submit a scanned image/PDF with VLM pipeline configuration:
+```json
+{
+  "options": {
+    "pipeline": "vlm",
+    "vlm_pipeline_model_api": {
+      "url": "http://ollama.ml.svc.cluster.local:11434/v1/chat/completions",
+      "params": { "model": "ibm/granite-docling:258m", "max_completion_tokens": 4096 },
+      "response_format": "doctags",
+      "timeout": 240
+    }
+  }
+}
+```
+**Then** Docling sends VLM requests to Ollama and returns structured OCR output (FR209)
+**And** VLM inference completes within 120 seconds per page on CPU (NFR117)
+
+**✅ SPIKE COMPLETED — GO (2026-02-14):** Tested with table image → correct markdown extraction in 90s.
+
+#### Phase 2: LiteLLM Integration (only if Phase 1 = GO)
+
+**Given** VLM pipeline confirmed working with Ollama directly
+**When** I add a `granite-docling` model alias to LiteLLM configmap pointing to Ollama `ibm/granite-docling:258m`
+**Then** LiteLLM routes `granite-docling` requests to Ollama (FR211)
+**And** the model is NOT added to the general text fallback chain (vllm-qwen → ollama-qwen → openai)
+
+**Given** LiteLLM serves granite-docling
+**When** I update the Docling VLM request to route through LiteLLM:
+```json
+{
+  "options": {
+    "pipeline": "vlm",
+    "vlm_pipeline_model_api": {
+      "url": "http://litellm.ml.svc.cluster.local:4000/v1/chat/completions",
+      "params": { "model": "granite-docling" }
+    }
+  }
+}
+```
+**Then** Docling calls LiteLLM which routes to Ollama for VLM inference (FR212)
+**And** the scanned PDF is processed with OCR text extraction via Granite-Docling 258M (FR213)
+**And** structured DocTags output is returned with extracted text content
+**And** VLM inference completes within 120 seconds per page on CPU (NFR117)
+**And** end-to-end processing completes within 10 minutes for a typical multi-page scanned document (NFR119)
+
+#### Phase 3: Graceful Degradation & Paperless-GPT Integration
+
+**Given** Ollama or LiteLLM is unavailable
+**When** Docling attempts a VLM pipeline request
+**Then** Docling degrades gracefully to standard pipeline (EasyOCR) (FR214, NFR120)
+**And** no pod crash or request hang occurs
+
+**Given** Paperless-GPT is configured with Docling as OCR provider
+**When** a scanned document is tagged for processing
+**Then** Paperless-GPT sends the document to Docling with VLM pipeline configuration
+**And** the two-stage pipeline (Docling VLM OCR → LLM metadata) produces metadata for scanned documents
+
+**FRs covered:** FR209, FR210, FR211, FR212, FR213, FR214
+**NFRs covered:** NFR117, NFR118, NFR119, NFR120
+
+---
+
 **Workflow Status:** All epics and stories through Phase 5 have been created with detailed acceptance criteria, including:
 - Phase 1-4: All 96 previous stories (Epics 1-20)
 - Phase 5: 16 new OpenClaw stories (Epics 21-24):
@@ -5933,5 +6022,6 @@ So that **documents are processed through the two-stage pipeline (Docling → LL
   - Ollama Qwen3 upgrade + LiteLLM update (Story 25.2) with phi4-mini CPU fallback
   - Docling server deployment (Story 25.3) with Granite-Docling 258M VLM pipeline
   - Paperless-GPT deployment + Paperless-AI removal (Story 25.4) with two-stage pipeline
+  - VLM OCR pipeline via remote services (Story 25.5) with Granite-Docling 258M on Ollama through LiteLLM
 
 Ready to add to sprint-status.yaml and begin implementation.
