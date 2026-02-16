@@ -48,6 +48,11 @@ env:
   # OCR configuration (Story 10.3)
   PAPERLESS_OCR_LANGUAGE: "deu+eng"  # German + English OCR support
   PAPERLESS_OCR_MODE: "skip"  # Skip OCR if document already has text layer
+  PAPERLESS_OCR_OUTPUT_TYPE: "pdfa"  # PDF/A archival format
+  PAPERLESS_OCR_CLEAN: "clean"  # Improve OCR accuracy with image cleanup
+  PAPERLESS_OCR_DESKEW: "true"  # Auto-correct skewed scans
+  PAPERLESS_OCR_ROTATE_PAGES: "true"  # Auto-detect and fix page orientation
+  PAPERLESS_OCR_IMAGE_DPI: "300"  # Quality target for OCR processing
 
   # Single-user configuration (Story 10.7: FR75-78, NFR39-40)
   PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"  # Auto-tag docs by subfolder name (optional organization)
@@ -57,6 +62,7 @@ env:
   # Document organization
   PAPERLESS_FILENAME_FORMAT: "{created_year}/{correspondent}/{title}"  # Organized file structure
   PAPERLESS_FILENAME_FORMAT_REMOVE_NONE: "true"  # Clean filenames
+  PAPERLESS_FILENAME_FORMAT_UNIQUE: "true"  # Add counter suffix for duplicate filenames
 
   # Performance optimization
   PAPERLESS_TASK_WORKERS: "2"  # Parallel OCR workers (adjust based on CPU cores)
@@ -122,10 +128,7 @@ persistence:
     retain: true
   consume:
     enabled: true
-    storageClass: nfs-client
-    accessMode: ReadWriteOnce
-    size: 5Gi  # Watch directory for auto-import
-    retain: true
+    existingClaim: paperless-consume-scans
 
 # PostgreSQL subchart disabled (using existing cluster PostgreSQL from Epic 5)
 postgresql:
