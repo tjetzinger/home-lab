@@ -79,7 +79,7 @@ data:
         litellm_params:
           model: ollama/phi4-mini
           api_base: http://ollama.ml.svc.cluster.local:11434
-          timeout: 120  # Extended for cold cache model loading (~60s) + inference
+          timeout: 300  # Extended for cold cache model loading (~60s) + large prompt inference on CPU
         model_info:
           mode: chat
 
@@ -181,5 +181,7 @@ data:
       # Fallback chain: vLLM → Ollama → OpenAI (NFR68)
       # Client requests "vllm-qwen", auto-falls back to ollama-qwen, then openai-gpt4o
       fallbacks: [{"vllm-qwen": ["ollama-qwen"]}, {"ollama-qwen": ["openai-gpt4o"]}]
+      # Context window fallback: phi4-mini supports 128K context vs Qwen3's 8K
+      context_window_fallbacks: [{"vllm-qwen": ["ollama-qwen"]}]
       allowed_fails: 1
       cooldown_time: 30

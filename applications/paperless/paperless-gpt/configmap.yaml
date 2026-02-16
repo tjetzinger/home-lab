@@ -33,10 +33,14 @@ data:
 
   # OCR Provider - Docling (Story 25.3)
   # Service DNS: docling.docs.svc.cluster.local:5001
+  # Mode: whole_pdf with skip — Paperless-ngx already OCR's on ingest,
+  # so Docling detects existing text layer and skips re-processing (~50% faster)
   OCR_PROVIDER: "docling"
   DOCLING_URL: "http://docling.docs.svc.cluster.local:5001"
   DOCLING_OCR_PIPELINE: "standard"
   DOCLING_OCR_ENGINE: "easyocr"
+  OCR_PROCESS_MODE: "whole_pdf"
+  PDF_SKIP_EXISTING_OCR: "true"
 
   # LLM Provider - LiteLLM (OpenAI-compatible proxy)
   # Three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
@@ -44,7 +48,7 @@ data:
   LLM_PROVIDER: "openai"
   OPENAI_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
   LLM_MODEL: "vllm-qwen"
-  LLM_LANGUAGE: "English"
+  LLM_LANGUAGE: "German"
 
   # Tag-based workflow triggers
   MANUAL_TAG: "paperless-gpt"

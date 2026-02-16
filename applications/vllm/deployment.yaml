@@ -15,7 +15,7 @@
 #
 # GPU Worker: Intel NUC + RTX 3060 eGPU (12GB VRAM)
 # Model: Qwen/Qwen3-8B-AWQ (4-bit AWQ quantized, ~6GB VRAM)
-# Context: 8192 tokens (conservative for 12GB VRAM budget)
+# Context: 16384 tokens (balanced for 12GB VRAM budget, ~2.25GB KV cache)
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -64,7 +64,7 @@ spec:
             - --gpu-memory-utilization
             - "0.90"
             - --max-model-len
-            - "8192"
+            - "16384"
             - --host
             - "0.0.0.0"
             - --port
