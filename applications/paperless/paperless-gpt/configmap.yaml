@@ -2,16 +2,20 @@
 # Namespace: docs
 #
 # Story: 25.4 - Deploy Paperless-GPT and Remove Paperless-AI
+# Story: 26.2 - Update Service Default Models to Cloud Tier
 # Epic: 25 - Document Processing Pipeline Upgrade
+# Epic: 26 - Ollama Pro Cloud Model Integration
 #
 # FRs:
 # - FR192: Paperless-GPT deployed with Docling OCR provider
 # - FR193: Docling integration for two-stage document processing
 # - FR194: LiteLLM integration for LLM-based metadata generation
 # - FR197: Manual review (paperless-gpt tag) and automatic processing (paperless-gpt-auto tag)
+# - FR219: Paperless-GPT uses cloud-minimax for document metadata generation (Story 26.2)
 #
 # NFRs:
 # - NFR112: Prompt template changes take effect without pod restart
+# - NFR121: Document processing completes within 60s timeout
 #
 # Environment Variables Reference:
 # https://github.com/icereed/paperless-gpt
@@ -43,11 +47,12 @@ data:
   PDF_SKIP_EXISTING_OCR: "true"
 
   # LLM Provider - LiteLLM (OpenAI-compatible proxy)
-  # Three-tier fallback: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+  # Cloud-tier primary: cloud-minimax (Ollama Pro) with LiteLLM fallback chain
+  # Fallback: cloud-minimax → vllm-qwen (GPU) → ollama-qwen (CPU)
   # Service DNS: litellm.ml.svc.cluster.local:4000
   LLM_PROVIDER: "openai"
   OPENAI_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
-  LLM_MODEL: "vllm-qwen"
+  LLM_MODEL: "cloud-minimax"
   LLM_LANGUAGE: "German"
 
   # Tag-based workflow triggers

@@ -259,6 +259,6 @@ development_status:
   # Epic 26: Ollama Pro Cloud Model Integration [Phase 6]
   epic-26: in-progress
   26-1-configure-litellm-with-ollama-pro-cloud-models: done
-  26-2-update-service-default-models-to-cloud-tier: backlog
+  26-2-update-service-default-models-to-cloud-tier: review
   26-3-migrate-openclaw-off-anthropic-to-cloud-kimi-primary: backlog
   epic-26-retrospective: optional

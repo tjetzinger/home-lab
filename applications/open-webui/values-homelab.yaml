@@ -1,16 +1,20 @@
 # Open-WebUI Helm values for home-lab
 # Story: 17.1 - Deploy Open-WebUI with Persistent Storage
+# Story: 26.2 - Update Service Default Models to Cloud Tier
 # Epic: 17 - ChatGPT-like Interface (Open-WebUI)
+# Epic: 26 - Ollama Pro Cloud Model Integration
 # Chart: open-webui/open-webui
 #
 # FRs:
 # - FR126: Open-WebUI deployed in `apps` namespace with persistent storage
 # - FR127: Open-WebUI configured to use LiteLLM as backend (Story 17.2)
 # - FR128: Open-WebUI accessible via ingress (Story 17.3)
+# - FR220: Open-WebUI default model set to cloud-minimax (Story 26.2)
 #
 # NFRs:
 # - NFR75: Web interface loads within 3 seconds
 # - NFR76: Chat history persisted to NFS storage surviving pod restarts
+# - NFR124: Cloud models auto-visible in model picker without per-model config
 
 # Disable bundled Ollama (using LiteLLM instead - Story 17.2)
 ollama:
@@ -82,9 +86,9 @@ extraEnvVars:
       secretKeyRef:
         name: open-webui-secrets
         key: OPENAI_API_KEY
-  # Default model selection - Qwen general model (vllm-r1 for reasoning tasks)
+  # Default model - cloud-minimax (Ollama Pro cloud)
   - name: DEFAULT_MODELS
-    value: "vllm-qwen"
+    value: "cloud-minimax"
 
 # Node selector - allow scheduling on any worker
 nodeSelector: {}
