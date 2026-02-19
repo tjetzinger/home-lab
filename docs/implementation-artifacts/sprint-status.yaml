@@ -1,4 +1,4 @@
-# generated: 2026-02-13
+# generated: 2026-02-19
 # project: home-lab
 # tracking_system: file-system
 # story_location: docs/implementation-artifacts
@@ -32,7 +32,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-02-13
+generated: 2026-02-19
 project: home-lab
 tracking_system: file-system
 story_location: docs/implementation-artifacts
@@ -255,3 +255,10 @@ development_status:
   25-4-deploy-paperless-gpt-and-remove-paperless-ai: done
   25-5-enable-vlm-ocr-pipeline-via-remote-services: done
   epic-25-retrospective: optional
+
+  # Epic 26: Ollama Pro Cloud Model Integration [Phase 6]
+  epic-26: in-progress
+  26-1-configure-litellm-with-ollama-pro-cloud-models: done
+  26-2-update-service-default-models-to-cloud-tier: backlog
+  26-3-migrate-openclaw-off-anthropic-to-cloud-kimi-primary: backlog
+  epic-26-retrospective: optional

@@ -2,9 +2,11 @@
 # Story: 14.6 - Configure External Provider Parallel Models
 # Story: 20.3 - Configure LiteLLM with DeepSeek-R1
 # Story: 25.5 - Enable VLM OCR Pipeline via Remote Services
+# Story: 26.1 - Configure LiteLLM with Ollama Pro Cloud Models
 # Epic: 14 - LiteLLM Inference Proxy
 # Epic: 20 - Reasoning Model Support (DeepSeek-R1)
 # Epic: 25 - Document Processing Pipeline Upgrade
+# Epic: 26 - Ollama Pro Cloud Model Integration
 #
 # FRs:
 # - FR113: LiteLLM proxy deployed in ml namespace providing unified OpenAI-compatible endpoint
@@ -18,6 +20,10 @@
 # - FR144: Mistral API free tier as parallel model option
 # - FR145: API keys for external providers stored via Kubernetes secrets
 # - FR211: LiteLLM routes granite-docling requests to Ollama (Story 25.5)
+# - FR215: OLLAMA_API_KEY stored as Kubernetes secret (Story 26.1)
+# - FR216: Three Ollama Pro cloud models added to model_list (Story 26.1)
+# - FR217: Cloud-primary fallback chains configured (Story 26.1)
+# - FR218: openai-gpt4o removed from auto-fallback, explicit selection only (Story 26.1)
 #
 # NFRs:
 # - NFR65: Failover detection within 5 seconds
@@ -27,9 +33,13 @@
 # - NFR69: LiteLLM health endpoint responds within 1 second for readiness probes
 # - NFR83: External provider requests complete <5 seconds
 # - NFR84: Rate limiting configured for free tier quotas
+# - NFR121: Cloud model inference response within 60 seconds (Story 26.1)
+# - NFR122: OLLAMA_API_KEY applied via kubectl patch only, never kubectl apply (Story 26.1)
+# - NFR123: Cloud failover activates within 5 seconds (Story 26.1)
 #
 # Architecture:
-# - Fallback chain: vLLM (GPU) → Ollama (CPU) → OpenAI (cloud) - automatic failover
+# - Fallback chain: Cloud (Ollama Pro) → vLLM (GPU) → Ollama (CPU) - automatic failover
+# - openai-gpt4o: explicit selection only, not in auto-fallback chain (FR218)
 # - Parallel models: Groq, Gemini, Mistral - explicit selection, independent of fallback
 
 apiVersion: v1
@@ -160,6 +170,42 @@ data:
         model_info:
           mode: chat
 
+      # ============================================================
+      # CLOUD MODELS (Story 26.1 - FR216)
+      # Primary inference tier via Ollama Pro API
+      # api_base: https://ollama.com — LiteLLM ollama_chat provider appends /api/chat internally
+      # Falls back to local tier: vllm-qwen → ollama-qwen (FR217)
+      # openai-gpt4o NOT in fallback chain — explicit selection only (FR218)
+      # Model names verified via Ollama Pro /api/tags: no -cloud suffix required
+      # ============================================================
+
+      - model_name: cloud-kimi
+        litellm_params:
+          model: ollama_chat/kimi-k2.5
+          api_base: https://ollama.com
+          api_key: os.environ/OLLAMA_API_KEY
+          timeout: 60
+        model_info:
+          mode: chat
+
+      - model_name: cloud-minimax
+        litellm_params:
+          model: ollama_chat/minimax-m2.5
+          api_base: https://ollama.com
+          api_key: os.environ/OLLAMA_API_KEY
+          timeout: 60
+        model_info:
+          mode: chat
+
+      - model_name: cloud-qwen3-coder
+        litellm_params:
+          model: ollama_chat/qwen3-coder:480b
+          api_base: https://ollama.com
+          api_key: os.environ/OLLAMA_API_KEY
+          timeout: 60
+        model_info:
+          mode: chat
+
     # Router settings
     router_settings:
       routing_strategy: simple-shuffle
@@ -178,9 +224,14 @@ data:
       request_timeout: 30
       # Prometheus metrics callback (FR118) - exposes /metrics endpoint
       callbacks: ["prometheus"]
-      # Fallback chain: vLLM → Ollama → OpenAI (NFR68)
-      # Client requests "vllm-qwen", auto-falls back to ollama-qwen, then openai-gpt4o
-      fallbacks: [{"vllm-qwen": ["ollama-qwen"]}, {"ollama-qwen": ["openai-gpt4o"]}]
+      # Fallback chains: Cloud (Ollama Pro) → vLLM (GPU) → Ollama (CPU) (FR217, NFR123)
+      # openai-gpt4o removed from auto-fallback — explicit selection only (FR218)
+      fallbacks:
+        - {"cloud-kimi":        ["cloud-minimax", "vllm-qwen", "ollama-qwen"]}
+        - {"cloud-minimax":     ["vllm-qwen", "ollama-qwen"]}
+        - {"cloud-qwen3-coder": ["vllm-qwen", "ollama-qwen"]}
+        - {"vllm-qwen":         ["ollama-qwen"]}
+      # openai-gpt4o: explicit parallel only — not in auto-fallback chain (FR218)
       # Context window fallback: phi4-mini supports 128K context vs Qwen3's 8K
       context_window_fallbacks: [{"vllm-qwen": ["ollama-qwen"]}]
       allowed_fails: 1
