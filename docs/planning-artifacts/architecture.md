@@ -3,7 +3,7 @@ stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
 lastModified: '2026-02-19'
-updateReason: 'Epic 26 (2026-02-19): Ollama Pro cloud model integration. LiteLLM becomes explicit cloud gatekeeper for three Ollama Pro models (cloud-kimi/kimi-k2.5, cloud-minimax/minimax-m2.5, cloud-qwen3-coder/qwen3-coder:480b-cloud). openclaw fully migrated off Anthropic (legal constraint) — OAuth removed, ANTHROPIC_OAUTH_TOKEN removed, primary → cloud-kimi, coder sub-agents → cloud-qwen3-coder. paperless-gpt → cloud-minimax. open-webui default → cloud-minimax. api_base correction: https://ollama.com/api (not /). FR215-FR223, NFR121-NFR125. Previous: Phi4-mini pivot (2026-02-13).'
+updateReason: 'Self-hosted ntfy (2026-02-19): ntfy.sh replaced with self-hosted ntfy in monitoring namespace — public topic URL published to GitHub (security), rate-limited at 250 msg/day. Alertmanager webhook → internal cluster service. Tailscale-only ingress + auth. FR29 updated, FR224-FR226, NFR5 updated, NFR126-NFR127. Previous: Epic 26 (2026-02-19): Ollama Pro cloud model integration. FR215-FR223, NFR121-NFR125.'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -168,6 +168,7 @@ Traditional "starter templates" don't apply. Instead, we evaluate infrastructure
 | Log Aggregation | Loki | Grafana-native, lightweight, integrates with stack |
 | Dashboards | Included in stack | Pre-built K8s dashboards |
 | Alerting | Alertmanager | Part of kube-prometheus-stack |
+| **Mobile Notifications** | **Self-hosted ntfy (`monitoring` namespace)** | **FR224-226: Replaces public ntfy.sh (rate-limited + topic URL leaked to GitHub); authenticated; Alertmanager webhook → internal cluster service; Tailscale-only ingress** |
 
 ### Security Architecture
 
@@ -1937,6 +1938,51 @@ kubectl patch secret openclaw-secrets -n apps --type='merge' \
 - FR222: openclaw primary → cloud-kimi (revised from brainstorm: cloud-minimax — kimi has image input for browser automation); Anthropic fully removed ✓
 - FR223: openclaw coder sub-agents → cloud-qwen3-coder ✓
 
+### Self-Hosted Notification Architecture (ntfy)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Notification Server** | **Self-hosted ntfy (binwiederhier/ntfy)** | **FR224: Replaces ntfy.sh — public topic URL leaked to GitHub (alerts publicly readable), 250 msg/day rate limit** |
+| **Namespace** | **`monitoring`** | **Observability component; co-located with Alertmanager, Prometheus, Grafana** |
+| **Alertmanager Integration** | **Internal webhook: `http://ntfy.monitoring.svc.cluster.local`** | **FR225: Alert delivery fully internal — no external network dependency on alert path** |
+| **Authentication** | **Token/user auth enforced on server** | **NFR126: Unauthenticated requests return 401; topics not discoverable without credentials** |
+| **Ingress** | **`ntfy.home.jetzinger.com` via Tailscale-only IngressRoute** | **NFR127: No public internet exposure; consistent with all cluster ingress patterns** |
+| **Credentials** | **K8s Secret in `monitoring` namespace** | **FR226: ntfy admin credentials follow existing K8s native secrets management pattern** |
+| **Mobile App** | **ntfy mobile app with custom server + stored credentials** | **FR226: Operator's phone configured with `ntfy.home.jetzinger.com` as server endpoint** |
+
+**Driver (FR29 update):**
+ntfy.sh (public SaaS) was replaced because:
+1. **Security breach:** Topic URL was published to GitHub — P1 Alertmanager alerts were publicly readable by anyone
+2. **Rate limiting:** Free tier capped at 250 messages/day — insufficient for active monitoring
+
+**Architecture:**
+```
+Alertmanager (monitoring ns)
+  └─ webhook → http://ntfy.monitoring.svc.cluster.local   # internal cluster-DNS, no external hop
+       └─ ntfy server (monitoring ns)
+            ├── auth: token required (NFR126: 401 on unauthenticated)
+            ├── ingress: ntfy.home.jetzinger.com (Tailscale-only, NFR127)
+            └── push → ntfy mobile app (custom server: ntfy.home.jetzinger.com)
+                   └─ Operator's phone receives P1 alerts (NFR5: within 1 minute)
+```
+
+**Deployment Pattern:**
+- Deployment + ClusterIP Service in `monitoring` namespace
+- IngressRoute: 3-part pattern (Certificate + HTTPS route + HTTP redirect), Tailscale-only
+- Config: server auth mode enabled via environment variable or config file
+- Credentials: K8s Secret (`ntfy-credentials`), applied via `kubectl patch` (never `kubectl apply` with placeholder)
+
+**NFR Compliance:**
+- NFR5 (updated): P1 alerts delivered within 1 minute via self-hosted ntfy (was: ntfy.sh)
+- NFR126: Authentication enforced — `AUTH_DEFAULT_ACCESS=deny` ensures 401 without valid credentials
+- NFR127: IngressRoute bound to Tailscale interface only; topic names not discoverable externally
+
+**Requirements Coverage (ntfy):**
+- FR29 (updated): Mobile notifications via authenticated self-hosted ntfy at `ntfy.home.jetzinger.com` ✓
+- FR224: ntfy deployed in `monitoring` namespace with authentication ✓
+- FR225: Alertmanager webhook → `http://ntfy.monitoring.svc.cluster.local` (internal only) ✓
+- FR226: ntfy mobile app configured with custom server + K8s Secret for credentials ✓
+
 ### Backup & Recovery Architecture
 
 | Decision | Choice | Rationale |
@@ -2182,7 +2228,7 @@ home-lab/
 |-----------|------------|---------|
 | `kube-system` | K3s core, Traefik | System-managed |
 | `infra` | MetalLB, cert-manager | Core infrastructure |
-| `monitoring` | Prometheus, Grafana, Loki, Alertmanager | Observability |
+| `monitoring` | Prometheus, Grafana, Loki, Alertmanager, ntfy | Observability |
 | `data` | PostgreSQL | Stateful data services |
 | `apps` | n8n, Open-WebUI, OpenClaw | General applications |
 | `ml` | vLLM, Ollama, LiteLLM | AI/ML inference |
@@ -2235,8 +2281,8 @@ Synology: /volume1/k8s-data/
 
 ### Requirements Coverage ✅
 
-**Functional Requirements:** 208/208 covered
-**Non-Functional Requirements:** 116/116 covered
+**Functional Requirements:** 226/226 covered
+**Non-Functional Requirements:** 127/127 covered
 
 All requirements have explicit architectural support documented in Core Architectural Decisions and Project Structure sections.
 
@@ -2305,6 +2351,12 @@ All requirements have explicit architectural support documented in Core Architec
 - **NFR112: Prompt template hot-reload — covered by AI Document Classification Architecture**
 - **NFR113-114: Docling performance and memory footprint — covered by AI Document Classification Architecture**
 - **NFR115-116: vLLM upgrade CLI compatibility and DeepSeek-R1 continuity — covered by AI/ML Architecture + DeepSeek-R1 Architecture**
+- **FR209-214: VLM OCR Pipeline for Docling — Granite-Docling 258M served by Ollama via LiteLLM, scanned/image-only PDF processing, graceful degradation to EasyOCR — covered by AI Document Classification Architecture (Paperless-GPT + Docling)**
+- **NFR117-120: VLM OCR performance (scanned PDF processing time, model loading, graceful degradation fallback, pipeline selection) — covered by AI Document Classification Architecture (Paperless-GPT + Docling)**
+- **FR215-223: Ollama Pro cloud model integration — LiteLLM as cloud gatekeeper, OLLAMA_API_KEY secret, cloud-minimax/cloud-kimi/cloud-qwen3-coder models, service → model reassignments, openclaw Anthropic removal — covered by Ollama Pro Cloud Model Integration Architecture (Epic 26)**
+- **NFR121-125: Ollama Pro cloud performance and security — 60s cloud request timeout, OLLAMA_API_KEY as K8s secret, 5s failover to local tier, cloud models in Open-WebUI picker, openclaw local fallback operational — covered by Ollama Pro Cloud Model Integration Architecture (Epic 26)**
+- **FR29 (updated), FR224-226: Self-hosted ntfy in `monitoring` namespace; Alertmanager webhook → internal cluster service; authenticated ingress at `ntfy.home.jetzinger.com`; K8s Secret for credentials — covered by Self-Hosted Notification Architecture (ntfy)**
+- **NFR5 (updated), NFR126-127: P1 alert delivery within 1 minute via self-hosted ntfy; authentication enforced (401 unauthenticated); Tailscale-only ingress, topics not discoverable externally — covered by Self-Hosted Notification Architecture (ntfy)**
 
 ### Implementation Readiness ✅
 
@@ -2369,10 +2421,10 @@ This architecture is ready for implementation because:
 - Validation confirming coherence and completeness
 
 **Implementation Ready Foundation**
-- 27 core architectural decisions made (updated 2026-02-19: Ollama Pro cloud model integration, Anthropic removed from openclaw)
+- 28 core architectural decisions made (updated 2026-02-19: ntfy self-hosted notification server + Ollama Pro cloud model integration, Anthropic removed from openclaw)
 - 6 implementation pattern categories defined
 - 8 namespace boundaries established
-- 223 functional + 125 non-functional requirements supported
+- 226 functional + 127 non-functional requirements supported
 
 **AI Agent Implementation Guide**
 - Technology stack with Helm chart references

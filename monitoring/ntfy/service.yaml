@@ -1,0 +1,26 @@
+# ntfy ClusterIP Service
+# Namespace: monitoring
+#
+# Story: 27.1 - Deploy Self-Hosted ntfy to monitoring Namespace
+# Accessible internally as: ntfy.monitoring.svc.cluster.local:80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: ntfy
+    app.kubernetes.io/instance: ntfy
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ntfy
+    app.kubernetes.io/instance: ntfy
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

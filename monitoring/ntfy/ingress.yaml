@@ -1,0 +1,77 @@
+# ntfy IngressRoute for home-lab
+# Namespace: monitoring
+#
+# Story: 27.1 - Deploy Self-Hosted ntfy to monitoring Namespace
+# NFR: NFR127 - ntfy accessible from Tailscale VPN via HTTPS
+#
+# Access: https://ntfy.home.jetzinger.com (Tailscale VPN only)
+# Security: HTTPS-only via Let's Encrypt; auth enforced at server level (AUTH_DEFAULT_ACCESS=deny)
+---
+# Part 1: TLS Certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ntfy-tls
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: ntfy
+    app.kubernetes.io/instance: ntfy
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  secretName: ntfy-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - ntfy.home.jetzinger.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# Part 2: HTTPS IngressRoute
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ntfy-ingress
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: ntfy
+    app.kubernetes.io/instance: ntfy
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`ntfy.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: ntfy
+          port: 80
+  tls:
+    secretName: ntfy-tls
+---
+# Part 3: HTTP → HTTPS redirect (reuses existing https-redirect middleware)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ntfy-ingress-redirect
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: ntfy
+    app.kubernetes.io/instance: ntfy-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`ntfy.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: monitoring
+      services:
+        - name: ntfy
+          port: 80

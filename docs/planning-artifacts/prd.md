@@ -27,6 +27,7 @@ project_name: 'home-lab'
 **Date:** 2025-12-27 | **Last Updated:** 2026-02-19
 
 **Changelog:**
+- 2026-02-19: Migrated mobile notifications from public ntfy.sh to self-hosted ntfy (FR224-FR226, NFR126-NFR127). ntfy.sh topic was rate-limited (250 msg/day free tier) and topic URL was inadvertently published to GitHub, making alerts publicly readable. Self-hosted ntfy deployed to `monitoring` namespace with authentication, private IngressRoute at `ntfy.home.jetzinger.com`, and internal Alertmanager webhook routing. Updated FR29 to reference authenticated self-hosted endpoint.
 - 2026-02-19: Added Ollama Pro Cloud Model Integration (Epic 26, FR215-FR223, NFR121-NFR125). LiteLLM becomes explicit gatekeeper for cloud routing — three Ollama Pro models (cloud-minimax/minimax-m2.5, cloud-kimi/kimi-k2.5, cloud-qwen3-coder/qwen3-coder-next) added as primary tier with local fallback chain (vllm-qwen → ollama-qwen). paperless-gpt and open-webui switch to cloud-minimax as default. n8n gains LiteLLM credential via UI. openclaw primary migrated to cloud-minimax; coder sub-agents to cloud-qwen3-coder (pending live config inspection). openai-gpt4o demoted to explicit-only parallel selection.
 - 2026-02-14: Added VLM OCR Pipeline for Docling (Story 25.5, FR209-FR214, NFR117-NFR120). Enables scanned/image-only PDF processing via Granite-Docling 258M served by Ollama through LiteLLM proxy. Model natively available on Ollama (`ibm/granite-docling:258m`). Graceful degradation to standard EasyOCR pipeline when VLM unavailable. Updates FR199, NFR114.
 - 2026-02-13: Pivoted Ollama CPU fallback from qwen3:4b to phi4-mini (Microsoft Phi-4-mini 3.8B). Qwen3 thinking mode cannot be reliably disabled on CPU via Ollama, causing 5+ min classification latency vs 60s target. Phi-4-mini has no thinking overhead, superior instruction following (67.3% MMLU), ~2.5GB Q4. Updated FR206, FR207, NFR109, NFR111.
@@ -484,8 +485,11 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - FR26: System collects metrics from all nodes via Node Exporter
 - FR27: System collects Kubernetes object metrics via kube-state-metrics
 - FR28: System sends alerts via Alertmanager when thresholds exceeded
-- FR29: Operator can receive mobile notifications for P1 alerts
+- FR29: Operator can receive mobile notifications for P1 alerts via self-hosted ntfy (authenticated, private endpoint at `ntfy.home.jetzinger.com`)
 - FR30: Operator can view alert history and status
+- FR224: Operator deploys ntfy as a self-hosted push notification server in the `monitoring` namespace with authentication enabled
+- FR225: Alertmanager webhook receiver points to the internal ntfy cluster service (`http://ntfy.monitoring.svc.cluster.local`) to avoid external network dependency
+- FR226: ntfy mobile app on operator's phone is configured with `ntfy.home.jetzinger.com` as custom server with credentials stored in K8s secret
 
 ### Data Services
 
@@ -754,7 +758,9 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - NFR2: Control plane recovers from VM restart within 5 minutes
 - NFR3: Worker node failure does not cause service outage (pods reschedule)
 - NFR4: NFS storage remains accessible during Synology firmware updates
-- NFR5: Alertmanager sends P1 alerts within 1 minute of threshold breach
+- NFR5: Alertmanager sends P1 alerts within 1 minute of threshold breach via self-hosted ntfy
+- NFR126: ntfy server is accessible only via authenticated requests; unauthenticated topic subscriptions return 401
+- NFR127: ntfy ingress is accessible exclusively over Tailscale VPN (no public internet exposure); topic names are not discoverable externally
 - NFR6: Cluster state can be restored from Velero backup within 30 minutes
 
 ### Security

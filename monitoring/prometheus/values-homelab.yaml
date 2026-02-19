@@ -101,6 +101,11 @@ alertmanager:
   enabled: true
 
   alertmanagerSpec:
+    # Mount ntfy-credentials secret for webhook authentication (Story 27.2 - FR225)
+    # Mounts at /etc/alertmanager/secrets/ntfy-credentials/
+    secrets:
+      - ntfy-credentials
+
     # Resource limits
     resources:
       requests:
@@ -152,17 +157,18 @@ alertmanager:
       # Null receiver for non-critical alerts
       - name: 'null'
 
-      # Mobile notifications via ntfy.sh
-      # Webhook URL stored in secrets/ntfy-secrets.yaml (gitignored)
+      # Mobile notifications via self-hosted ntfy (Story 27.2 - FR225)
+      # Internal cluster delivery: Alertmanager → ntfy.monitoring.svc.cluster.local
       - name: 'mobile-notifications'
         webhook_configs:
-          # url stored in secrets/ntfy-secrets.yaml
-          - send_resolved: true  # Send notification when alert resolves
+          - url: http://ntfy.monitoring.svc.cluster.local/homelab-alerts
+            send_resolved: true
             http_config:
               follow_redirects: true
-            # Custom message format for ntfy
-            # Title: Alert name and severity
-            # Message: Full alert details
+              basic_auth:
+                username: admin
+                # Password loaded from mounted K8s Secret (ntfy-credentials) — not stored in git
+                password_file: /etc/alertmanager/secrets/ntfy-credentials/NTFY_ADMIN_PASS
             max_alerts: 0  # Send all alerts, no limit
 
 # Prometheus Node Exporter (FR26: Collect metrics from all nodes)
