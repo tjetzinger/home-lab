@@ -2,7 +2,7 @@
 stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
 completedAt: '2026-01-29'
-lastModified: '2026-02-14'
+lastModified: '2026-02-19'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,8 +10,8 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'VLM OCR Pipeline for Docling (2026-02-14): Added Story 25.5 — FR209-FR214, NFR117-NFR120. Granite-Docling 258M via Ollama through LiteLLM proxy for scanned PDF OCR. Scoped workflow run: requirements extraction and story refinement only.'
-currentStep: 'Workflow Complete - Story 25.5 validated, ready for implementation'
+updateReason: 'Ollama Pro Cloud Model Integration (2026-02-19): Added Epic 26 — FR215-FR223, NFR121-NFR125. Three Ollama Pro cloud models (cloud-kimi/kimi-k2.5, cloud-minimax/minimax-m2.5, cloud-qwen3-coder/qwen3-coder:480b-cloud) added to LiteLLM as primary tier. OpenClaw migrated off Anthropic (legal constraint) to cloud-kimi primary. paperless-gpt → cloud-minimax. open-webui default → cloud-minimax. openai-gpt4o demoted to explicit-only. Scoped workflow run: requirements extraction and Epic 26 story creation.'
+currentStep: 'Workflow Complete - Epic 26 stories validated, ready for implementation'
 ---
 
 # home-lab - Epic Breakdown
@@ -218,6 +218,17 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - FR207: LiteLLM configmap updated with phi4-mini model for ollama-qwen alias
 - FR208: Paperless-AI deployment, configmap, service, and ingress removed
 
+**Ollama Pro Cloud Model Integration (9 FRs)**
+- FR215: OLLAMA_API_KEY added to `litellm-secrets` via `kubectl patch` for Ollama Pro cloud model authentication; never applied via `kubectl apply` with placeholder
+- FR216: LiteLLM `model_list` updated with three cloud model entries — `cloud-minimax` (minimax-m2.5), `cloud-kimi` (kimi-k2.5), `cloud-qwen3-coder` (qwen3-coder:480b-cloud) — all routing to `api_base: https://ollama.com/api` via `ollama_chat` provider
+- FR217: LiteLLM `fallbacks` updated so each cloud model cascades to `["vllm-qwen", "ollama-qwen"]` when cloud API is unavailable, preserving full local inference as backup
+- FR218: `openai-gpt4o` removed from the automatic fallback chain; retained as an explicit parallel-only selection
+- FR219: `paperless-gpt` configmap updated with `LLM_MODEL: "cloud-minimax"` (replacing `"vllm-qwen"`) for improved multilingual German document processing via minimax-m2.5
+- FR220: `open-webui` values-homelab.yaml updated with `DEFAULT_MODELS: "cloud-minimax"`; all three cloud models auto-exposed in the model picker via LiteLLM `/v1/models` with no per-model wiring required
+- FR221: n8n configured with an OpenAI-compatible LiteLLM credential via the n8n UI (base URL: `http://litellm.ml.svc.cluster.local:4000/v1`); no Helm changes required; per-workflow model selection supports `cloud-minimax`, `cloud-kimi`, `cloud-qwen3-coder`
+- FR222: `openclaw.json` inspected live before migration (`kubectl exec`) to identify the LLM provider and primary model configuration key names; primary model migrated to `cloud-kimi` via LiteLLM endpoint; Anthropic OAuth fully removed (legal constraint)
+- FR223: openclaw coder sub-agent model migrated to `cloud-qwen3-coder` via LiteLLM endpoint after live config inspection confirms sub-agent model key names
+
 **Development Proxy (3 FRs)**
 - FR41: Operator can configure Nginx to proxy to local dev servers
 - FR42: Developer can access local dev servers via cluster ingress
@@ -415,6 +426,13 @@ This document provides the complete epic and story breakdown for home-lab, decom
 - NFR115: vLLM v0.10.2+ maintains compatibility with existing CLI arguments
 - NFR116: vLLM upgrade does not disrupt DeepSeek-R1 deployment
 
+**Ollama Pro Cloud Model Integration (5 NFRs)**
+- NFR121: Cloud model API requests to `ollama.com` complete within 60 seconds (remote execution on Ollama's servers; LiteLLM `timeout: 60` per cloud model entry)
+- NFR122: `OLLAMA_API_KEY` stored securely as a Kubernetes secret; applied only via `kubectl patch` — never via `kubectl apply` with a placeholder value
+- NFR123: LiteLLM failover from cloud models to local tier (`vllm-qwen` → `ollama-qwen`) activates within 5 seconds of cloud API unavailability, consistent with NFR65
+- NFR124: All three cloud models automatically visible in Open-WebUI model picker via LiteLLM `/v1/models` without per-model wiring in the Helm values
+- NFR125: openclaw local LiteLLM fallback (vLLM GPU → Ollama CPU) remains fully functional after cloud model primary migration; fallback behavior unchanged from pre-migration state
+
 ### Additional Requirements
 
 **From Architecture Document:**
@@ -485,6 +503,21 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | k3s-gpu-worker | GPU (Intel NUC) | 192.168.0.25 | 100.x.x.d |
 
 **MetalLB IP Pool:** 192.168.2.100-120
+
+**Ollama Pro Cloud Model Integration Architecture (Epic 26):**
+- LiteLLM is the explicit cloud gatekeeper — Ollama pod is untouched; clean cloud/local separation
+- Cloud API base: `https://ollama.com/api` (CRITICAL: `/api` suffix required — `https://api.ollama.com` returns 404)
+- Provider type: `ollama_chat` (not `ollama`) for Ollama Pro cloud API
+- Model name format: `{model}:XXb-cloud` suffix mandatory — omitting it returns "model not found"
+- Exact cloud model tags must be confirmed at implementation via Ollama Pro dashboard (`ollama ls --cloud`)
+- Anthropic fully removed from openclaw (legal constraint) — `anthropic:subscription` OAuth, `ANTHROPIC_OAUTH_TOKEN`, and all `anthropic/` model references removed; zero Anthropic fallback by design
+- openclaw primary: `cloud-kimi` (kimi-k2.5) — chosen over cloud-minimax for image input capability needed for browser automation
+- openclaw fallback chain: `cloud-minimax` → `vllm-qwen` → `ollama-qwen` (full local inference preserved)
+- openclaw coder sub-agents: `cloud-qwen3-coder` (qwen3-coder:480b-cloud, purpose-built for agentic coding)
+- Updated routing: `cloud-kimi` → `cloud-minimax` → `vllm-qwen` → `ollama-qwen`; `cloud-minimax` → `vllm-qwen` → `ollama-qwen`; `cloud-qwen3-coder` → `vllm-qwen` → `ollama-qwen`
+- Secrets: `LITELLM_MASTER_KEY` added to openclaw secrets; `ANTHROPIC_OAUTH_TOKEN` removed via `kubectl patch ... --type='json' -p '[{"op":"remove"...}]'`
+- Operational mode: Cloud unaffected by Gaming Mode (GPU scaled to 0 → cloud still routes correctly)
+- Full outage (cloud + GPU + CPU all down): Error — no Anthropic fallback by design
 
 **OpenClaw Architecture (from Architecture Document):**
 - Deployed as Kubernetes Deployment in `apps` namespace (official openclaw/openclaw Docker image, Node.js >= 22)
@@ -673,7 +706,17 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR190 | Epic 21 | Auto-capture/recall conversation context via LanceDB |
 | FR191 | Epic 21 | Manage memory index via openclaw memory CLI commands |
 
-**Coverage Summary:** 191 FRs total, 106 NFRs total
+| FR215 | Epic 26 | OLLAMA_API_KEY secret management via kubectl patch |
+| FR216 | Epic 26 | LiteLLM model_list updated with three cloud model entries |
+| FR217 | Epic 26 | LiteLLM fallbacks updated — cloud cascades to local tier |
+| FR218 | Epic 26 | openai-gpt4o removed from auto-fallback chain |
+| FR219 | Epic 26 | paperless-gpt updated to cloud-minimax default model |
+| FR220 | Epic 26 | open-webui updated to cloud-minimax default; cloud models in picker |
+| FR221 | Epic 26 | n8n configured with LiteLLM credential via UI |
+| FR222 | Epic 26 | openclaw primary migrated to cloud-kimi; Anthropic removed |
+| FR223 | Epic 26 | openclaw coder sub-agents migrated to cloud-qwen3-coder |
+
+**Coverage Summary:** 223 FRs total, 125 NFRs total
 - **Phase 1 (Epic 1-9):** 54 FRs completed + 3 new (FR146-148 for Blog Article)
   - Epic 9 (Portfolio): FR49-54, FR146-148
 - **Phase 2 (Epic 10-12):** 49 FRs
@@ -1203,6 +1246,38 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - Blackbox Exporter HTTP probe on openclaw.home.jetzinger.com
 - Depends on Epic 21 (gateway must exist)
 - Independent of Epics 22-23
+
+---
+
+### Epic 26: Ollama Pro Cloud Model Integration [Phase 6]
+
+**User Outcome:** Tom has frontier cloud AI models (kimi-k2.5 256K context, minimax-m2.5 205K multilingual, qwen3-coder:480b-cloud) available through LiteLLM as a primary inference tier with automatic local fallback, with openclaw fully migrated off Anthropic to cloud-kimi as primary, and all relevant services updated to use cloud-minimax as default for document/chat workloads.
+
+**FRs covered:** FR215-FR223
+- FR215: OLLAMA_API_KEY added to `litellm-secrets` via `kubectl patch`
+- FR216: LiteLLM model_list updated with `cloud-kimi`, `cloud-minimax`, `cloud-qwen3-coder` entries via `ollama_chat` provider → `https://ollama.com/api`
+- FR217: LiteLLM fallbacks updated — each cloud model cascades to `vllm-qwen` → `ollama-qwen`
+- FR218: `openai-gpt4o` removed from auto-fallback chain (explicit-only parallel selection)
+- FR219: `paperless-gpt` updated to `LLM_MODEL: cloud-minimax`
+- FR220: `open-webui` updated to `DEFAULT_MODELS: cloud-minimax`; all cloud models auto-exposed in picker
+- FR221: n8n configured with LiteLLM OpenAI-compatible credential via UI
+- FR222: openclaw primary migrated to `cloud-kimi`; Anthropic OAuth fully removed (legal constraint)
+- FR223: openclaw coder sub-agents migrated to `cloud-qwen3-coder`
+
+**NFRs covered:** NFR121-NFR125
+- NFR121: Cloud API requests complete within 60 seconds
+- NFR122: OLLAMA_API_KEY stored as K8s secret, applied only via `kubectl patch`
+- NFR123: Cloud → local failover within 5 seconds
+- NFR124: All cloud models auto-visible in Open-WebUI model picker
+- NFR125: openclaw local LiteLLM fallback remains functional post-migration
+
+**Implementation Notes:**
+- Cloud API base: `https://ollama.com/api` (CRITICAL: `/api` suffix required)
+- Provider: `ollama_chat` (not `ollama`)
+- Model tags: `{model}:XXb-cloud` suffix mandatory — exact tags confirmed via Ollama Pro dashboard at implementation time
+- Anthropic fully removed from openclaw (legal constraint) — zero Anthropic fallback by design
+- openclaw primary: `cloud-kimi` (image input for browser automation; cloud-minimax has no image input)
+- Depends on Epic 14 (LiteLLM), Epic 21 (openclaw), Epic 17 (Open-WebUI), Epic 25 (Paperless-GPT)
 
 ---
 
@@ -6010,18 +6085,195 @@ So that **scanned documents are processed with layout-aware OCR while maintainin
 
 ---
 
-**Workflow Status:** All epics and stories through Phase 5 have been created with detailed acceptance criteria, including:
+**Workflow Status:** All epics and stories through Phase 6 have been created with detailed acceptance criteria, including:
 - Phase 1-4: All 96 previous stories (Epics 1-20)
 - Phase 5: 16 new OpenClaw stories (Epics 21-24):
   - OpenClaw Core Gateway & Telegram (Epic 21) with Opus 4.5 + LiteLLM inverse fallback
   - OpenClaw Research & Multi-Channel (Epic 22) with Exa MCP tools + WhatsApp/Discord
   - OpenClaw Advanced Capabilities (Epic 23) with voice, sub-agents, browser, skills
   - OpenClaw Observability & Documentation (Epic 24) with log-based monitoring + portfolio docs
-- Phase 6: Document Processing Pipeline Upgrade (Epic 25):
+- Phase 6 (continued): Document Processing Pipeline Upgrade (Epic 25):
   - vLLM Qwen3 upgrade (Story 25.1) with Qwen3-8B-AWQ on GPU
   - Ollama Qwen3 upgrade + LiteLLM update (Story 25.2) with phi4-mini CPU fallback
   - Docling server deployment (Story 25.3) with Granite-Docling 258M VLM pipeline
   - Paperless-GPT deployment + Paperless-AI removal (Story 25.4) with two-stage pipeline
   - VLM OCR pipeline via remote services (Story 25.5) with Granite-Docling 258M on Ollama through LiteLLM
+- Phase 6 (continued): Ollama Pro Cloud Model Integration (Epic 26):
+  - LiteLLM cloud provider config + secret management (Story 26.1)
+  - Service default model updates: paperless-gpt, open-webui, n8n (Story 26.2)
+  - OpenClaw cloud model migration + Anthropic removal (Story 26.3)
 
 Ready to add to sprint-status.yaml and begin implementation.
+
+---
+
+## Epic 26: Ollama Pro Cloud Model Integration
+
+**Goal:** Add three Ollama Pro cloud models (kimi-k2.5, minimax-m2.5, qwen3-coder:480b-cloud) to LiteLLM as primary inference tier with automatic local fallback. Update all services to use cloud models as defaults. Migrate openclaw off Anthropic (legal constraint) to cloud-kimi primary.
+
+**Brainstorming Session:** `docs/analysis/brainstorming-session-2026-02-19.md`
+
+**Dependencies:** Epic 14 (LiteLLM), Epic 21 (openclaw), Epic 17 (Open-WebUI), Epic 25 (Paperless-GPT)
+
+**Architecture Decision:** LiteLLM as explicit cloud gatekeeper — Ollama pod untouched. Cloud API base: `https://ollama.com/api` (`/api` suffix required). Provider: `ollama_chat`. Model tag format: `{model}:XXb-cloud` (exact tags confirmed at implementation via Ollama Pro dashboard). openclaw: cloud-kimi primary (image input for browser automation), cloud-qwen3-coder for coder sub-agents, Anthropic removed per legal constraint.
+
+**FRs:** FR215-FR223
+**NFRs:** NFR121-NFR125
+
+---
+
+### Story 26.1: Configure LiteLLM with Ollama Pro Cloud Models
+
+As a **cluster operator**,
+I want **to add three Ollama Pro cloud models to LiteLLM with proper secret management and fallback chains**,
+So that **all services have access to frontier cloud AI with automatic local fallback when the cloud is unavailable**.
+
+**Acceptance Criteria:**
+
+**Given** LiteLLM is running in the `ml` namespace with existing `litellm-secrets`
+**When** I add `OLLAMA_API_KEY` to the secret via `kubectl patch secret litellm-secrets -n ml --type='merge' -p '{"stringData":{"OLLAMA_API_KEY":"<key>"}}'`
+**Then** the key is stored securely as a Kubernetes secret (FR215)
+**And** no `kubectl apply` with placeholder values is performed (NFR122)
+
+**Given** `OLLAMA_API_KEY` is in the secret
+**When** I update the LiteLLM configmap to add three cloud model entries:
+- `cloud-kimi` → `ollama_chat/kimi-k2.5:<tag>-cloud` at `https://ollama.com/api`
+- `cloud-minimax` → `ollama_chat/minimax-m2.5:<tag>-cloud` at `https://ollama.com/api`
+- `cloud-qwen3-coder` → `ollama_chat/qwen3-coder:480b-cloud` at `https://ollama.com/api`
+**Then** LiteLLM reloads and all three models appear in `/v1/models` response (FR216)
+**And** each entry has `timeout: 60` and `api_key: os.environ/OLLAMA_API_KEY`
+
+**Given** the cloud models are registered in LiteLLM
+**When** I update the `fallbacks` section in `litellm_settings`:
+- `cloud-kimi` → `["cloud-minimax", "vllm-qwen", "ollama-qwen"]`
+- `cloud-minimax` → `["vllm-qwen", "ollama-qwen"]`
+- `cloud-qwen3-coder` → `["vllm-qwen", "ollama-qwen"]`
+**Then** LiteLLM falls back to local tier when cloud API is unavailable (FR217)
+**And** failover activates within 5 seconds (NFR123)
+
+**Given** the fallback chains are configured
+**When** I remove `openai-gpt4o` from any automatic fallback chain entries (retaining it as explicit-only)
+**Then** `openai-gpt4o` is no longer part of any automatic routing (FR218)
+**And** it remains available as a direct model selection
+
+**Given** the full cloud configuration is applied
+**When** I send a test inference request to `cloud-kimi` via the LiteLLM endpoint
+**Then** the response returns within 60 seconds (NFR121)
+**And** LiteLLM Prometheus metrics record the cloud model request
+
+**Given** the exact Ollama Pro model tags are unknown at planning time
+**When** I obtain the `OLLAMA_API_KEY` and access the Ollama Pro account
+**Then** I verify exact model tags via `ollama ls --cloud` or the Ollama Pro dashboard
+**And** update configmap entries with confirmed tags before applying
+
+**FRs covered:** FR215, FR216, FR217, FR218
+**NFRs covered:** NFR121, NFR122, NFR123
+
+---
+
+### Story 26.2: Update Service Default Models to Cloud Tier
+
+As a **cluster operator**,
+I want **to update paperless-gpt, open-webui, and n8n to use cloud models as defaults**,
+So that **document processing and chat workloads benefit from frontier model quality without changing application code**.
+
+**Acceptance Criteria:**
+
+**Given** `cloud-minimax` is available in LiteLLM and LiteLLM is reachable from the `docs` namespace
+**When** I update the `paperless-gpt` configmap with `LLM_MODEL: "cloud-minimax"` (replacing `"vllm-qwen"`)
+**Then** Paperless-GPT uses cloud-minimax for document metadata generation (FR219)
+**And** the change takes effect without pod restart (hot-reload from configmap update)
+**And** document classification still produces valid title, tags, correspondent, document type
+
+**Given** cloud-minimax produces improved multilingual output
+**When** I process a German-language document through Paperless-GPT
+**Then** metadata quality is equal or better to the previous vllm-qwen baseline
+**And** fallback to `vllm-qwen` activates automatically if cloud is unavailable (FR217)
+
+**Given** LiteLLM `/v1/models` now includes `cloud-kimi`, `cloud-minimax`, and `cloud-qwen3-coder`
+**When** I update `open-webui` values-homelab.yaml with `DEFAULT_MODELS: "cloud-minimax"` and redeploy
+**Then** Open-WebUI shows `cloud-minimax` as the default model selection (FR220)
+**And** all three cloud models appear in the model picker without additional per-model configuration (NFR124)
+**And** local models (`vllm-qwen`, `ollama-qwen`) remain selectable
+
+**Given** Open-WebUI is updated
+**When** I start a new chat session in Open-WebUI
+**Then** the chat automatically uses cloud-minimax
+**And** I can switch to cloud-kimi or cloud-qwen3-coder from the model picker
+**And** the UI loads within 3 seconds (NFR75)
+
+**Given** n8n is running in the `apps` namespace
+**When** I create a new credential in n8n UI of type "OpenAI API" with:
+- Base URL: `http://litellm.ml.svc.cluster.local:4000/v1`
+- API Key: LiteLLM master key (from existing K8s secret)
+**Then** n8n can use the LiteLLM credential for AI nodes (FR221)
+**And** per-workflow model selection supports `cloud-minimax`, `cloud-kimi`, `cloud-qwen3-coder`
+**And** no Helm chart changes are required for n8n
+
+**FRs covered:** FR219, FR220, FR221
+**NFRs covered:** NFR121, NFR124
+
+---
+
+### Story 26.3: Migrate OpenClaw Off Anthropic to Cloud-Kimi Primary
+
+As a **cluster operator**,
+I want **to migrate openclaw's primary LLM from Anthropic Claude to cloud-kimi via LiteLLM, and coder sub-agents to cloud-qwen3-coder**,
+So that **openclaw operates without any Anthropic dependency while maintaining full local fallback capability**.
+
+**Acceptance Criteria:**
+
+**Given** openclaw is running on k3s-worker-01 with Anthropic OAuth as primary
+**When** I exec into the openclaw pod (`kubectl exec -n apps deployment/openclaw -- cat ~/.clawdbot/openclaw.json`)
+**Then** I can identify the exact JSON key paths for the primary model provider, primary model ID, and coder sub-agent model (FR222)
+**And** I document the exact key names before making any changes
+
+**Given** the config key names are confirmed
+**When** I remove `ANTHROPIC_OAUTH_TOKEN` from `openclaw-secrets` via:
+`kubectl patch secret openclaw-secrets -n apps --type='json' -p '[{"op":"remove","path":"/data/ANTHROPIC_OAUTH_TOKEN"}]'`
+**Then** the Anthropic OAuth token is removed from the cluster (FR222)
+**And** no fallback to Anthropic remains anywhere in the routing chain
+
+**Given** Anthropic credentials are removed
+**When** I add `LITELLM_MASTER_KEY` to `openclaw-secrets` via `kubectl patch`
+**Then** the LiteLLM master key is available to the openclaw container as an env var
+
+**Given** the secrets are updated
+**When** I apply the openclaw model config patch (via `kubectl exec` edit of `openclaw.json` or Gateway `config.patch` RPC):
+- Provider: `litellm` at `http://litellm.ml.svc.cluster.local:4000/v1`
+- Models registered: `cloud-kimi`, `cloud-minimax`, `cloud-qwen3-coder`, `vllm-qwen`, `ollama-qwen`
+- Main agent primary: `litellm/cloud-kimi`
+- Main agent fallbacks: `["litellm/cloud-minimax", "litellm/vllm-qwen", "litellm/ollama-qwen"]`
+- Coder sub-agents: `litellm/cloud-qwen3-coder`
+**Then** openclaw routes all conversations to cloud-kimi as primary (FR222)
+**And** coder sub-agent tasks are routed to cloud-qwen3-coder (FR223)
+
+**Given** the config is applied and openclaw pod restarts cleanly
+**When** I send a test Telegram message to openclaw
+**Then** the response comes from cloud-kimi (kimi-k2.5) via LiteLLM
+**And** the gateway responds within 10 seconds excluding LLM inference time (NFR86)
+**And** I can verify cloud-kimi is handling the request from gateway logs in Loki
+
+**Given** cloud-kimi is operational as primary
+**When** I simulate cloud API unavailability (temporarily set wrong api_base in litellm configmap for cloud-kimi)
+**Then** LiteLLM automatically falls back to `cloud-minimax`, then `vllm-qwen`, then `ollama-qwen` (FR217)
+**And** failover activates within 5 seconds (NFR123)
+**And** openclaw continues responding without error
+
+**Given** the migration is complete
+**When** I verify the operational behavior across all modes:
+- Normal: cloud-kimi (primary) ✓
+- Cloud unavailable: vllm-qwen (local GPU) ✓
+- Gaming Mode (GPU scaled to 0): cloud-kimi (cloud unaffected by GPU mode) ✓
+- Cloud + GPU down: ollama-qwen (CPU fallback) ✓
+- Full outage: Error — no Anthropic fallback (by design) ✓
+**Then** all modes behave as specified in the architecture (NFR125)
+
+**Given** the local LiteLLM fallback chain is validated
+**When** I update the `openclaw-secrets` YAML in git (not the live secret):
+- Remove `ANTHROPIC_OAUTH_TOKEN: ""` placeholder
+- Add `LITELLM_MASTER_KEY: ""` placeholder
+**Then** the git file reflects current secret structure (empty placeholders only, values applied via kubectl patch)
+
+**FRs covered:** FR222, FR223
+**NFRs covered:** NFR123, NFR125

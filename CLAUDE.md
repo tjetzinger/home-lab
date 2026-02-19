@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **home-lab** is a production-grade K3s Kubernetes learning platform running on Proxmox VE. It serves as both functional home infrastructure and a career portfolio project demonstrating AI-assisted platform engineering.
 
-**Status:** All 20 epics complete. Cluster operational with full ML inference stack.
+**Status:** All 25 epics complete. Cluster operational with full ML inference and document processing stack.
 
 ## Key Documentation
 
@@ -33,9 +33,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `monitoring` - Prometheus, Grafana, Loki, Alertmanager
 - `data` - PostgreSQL
 - `ml` - vLLM, Ollama, LiteLLM (inference stack)
-- `apps` - n8n, Open-WebUI
-- `docs` - Paperless-ngx, Paperless-AI, Gotenberg, Tika, Stirling-PDF
+- `apps` - n8n, Open-WebUI, OpenClaw (personal AI assistant)
+- `docs` - Paperless-ngx, Paperless-GPT, Docling, Gotenberg, Tika, Stirling-PDF
 - `dev` - Nginx proxy, dev containers
+- `legacy-use` - Legacy-Use browser automation platform
 - `kubernetes-dashboard` - Cluster dashboard
 
 **Storage:** NFS via Synology DS920+ for shared workloads; `local-path` (Rancher) for node-local PVCs (e.g., openclaw)
@@ -51,8 +52,8 @@ LiteLLM Proxy (litellm.ml.svc) → vLLM (GPU) → Ollama (CPU) → OpenAI (Cloud
 ```
 
 **GPU Modes** (on k3s-gpu-worker):
-- `ml` - Qwen 2.5 7B (general inference)
-- `r1` - DeepSeek-R1 7B (reasoning tasks)
+- `ml` - Qwen3-8B-AWQ (general inference)
+- `r1` - DeepSeek-R1-Distill-Qwen-7B-AWQ (reasoning tasks)
 - `gaming` - vLLM scaled to 0, GPU released
 
 ```bash
@@ -77,18 +78,32 @@ helm upgrade --install {name} {chart} -f values-homelab.yaml -n {namespace}
 kubectl get pods -n ml
 kubectl logs -n ml deployment/litellm --tail=50
 
-# Check Paperless stack
+# Check Paperless/docs stack
 kubectl get pods -n docs
+
+# Check OpenClaw (personal AI assistant)
+kubectl get pods -n apps -l app.kubernetes.io/name=openclaw
+kubectl logs -n apps deployment/openclaw --tail=50
 ```
+
+## Runbooks
+
+Operational runbooks are in `docs/runbooks/`:
+- `postgres-backup.md` / `postgres-restore.md` — DB backup/restore procedures
+- `k3s-upgrade.md` — Cluster upgrade procedure
+- `egpu-hotplug.md` — eGPU hot-plug on k3s-gpu-worker
+- `cluster-backup.md` / `cluster-restore.md` — Full cluster state backup/restore
+- `k3s-svclb-recovery.md` — Recover from svclb issues after node changes
 
 ## Repository Structure
 
 ```
 infrastructure/     # Core cluster (k3s/, nfs/, metallb/, cert-manager/, traefik/)
-applications/       # Workloads (vllm/, litellm/, ollama/, paperless/, open-webui/, gitea/, n8n/, postgres/)
+applications/       # Workloads (vllm/, litellm/, ollama/, paperless/, open-webui/, gitea/, n8n/, postgres/, openclaw/, legacy-use/)
 monitoring/         # Observability (prometheus/, loki/)
-docs/              # Documentation, ADRs, planning/implementation artifacts
-scripts/           # Automation (gpu-worker/, deploy scripts)
+docs/              # ADRs (docs/adrs/), runbooks (docs/runbooks/), planning/implementation artifacts
+scripts/           # Automation (gpu-worker/gpu-mode, deploy scripts, health checks)
+secrets/           # Secret YAML templates (empty placeholders; real values applied manually, never committed)
 ```
 
 ## BMAD Framework
@@ -127,4 +142,4 @@ labels:
 - All decisions captured as ADRs for portfolio documentation
 - Git is single source of truth - all manifests and Helm values version controlled
 - No inline `--set` flags in production Helm deployments
-- Paperless-AI stores config in persistent `/app/data/.env` (overrides configmap)
+- Paperless-GPT (replaced Paperless-AI in Epic 25) stores LLM provider config in its configmap

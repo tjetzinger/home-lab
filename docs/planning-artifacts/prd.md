@@ -7,6 +7,7 @@ inputDocuments:
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
   - 'docs/planning-artifacts/research/domain-k8s-platform-career-positioning-research-2025-12-27.md'
   - 'docs/analysis/brainstorming-session-2025-12-27.md'
+  - 'docs/analysis/brainstorming-session-2026-02-19.md'
   - 'external: github.com/openclaw/openclaw'
 workflowType: 'prd'
 lastStep: 11
@@ -15,7 +16,7 @@ researchCount: 1
 brainstormingCount: 1
 projectDocsCount: 0
 date: '2025-12-27'
-lastUpdated: '2026-01-31'
+lastUpdated: '2026-02-19'
 author: 'Tom'
 project_name: 'home-lab'
 ---
@@ -23,9 +24,10 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-02-14
+**Date:** 2025-12-27 | **Last Updated:** 2026-02-19
 
 **Changelog:**
+- 2026-02-19: Added Ollama Pro Cloud Model Integration (Epic 26, FR215-FR223, NFR121-NFR125). LiteLLM becomes explicit gatekeeper for cloud routing — three Ollama Pro models (cloud-minimax/minimax-m2.5, cloud-kimi/kimi-k2.5, cloud-qwen3-coder/qwen3-coder-next) added as primary tier with local fallback chain (vllm-qwen → ollama-qwen). paperless-gpt and open-webui switch to cloud-minimax as default. n8n gains LiteLLM credential via UI. openclaw primary migrated to cloud-minimax; coder sub-agents to cloud-qwen3-coder (pending live config inspection). openai-gpt4o demoted to explicit-only parallel selection.
 - 2026-02-14: Added VLM OCR Pipeline for Docling (Story 25.5, FR209-FR214, NFR117-NFR120). Enables scanned/image-only PDF processing via Granite-Docling 258M served by Ollama through LiteLLM proxy. Model natively available on Ollama (`ibm/granite-docling:258m`). Graceful degradation to standard EasyOCR pipeline when VLM unavailable. Updates FR199, NFR114.
 - 2026-02-13: Pivoted Ollama CPU fallback from qwen3:4b to phi4-mini (Microsoft Phi-4-mini 3.8B). Qwen3 thinking mode cannot be reliably disabled on CPU via Ollama, causing 5+ min classification latency vs 60s target. Phi-4-mini has no thinking overhead, superior instruction following (67.3% MMLU), ~2.5GB Q4. Updated FR206, FR207, NFR109, NFR111.
 - 2026-02-12: Added Document Processing Pipeline Upgrade (FR192-FR207, NFR107-NFR116) - Replace Paperless-AI with Paperless-GPT, add Docling server for layout-aware PDF parsing, upgrade vLLM to Qwen3-8B-AWQ, upgrade Ollama to phi4-mini. Two-stage pipeline: Docling extracts structure → LLM generates metadata. Supersedes FR87-89, FR104-108, FR110, NFR46-47, NFR58-62, NFR63-64.
@@ -107,7 +109,7 @@ The assistant integrates MCP research tools via mcporter (Exa and others) for re
 - Storage: NFS via Synology DS920+
 - Networking: Traefik ingress, MetalLB, Tailscale
 - Observability: Prometheus, Grafana
-- AI/ML: vLLM (Qwen3-8B-AWQ GPU), Ollama (phi4-mini CPU fallback), LiteLLM proxy, n8n
+- AI/ML: vLLM (Qwen3-8B-AWQ GPU), Ollama (phi4-mini CPU fallback), LiteLLM proxy, n8n; Ollama Pro cloud models (minimax-m2.5, kimi-k2.5, qwen3-coder-next) as primary tier via LiteLLM
 - GPU: NVIDIA RTX 3060 via eGPU (future)
 - Gaming: Steam + Proton on Intel NUC host OS (shared GPU with K8s)
 - Document Management: Paperless-ngx, Paperless-GPT, Docling (Granite-Docling 258M)
@@ -718,6 +720,26 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - FR144: LiteLLM configured with Mistral API free tier as parallel model option
 - FR145: API keys for external providers stored securely via Kubernetes secrets
 
+### Ollama Pro Cloud Model Integration (Epic 26)
+
+#### LiteLLM Cloud Model Configuration
+
+- FR215: OLLAMA_API_KEY added to `litellm-secrets` via `kubectl patch` for Ollama Pro cloud model authentication; never applied via `kubectl apply` with placeholder
+- FR216: LiteLLM `model_list` updated with three cloud model entries — `cloud-minimax` (minimax-m2.5), `cloud-kimi` (kimi-k2.5), `cloud-qwen3-coder` (qwen3-coder-next) — all routing to `api_base: https://ollama.com` via `ollama_chat` provider
+- FR217: LiteLLM `fallbacks` updated so each cloud model cascades to `["vllm-qwen", "ollama-qwen"]` when the cloud API is unavailable, preserving full local inference as backup
+- FR218: `openai-gpt4o` removed from the automatic fallback chain; retained as an explicit parallel-only selection
+
+#### Service Default Model Updates
+
+- FR219: `paperless-gpt` configmap updated with `LLM_MODEL: "cloud-minimax"` (replacing `"vllm-qwen"`) for improved multilingual German document processing via minimax-m2.5
+- FR220: `open-webui` values-homelab.yaml updated with `DEFAULT_MODELS: "cloud-minimax"`; all three cloud models auto-exposed in the model picker via LiteLLM `/v1/models` with no per-model wiring required
+- FR221: n8n configured with an OpenAI-compatible LiteLLM credential via the n8n UI (base URL: `http://litellm.ml.svc.cluster.local:4000/v1`); no Helm changes required; per-workflow model selection supports `cloud-minimax`, `cloud-kimi`, `cloud-qwen3-coder`
+
+#### OpenClaw Cloud Model Migration
+
+- FR222: `openclaw.json` inspected live before migration (`kubectl exec`) to identify the LLM provider and primary model configuration key names; primary model migrated to `cloud-minimax` via LiteLLM endpoint after inspection confirms key names
+- FR223: openclaw coder sub-agent model migrated to `cloud-qwen3-coder` via LiteLLM endpoint after live config inspection confirms sub-agent model key names
+
 ### Blog Article Completion (Epic 9)
 
 - FR146: Technical blog post published covering Phase 1 MVP and new feature additions
@@ -909,6 +931,14 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 - NFR83: External provider failover activates within 5 seconds when local models unavailable
 - NFR84: Rate limiting configured to stay within free tier quotas per provider
+
+### Ollama Pro Cloud Model Integration (Epic 26)
+
+- NFR121: Cloud model API requests to `ollama.com` complete within 60 seconds (remote execution on Ollama's servers; LiteLLM `timeout: 60` per cloud model entry)
+- NFR122: `OLLAMA_API_KEY` stored securely as a Kubernetes secret; applied only via `kubectl patch` — never via `kubectl apply` with a placeholder value
+- NFR123: LiteLLM failover from cloud models to local tier (`vllm-qwen` → `ollama-qwen`) activates within 5 seconds of cloud API unavailability, consistent with NFR65
+- NFR124: All three cloud models automatically visible in Open-WebUI model picker via LiteLLM `/v1/models` without per-model wiring in the Helm values
+- NFR125: openclaw local LiteLLM fallback (vLLM GPU → Ollama CPU) remains fully functional after cloud model primary migration; fallback behavior unchanged from pre-migration state
 
 ### Blog Article Completion (Epic 9)
 
