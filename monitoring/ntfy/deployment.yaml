@@ -1,0 +1,83 @@
+# ntfy Notification Server Deployment
+# Namespace: monitoring
+#
+# Story: 27.1 - Deploy Self-Hosted ntfy to monitoring Namespace
+# FR: FR224 - ntfy pod reaches Running state and passes readiness probe at /healthz
+# NFR: NFR126 - Unauthenticated requests return HTTP 401
+#
+# Access: https://ntfy.home.jetzinger.com (Tailscale VPN only)
+# Auth: AUTH_DEFAULT_ACCESS=deny enforces authentication at server level
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ntfy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: ntfy
+    app.kubernetes.io/instance: ntfy
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ntfy
+      app.kubernetes.io/instance: ntfy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ntfy
+        app.kubernetes.io/instance: ntfy
+        app.kubernetes.io/part-of: home-lab
+        app.kubernetes.io/managed-by: kubectl
+    spec:
+      containers:
+        - name: ntfy
+          image: binwiederhier/ntfy:v2.11.0
+          args:
+            - serve
+          env:
+            - name: NTFY_AUTH_DEFAULT_ACCESS
+              value: "deny"
+            - name: NTFY_BASE_URL
+              value: "https://ntfy.home.jetzinger.com"
+            - name: NTFY_BEHIND_PROXY
+              value: "true"
+            - name: NTFY_AUTH_FILE
+              value: "/var/lib/ntfy/user.db"
+            - name: NTFY_CACHE_FILE
+              value: "/var/lib/ntfy/cache.db"
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          volumeMounts:
+            - name: ntfy-data
+              mountPath: /var/lib/ntfy
+      volumes:
+        - name: ntfy-data
+          emptyDir: {}

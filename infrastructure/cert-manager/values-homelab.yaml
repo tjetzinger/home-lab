@@ -72,3 +72,47 @@ extraArgs:
   # which prevents proper TXT record resolution for ACME challenges
   - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
   - --dns01-recursive-nameservers-only
+
+# Custom DNS config for cert-manager controller pod
+# Required because Tailscale adds 'search jetzinger.com' to node resolv.conf,
+# causing cert-manager to resolve api.cloudflare.com and acme-v02.api.letsencrypt.org
+# via the jetzinger.com wildcard DNS rewrite (192.168.2.2 / Traefik), breaking TLS.
+# Fix: dnsPolicy: None with explicit searches excluding jetzinger.com.
+# See: MEMORY.md - K3s DNS Gotchas
+podDnsPolicy: "None"
+podDnsConfig:
+  nameservers:
+    - "10.43.0.10"  # CoreDNS ClusterIP (stable)
+  searches:
+    - "infra.svc.cluster.local"
+    - "svc.cluster.local"
+    - "cluster.local"
+  options:
+    - name: ndots
+      value: "5"
+
+webhook:
+  podDnsPolicy: "None"
+  podDnsConfig:
+    nameservers:
+      - "10.43.0.10"
+    searches:
+      - "infra.svc.cluster.local"
+      - "svc.cluster.local"
+      - "cluster.local"
+    options:
+      - name: ndots
+        value: "5"
+
+cainjector:
+  podDnsPolicy: "None"
+  podDnsConfig:
+    nameservers:
+      - "10.43.0.10"
+    searches:
+      - "infra.svc.cluster.local"
+      - "svc.cluster.local"
+      - "cluster.local"
+    options:
+      - name: ndots
+        value: "5"

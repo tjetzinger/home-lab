@@ -1,4 +1,4 @@
-# generated: 2026-02-19
+# generated: 2026-02-19 (updated: 2026-02-19 — Epic 27 added)
 # project: home-lab
 # tracking_system: file-system
 # story_location: docs/implementation-artifacts
@@ -257,8 +257,15 @@ development_status:
   epic-25-retrospective: optional
 
   # Epic 26: Ollama Pro Cloud Model Integration [Phase 6]
-  epic-26: done
+  epic-26: in-progress
   26-1-configure-litellm-with-ollama-pro-cloud-models: done
   26-2-update-service-default-models-to-cloud-tier: review
   26-3-migrate-openclaw-off-anthropic-to-cloud-kimi-primary: done
   epic-26-retrospective: optional
+
+  # Epic 27: Self-Hosted Push Notifications (ntfy) [Phase 6]
+  epic-27: done
+  27-1-deploy-self-hosted-ntfy-to-monitoring-namespace: done
+  27-2-configure-alertmanager-webhook-to-internal-ntfy-service: done
+  27-3-configure-mobile-app-and-validate-end-to-end-p1-alert-delivery: done
+  epic-27-retrospective: optional

@@ -3,6 +3,7 @@ stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
 completedAt: '2026-01-29'
 lastModified: '2026-02-19'
+epicCount: 27
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
@@ -10,8 +11,8 @@ workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'Ollama Pro Cloud Model Integration (2026-02-19): Added Epic 26 — FR215-FR223, NFR121-NFR125. Three Ollama Pro cloud models (cloud-kimi/kimi-k2.5, cloud-minimax/minimax-m2.5, cloud-qwen3-coder/qwen3-coder:480b-cloud) added to LiteLLM as primary tier. OpenClaw migrated off Anthropic (legal constraint) to cloud-kimi primary. paperless-gpt → cloud-minimax. open-webui default → cloud-minimax. openai-gpt4o demoted to explicit-only. Scoped workflow run: requirements extraction and Epic 26 story creation.'
-currentStep: 'Workflow Complete - Epic 26 stories validated, ready for implementation'
+updateReason: 'Self-hosted ntfy (2026-02-19): Added Epic 27 — FR29 updated, FR224-FR226, NFR5 updated, NFR126-NFR127. 3 stories: deploy ntfy to monitoring ns, configure Alertmanager internal webhook, validate mobile end-to-end. Previous: Epic 26 Ollama Pro cloud model integration (FR215-FR223, NFR121-NFR125).'
+currentStep: 'Workflow Complete - Epic 27 stories validated, ready for implementation'
 ---
 
 # home-lab - Epic Breakdown
@@ -1278,6 +1279,30 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 - Anthropic fully removed from openclaw (legal constraint) — zero Anthropic fallback by design
 - openclaw primary: `cloud-kimi` (image input for browser automation; cloud-minimax has no image input)
 - Depends on Epic 14 (LiteLLM), Epic 21 (openclaw), Epic 17 (Open-WebUI), Epic 25 (Paperless-GPT)
+
+
+### Epic 27: Self-Hosted Push Notifications (ntfy) [Phase 6]
+
+**User Outcome:** Tom has secure, private, rate-limit-free mobile push notifications for P1 cluster alerts — delivered via self-hosted ntfy in the `monitoring` namespace — eliminating the public ntfy.sh dependency (topic URL leaked to GitHub, 250 msg/day cap).
+
+**FRs covered:** FR29 (updated), FR224, FR225, FR226
+- FR29 (updated): Mobile notifications via authenticated self-hosted ntfy at `ntfy.home.jetzinger.com`
+- FR224: ntfy deployed in `monitoring` namespace with authentication enabled
+- FR225: Alertmanager webhook receiver points to internal ntfy cluster service (`http://ntfy.monitoring.svc.cluster.local`)
+- FR226: ntfy mobile app configured with custom server + credentials in K8s secret
+
+**NFRs covered:** NFR5 (updated), NFR126, NFR127
+- NFR5 (updated): P1 alerts delivered within 1 minute via self-hosted ntfy
+- NFR126: Authentication enforced — unauthenticated requests return 401
+- NFR127: Tailscale-only ingress; topic names not discoverable externally
+
+**Implementation Notes:**
+- ntfy namespace: `monitoring` (co-located with Alertmanager, Prometheus, Grafana)
+- Internal webhook URL: `http://ntfy.monitoring.svc.cluster.local` (no external network dependency on alert path)
+- IngressRoute pattern: 3-part (Certificate + HTTPS route + HTTP redirect), Tailscale-only
+- Credentials: K8s Secret (`ntfy-credentials`), applied via `kubectl patch` — never `kubectl apply` with placeholder
+- Supersedes ntfy.sh references in Epic 6 and Epic 12
+- Depends on Epic 3 (Traefik + cert-manager), Epic 4 (Alertmanager running)
 
 ---
 
@@ -6277,3 +6302,114 @@ So that **openclaw operates without any Anthropic dependency while maintaining f
 
 **FRs covered:** FR222, FR223
 **NFRs covered:** NFR123, NFR125
+
+---
+
+### Epic 27: Self-Hosted Push Notifications (ntfy)
+
+#### Story 27.1: Deploy Self-Hosted ntfy to monitoring Namespace
+
+As a **cluster operator**,
+I want **to deploy a self-hosted ntfy notification server in the `monitoring` namespace with authentication enabled and Tailscale-only ingress**,
+So that **I have a private, authenticated push notification endpoint that is not discoverable from the public internet and not subject to third-party rate limits**.
+
+**Acceptance Criteria:**
+
+**Given** the `monitoring` namespace exists and Traefik + cert-manager are operational
+**When** I apply the ntfy Deployment, ClusterIP Service, and K8s Secret (`ntfy-credentials`) to the `monitoring` namespace
+**Then** the ntfy pod reaches `Running` state and passes the readiness probe at `/healthz` (FR224)
+**And** the server starts with authentication mode enabled (`AUTH_DEFAULT_ACCESS=deny` or equivalent config)
+
+**Given** the ntfy server is running
+**When** I send an unauthenticated HTTP request to the ntfy ClusterIP service (`curl http://ntfy.monitoring.svc.cluster.local`)
+**Then** the server returns HTTP 401 (NFR126)
+
+**Given** the ntfy server is running
+**When** I send an authenticated request using the credentials from `ntfy-credentials` secret
+**Then** the server returns HTTP 200 and I can publish to a topic
+
+**Given** the ntfy server is running
+**When** I apply the 3-part IngressRoute (Certificate + HTTPS IngressRoute + HTTP→HTTPS redirect) for `ntfy.home.jetzinger.com` with Tailscale-only middleware
+**Then** `https://ntfy.home.jetzinger.com` is accessible from within the Tailscale VPN (NFR127)
+**And** an unauthenticated request to `https://ntfy.home.jetzinger.com` returns 401
+**And** the endpoint is not reachable from outside the Tailscale network
+
+**Given** the deployment is complete
+**When** I verify the `ntfy-credentials` secret was created via `kubectl patch` (not `kubectl apply` with placeholder)
+**Then** the secret exists in `monitoring` namespace with valid credentials stored in K8s
+**And** the placeholder YAML file in `secrets/` contains empty values (never the real credentials)
+
+**FRs covered:** FR224
+**NFRs covered:** NFR126, NFR127
+
+---
+
+#### Story 27.2: Configure Alertmanager Webhook to Internal ntfy Service
+
+As a **cluster operator**,
+I want **to configure Alertmanager to deliver P1 alerts via webhook to the internal ntfy cluster service**,
+So that **alert delivery is fully internal with no external network dependency on the critical notification path**.
+
+**Acceptance Criteria:**
+
+**Given** ntfy is running in the `monitoring` namespace (Story 27.1 complete)
+**When** I create a dedicated ntfy topic for P1 alerts (e.g., `homelab-alerts`) by publishing a test message to `http://ntfy.monitoring.svc.cluster.local/homelab-alerts` with authentication
+**Then** the topic is created and accepts messages
+
+**Given** the ntfy topic exists
+**When** I update the `kube-prometheus-stack` Helm values (`values-homelab.yaml`) to add an Alertmanager webhook receiver pointing to `http://ntfy.monitoring.svc.cluster.local/homelab-alerts` with token auth from the `ntfy-credentials` secret
+**And** I add a route directing `severity: critical` alerts to the ntfy receiver
+**Then** `helm upgrade` completes without errors
+**And** the Alertmanager pod restarts cleanly and reaches `Running` state
+
+**Given** the Alertmanager webhook is configured
+**When** I verify Alertmanager config via `kubectl exec` into the Alertmanager pod
+**Then** the ntfy webhook receiver is present in the active config
+**And** the route for critical severity is correctly mapped to the ntfy receiver
+
+**Given** the webhook is configured
+**When** I fire a test alert using `amtool alert add` or by temporarily lowering a threshold (e.g., CPU > 1%)
+**Then** Alertmanager sends the webhook to `http://ntfy.monitoring.svc.cluster.local/homelab-alerts` (FR225)
+**And** the message appears in the ntfy server logs (`kubectl logs -n monitoring deployment/ntfy`)
+**And** no external network call is made on the alert delivery path
+
+**FRs covered:** FR225
+**NFRs covered:** NFR5 (partial — delivery path established; mobile validation in Story 27.3)
+
+---
+
+#### Story 27.3: Configure Mobile App and Validate End-to-End P1 Alert Delivery
+
+As a **cluster operator**,
+I want **to configure the ntfy mobile app with the self-hosted server and validate that P1 alerts reach my phone within one minute**,
+So that **I receive timely, private, authenticated notifications for critical cluster events with no dependency on public services**.
+
+**Acceptance Criteria:**
+
+**Given** ntfy server is running at `ntfy.home.jetzinger.com` and Alertmanager webhook is configured (Stories 27.1 + 27.2 complete)
+**When** I open the ntfy mobile app and add a custom server with URL `https://ntfy.home.jetzinger.com` and credentials retrieved from the `ntfy-credentials` K8s secret
+**Then** the app connects to the custom server and authenticates successfully (FR226)
+
+**Given** the mobile app is connected
+**When** I subscribe to the `homelab-alerts` topic in the ntfy mobile app
+**Then** the subscription is active and the topic shows in the app's subscription list
+
+**Given** the mobile subscription is active
+**When** I trigger a P1 (critical severity) test alert in the cluster (e.g., `amtool alert add alertname=TestCritical severity=critical` or temporarily lower a rule threshold)
+**Then** Alertmanager fires the alert within its evaluation interval
+**And** the ntfy webhook delivers the notification to the ntfy server
+**And** the ntfy mobile app displays the push notification on my phone within 1 minute of the alert firing (FR29 updated, NFR5)
+
+**Given** the end-to-end flow is validated
+**When** I review Alertmanager logs and ntfy server logs
+**Then** I can confirm the full delivery chain: Prometheus rule → Alertmanager → ntfy cluster service → mobile push
+
+**Given** the migration is complete
+**When** I commit the implementation to git
+**Then** `applications/monitoring/ntfy/` contains Deployment, Service, and IngressRoute manifests
+**And** `kube-prometheus-stack/values-homelab.yaml` contains the ntfy webhook receiver config
+**And** `secrets/ntfy-secrets.yaml` contains empty placeholders only (real credentials applied via `kubectl patch`)
+**And** any previous `ntfy.sh` references in cluster configs are removed or annotated as superseded by Epic 27
+
+**FRs covered:** FR29 (updated), FR226
+**NFRs covered:** NFR5 (updated)
