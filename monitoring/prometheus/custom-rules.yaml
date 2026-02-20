@@ -29,9 +29,9 @@ spec:
         # PostgreSQL Unhealthy Alert (P1)
         - alert: PostgreSQLUnhealthy
           expr: |
-            kube_deployment_status_replicas_available{deployment="postgresql", namespace="data"} == 0
+            kube_statefulset_status_replicas_ready{statefulset="postgres-postgresql", namespace="data"} == 0
             or
-            absent(kube_deployment_status_replicas_available{deployment="postgresql", namespace="data"})
+            absent(kube_statefulset_status_replicas_ready{statefulset="postgres-postgresql", namespace="data"})
           for: 0s  # Fire immediately - no pending period for P1
           labels:
             severity: critical
@@ -40,7 +40,7 @@ spec:
             priority: P1
           annotations:
             summary: "PostgreSQL database unavailable"
-            description: "PostgreSQL deployment in namespace 'data' has no available replicas. Database is unavailable."
+            description: "PostgreSQL StatefulSet in namespace 'data' has no ready replicas. Database is unavailable."
             runbook_url: "https://github.com/yourusername/home-lab/blob/main/docs/runbooks/postgresql-recovery.md"
             impact: "All applications depending on PostgreSQL database will fail"
             action: "Check PostgreSQL pod status, logs, and PVC availability. Verify NFS connectivity."
