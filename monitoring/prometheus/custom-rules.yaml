@@ -104,6 +104,41 @@ spec:
             impact: "Telegram/Discord channels, Control UI, and all AI assistant functionality unavailable."
             action: "Check pod status: kubectl get pods -n apps -l app.kubernetes.io/name=openclaw. Check logs: kubectl logs -n apps deploy/openclaw -c openclaw --tail=50"
 
+        # Node Memory Pressure Alert (P1)
+        # Fires when any node's available memory drops below 10% for 5 minutes.
+        # Root cause of cascading OOM kills (Alertmanager, NFS provisioner).
+        - alert: NodeMemoryPressure
+          expr: |
+            (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 10
+          for: 5m
+          labels:
+            severity: critical
+            component: infrastructure
+            service: node
+            priority: P1
+          annotations:
+            summary: "Node {{ $labels.instance }} under memory pressure"
+            description: "Node {{ $labels.instance }} has less than 10% memory available ({{ $value | humanize }}%) for over 5 minutes. OOM kills likely."
+            impact: "Pods on this node may be OOM-killed, causing cascading alert storms and service disruptions."
+            action: "Check node memory: kubectl top node. Consider increasing VM memory in Proxmox or moving workloads to another node."
+
+        # Node Memory Warning Alert (P2)
+        # Early warning at 15% to allow proactive intervention.
+        - alert: NodeMemoryWarning
+          expr: |
+            (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 15
+          for: 10m
+          labels:
+            severity: warning
+            component: infrastructure
+            service: node
+            priority: P2
+          annotations:
+            summary: "Node {{ $labels.instance }} memory running low"
+            description: "Node {{ $labels.instance }} has less than 15% memory available ({{ $value | humanize }}%) for over 10 minutes."
+            impact: "Node approaching memory pressure. OOM kills may occur if memory usage continues to increase."
+            action: "Review pod memory usage on this node: kubectl top pods --all-namespaces --field-selector spec.nodeName=<node>."
+
         # OpenClaw CrashLoopBackOff Alert (P2)
         # Story: 21.4 - Enable Telegram Channel with DM Security
         # NFR: NFR102 - Alertmanager sends notification within 2 minutes of CrashLoopBackOff
