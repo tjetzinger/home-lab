@@ -274,7 +274,7 @@ development_status:
   epic-28: in-progress
   28-1-prepare-infrastructure-namespace-ram-secrets: review
   28-2-deploy-supabase-core-via-helm: review
-  28-3-configure-ingress-and-tls: backlog
+  28-3-configure-ingress-and-tls: review
   28-4-migrate-calsync-to-cluster-local-supabase: backlog
   28-5-migrate-pilates-to-cluster-local-supabase: backlog
   epic-28-retrospective: optional
