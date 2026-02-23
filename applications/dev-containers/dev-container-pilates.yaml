@@ -85,6 +85,14 @@ spec:
               chown -R dev:dev /home/dev/.ssh
               chmod 600 /home/dev/.ssh/authorized_keys
               exec /usr/sbin/sshd -D
+          env:
+            # Cluster-local Supabase — Story 28.5
+            - name: SUPABASE_URL
+              value: "http://supabase-supabase-kong.backend.svc.cluster.local:8000"
+            - name: SUPABASE_ANON_KEY
+              value: ""  # Set via: kubectl set env -n dev deployment/dev-container-pilates SUPABASE_ANON_KEY=<value>
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              value: ""  # Set via: kubectl set env -n dev deployment/dev-container-pilates SUPABASE_SERVICE_ROLE_KEY=<value>
           ports:
             - name: ssh
               containerPort: 22
