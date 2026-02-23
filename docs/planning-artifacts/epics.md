@@ -6419,13 +6419,13 @@ So that **I receive timely, private, authenticated notifications for critical cl
 
 ## Epic 28: Self-Hosted Supabase Backend
 
-**Goal:** Deploy self-hosted Supabase to a new `backend` namespace on k3s-worker-01, replacing supabase.com for dev container backends. Full GoTrue auth with Resend SMTP, Edge Functions (Deno), Storage API, and PostgREST — all accessible via per-service subdomains with wildcard TLS. Migrate calsync and pilates dev containers to the cluster-local instance.
+**Goal:** Deploy self-hosted Supabase to a new `backend` namespace on k3s-worker-01, replacing supabase.com for dev container backends. Full GoTrue auth with cluster-local Protonmail Bridge SMTP, Edge Functions (Deno), Storage API, and PostgREST — all accessible via per-service subdomains with wildcard TLS. Migrate calsync and pilates dev containers to the cluster-local instance.
 
 **Brainstorming Session:** `docs/analysis/brainstorming-session-2026-02-23.md`
 
 **Dependencies:** Epic 3 (cert-manager), Epic 7 (Dev Containers), Epic 2 (NFS storage)
 
-**Architecture Decision:** Supabase-bundled PostgreSQL (isolated from `data` namespace), new `backend` namespace, hybrid Helm (official chart + custom overrides for dnsPolicy/affinity/resource limits), per-service subdomains with wildcard cert, Resend SMTP relay for GoTrue, Realtime disabled for v1, Edge Functions with 128Mi/256Mi limits. Worker-01 RAM upgrade 16Gi → 24Gi in Proxmox.
+**Architecture Decision:** Supabase-bundled PostgreSQL (isolated from `data` namespace), new `backend` namespace, hybrid Helm (official chart + custom overrides for dnsPolicy/affinity/resource limits), per-service subdomains with wildcard cert, cluster-local Protonmail Bridge SMTP for GoTrue (`protonmail-bridge.docs.svc.cluster.local:25`), Realtime disabled for v1, Edge Functions with 128Mi/256Mi limits. Worker-01 RAM upgrade 16Gi → 24Gi in Proxmox.
 
 **FRs:** FR227-FR250
 **NFRs:** NFR128-NFR140
@@ -6455,7 +6455,7 @@ So that **the cluster has adequate resources and secure credential management re
 **And** no real secret values are present in the committed file
 
 **Given** the placeholder secret file exists in git
-**When** I generate real values (JWT secret, derived ANON_KEY and SERVICE_ROLE_KEY, PostgreSQL password, Resend API key, dashboard password) and apply them via `kubectl patch secret supabase-secrets -n backend --type='merge' -p '{"stringData":{...}}'`
+**When** I generate real values (JWT secret, derived ANON_KEY and SERVICE_ROLE_KEY, PostgreSQL password, Protonmail Bridge SMTP password, dashboard password) and apply them via `kubectl patch secret supabase-secrets -n backend --type='merge' -p '{"stringData":{...}}'`
 **Then** the secret is created in the `backend` namespace with all required keys populated (FR247)
 **And** `kubectl get secret supabase-secrets -n backend` confirms the secret exists with 6 data keys (NFR136)
 
@@ -6480,7 +6480,7 @@ So that **a fully functional Supabase instance runs in the `backend` namespace w
 **When** I create `applications/supabase/values-homelab.yaml` with:
 - Node affinity: `kubernetes.io/hostname: k3s-worker-01` for all Supabase pods
 - Supabase-bundled PostgreSQL with NFS PVC (`storageClass: nfs-client`)
-- GoTrue configured with Resend SMTP relay (`smtp.resend.com:465`, port 465, `GOTRUE_SMTP_PASS` from secret)
+- GoTrue configured with cluster-local Protonmail Bridge SMTP (`protonmail-bridge.docs.svc.cluster.local:25`, `GOTRUE_SMTP_PASS` from secret)
 - GoTrue pods with `dnsPolicy: None` and explicit DNS config (nameservers: `10.43.0.10`, searches: `backend.svc.cluster.local`, `svc.cluster.local`, `cluster.local` — no `jetzinger.com`)
 - Kong pods with `dnsPolicy: None` and same explicit DNS config
 - Edge Functions (Deno) with `dnsPolicy: None`, resource requests 128Mi, limits 256Mi
@@ -6506,8 +6506,8 @@ So that **a fully functional Supabase instance runs in the `backend` namespace w
 **Given** GoTrue is running with `dnsPolicy: None`
 **When** I trigger a test signup via GoTrue API
 **Then** GoTrue processes the auth request (FR235)
-**And** an email confirmation is sent via Resend SMTP relay (FR236)
-**And** GoTrue can resolve `smtp.resend.com` despite the `*.jetzinger.com` wildcard DNS (FR237, NFR135)
+**And** an email confirmation is sent via cluster-local Protonmail Bridge SMTP (FR236)
+**And** GoTrue connects to `protonmail-bridge.docs.svc.cluster.local:25` (cluster-internal, no DNS interception issue) (FR237)
 
 **Given** the Storage API is running
 **When** I upload a test file via the Storage API

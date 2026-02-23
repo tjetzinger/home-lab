@@ -5,7 +5,7 @@ session_topic: 'Self-hosting Supabase on K3s cluster to replace supabase.com for
 session_goals: 'Deploy cluster-local Supabase with Auth, Realtime, Database, Storage, and Edge Functions for dev container backends'
 selected_approach: 'ai-recommended'
 techniques_used: ['Morphological Analysis', 'Constraint Mapping', 'Chaos Engineering']
-ideas_generated: ['Supabase-bundled PostgreSQL', 'backend namespace', 'Full GoTrue with Resend SMTP', 'NFS storage for PostgreSQL and files', 'Realtime disabled for v1', 'Full Deno Edge Functions', 'Co-locate on worker-01', 'Worker-01 RAM 16Gi to 24Gi', 'Per-service subdomains with wildcard cert', 'Hybrid Helm strategy', 'dnsPolicy None for external access pods', 'Pin Helm chart version', 'Edge Functions resource limits 128Mi/256Mi', 'Migrate calsync then pilates']
+ideas_generated: ['Supabase-bundled PostgreSQL', 'backend namespace', 'Full GoTrue with cluster-local Protonmail Bridge SMTP', 'NFS storage for PostgreSQL and files', 'Realtime disabled for v1', 'Full Deno Edge Functions', 'Co-locate on worker-01', 'Worker-01 RAM 16Gi to 24Gi', 'Per-service subdomains with wildcard cert', 'Hybrid Helm strategy', 'dnsPolicy None for external access pods', 'Pin Helm chart version', 'Edge Functions resource limits 128Mi/256Mi', 'Migrate calsync then pilates']
 session_active: false
 workflow_completed: true
 context_file: ''
@@ -81,7 +81,7 @@ context_file: ''
 | 7 | Backup & Recovery | Skip for now — re-seed if needed, add pg_dump cronjob later |
 
 **Additional Decisions:**
-- **SMTP:** Resend via SMTP relay for GoTrue email confirmations (free tier, 100 emails/day)
+- **SMTP:** Cluster-local Protonmail Bridge (`protonmail-bridge.docs.svc.cluster.local:25`) for GoTrue email confirmations (reuses existing bridge from Epic 10)
 - **Email links:** Auth confirmation URLs only reachable via Tailnet (acceptable for dev)
 
 **Key Insight:** The wildcard DNS interception issue (`*.jetzinger.com`) is the most critical constraint — it affects every Supabase pod that makes external calls. The proven `dnsPolicy: None` fix must be applied via Helm overrides.
@@ -122,7 +122,7 @@ This session took a methodical infrastructure challenge and systematically decom
 - Hybrid Helm strategy (official chart + custom overrides)
 
 **Theme 2: Component Selection**
-- Full GoTrue auth with Resend SMTP relay
+- Full GoTrue auth with cluster-local Protonmail Bridge SMTP
 - Full Deno Edge Functions with tight resource limits
 - Realtime disabled for lean v1
 
