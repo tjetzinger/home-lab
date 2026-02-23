@@ -47,12 +47,12 @@ data:
   PDF_SKIP_EXISTING_OCR: "true"
 
   # LLM Provider - LiteLLM (OpenAI-compatible proxy)
-  # Cloud-tier primary: cloud-minimax (Ollama Pro) with LiteLLM fallback chain
-  # Fallback: cloud-minimax → vllm-qwen (GPU) → ollama-qwen (CPU)
+  # Cloud-tier primary: cloud-kimi (Ollama Pro) with LiteLLM fallback chain
+  # Fallback: cloud-kimi → vllm-qwen (GPU) → ollama-qwen (CPU)
   # Service DNS: litellm.ml.svc.cluster.local:4000
   LLM_PROVIDER: "openai"
   OPENAI_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
-  LLM_MODEL: "cloud-minimax"
+  LLM_MODEL: "cloud-kimi"
   LLM_LANGUAGE: "German"
 
   # Tag-based workflow triggers

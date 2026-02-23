@@ -185,6 +185,8 @@ data:
           api_base: https://ollama.com
           api_key: os.environ/OLLAMA_API_KEY
           timeout: 60
+          extra_body:
+            think: false  # Disable reasoning mode — returns content in 'content' field instead of empty content + reasoning_content
         model_info:
           mode: chat
 
@@ -194,6 +196,8 @@ data:
           api_base: https://ollama.com
           api_key: os.environ/OLLAMA_API_KEY
           timeout: 60
+          extra_body:
+            think: false  # Disable reasoning mode — returns content in 'content' field instead of empty content + reasoning_content
         model_info:
           mode: chat
 
@@ -203,6 +207,8 @@ data:
           api_base: https://ollama.com
           api_key: os.environ/OLLAMA_API_KEY
           timeout: 60
+          extra_body:
+            think: false  # Disable reasoning mode — returns content in 'content' field instead of empty content + reasoning_content
         model_info:
           mode: chat
 
