@@ -5,7 +5,7 @@ session_topic: 'Self-hosting Supabase on K3s cluster to replace supabase.com for
 session_goals: 'Deploy cluster-local Supabase with Auth, Realtime, Database, Storage, and Edge Functions for dev container backends'
 selected_approach: 'ai-recommended'
 techniques_used: ['Morphological Analysis', 'Constraint Mapping', 'Chaos Engineering']
-ideas_generated: ['Supabase-bundled PostgreSQL', 'backend namespace', 'Full GoTrue with cluster-local Protonmail Bridge SMTP', 'NFS storage for PostgreSQL and files', 'Realtime disabled for v1', 'Full Deno Edge Functions', 'Co-locate on worker-01', 'Worker-01 RAM 16Gi to 24Gi', 'Per-service subdomains with wildcard cert', 'Hybrid Helm strategy', 'dnsPolicy None for external access pods', 'Pin Helm chart version', 'Edge Functions resource limits 128Mi/256Mi', 'Migrate calsync then pilates']
+ideas_generated: ['Supabase-bundled PostgreSQL', 'backend namespace', 'Full GoTrue with cluster-local Protonmail Bridge SMTP (autoconfirm enabled)', 'local-path storage for PostgreSQL and files (NFS incompatible)', 'Realtime disabled for v1', 'Full Deno Edge Functions', 'Co-locate on worker-01', 'Worker-01 RAM 16Gi to 24Gi', 'Per-service subdomains with wildcard cert', 'Hybrid Helm strategy', 'dnsPolicy None via kubectl patch (chart unsupported)', 'Pin Helm chart version', 'Edge Functions resource limits 128Mi/256Mi', 'Kong resource limits 256Mi/1Gi', 'Migrate calsync then pilates']
 session_active: false
 workflow_completed: true
 context_file: ''
@@ -55,14 +55,14 @@ context_file: ''
 | 1 | PostgreSQL | Supabase-bundled | Full isolation — own extensions, migrations, lifecycle. No risk to existing workloads. |
 | 2 | Namespace | New `backend` namespace | Clean separation, room for future backend services beyond Supabase. |
 | 3 | Auth (GoTrue) | Full deployment | Complete feature parity with supabase.com — no dev container code changes needed. |
-| 4 | Storage Backend | NFS (Synology) | Durability for both PostgreSQL data and file uploads. Survives node failure. |
+| 4 | Storage Backend | `local-path` (node-local) | **Updated from NFS:** NFS incompatible with supabase/postgres (chown blocked by root_squash) and Storage API (requires xattr). Node affinity ensures data locality on k3s-worker-01. |
 | 5 | Realtime | Disabled | Lean v1. Not currently used by dev containers. Easy to add later. |
 | 6 | Edge Functions | Full Deno runtime | Serverless capability in-cluster. Tight resource limits to contain blast radius. |
 | 7 | Node Placement | Co-locate with dev containers (worker-01) | Minimal network latency between consumer and backend. RAM upgrade makes it feasible. |
 | 8 | Ingress | Per-service subdomains | `*.supabase.home.jetzinger.com` — explicit routing, follows existing cluster patterns. |
 | 9 | Helm Strategy | Hybrid (chart + overrides) | Official chart for heavy lifting, custom overrides for DNS policy, affinity, resource limits. |
 
-**Key Insight:** Choosing Supabase-bundled PostgreSQL (vs reusing existing) was the pivotal decision — it unlocked clean isolation but required NFS for durability and a RAM upgrade for capacity.
+**Key Insight:** Choosing Supabase-bundled PostgreSQL (vs reusing existing) was the pivotal decision — it unlocked clean isolation but required `local-path` storage (NFS incompatible with supabase/postgres chown requirements) and a RAM upgrade for capacity.
 
 ### Constraint Mapping
 
@@ -73,7 +73,7 @@ context_file: ''
 | # | Constraint | Resolution |
 |---|-----------|------------|
 | 1 | DNS & Networking | `dnsPolicy: None` on GoTrue, Edge Functions, Kong — proven fix for `*.jetzinger.com` wildcard interception |
-| 2 | Storage & Persistence | NFS (Synology) for PostgreSQL and file storage — survives node failure |
+| 2 | Storage & Persistence | `local-path` for PostgreSQL and file storage — **NFS incompatible** (root_squash blocks chown, missing xattr). Node affinity ensures data locality. |
 | 3 | Resource Limits | Worker-01 RAM upgrade from 16Gi → 24Gi in Proxmox (39Gi available on host) |
 | 4 | Secrets Management | Existing pattern — placeholder YAML in `secrets/`, real values via `kubectl patch`, never committed |
 | 5 | Ingress & TLS | Wildcard cert `*.supabase.home.jetzinger.com` via cert-manager + 5 IngressRoutes |
@@ -94,11 +94,12 @@ context_file: ''
 
 | # | Scenario | Verdict | Mitigation |
 |---|----------|---------|------------|
-| 1 | Worker-01 reboots | Accepted | Auto-recovery via kubelet. Pods crashloop until PostgreSQL ready — acceptable for dev. NFS data intact. |
-| 2 | NFS (Synology) offline | Accepted | Same risk tolerance as existing NFS workloads (Paperless, etc.). Cluster-wide event, not Supabase-specific. |
+| 1 | Worker-01 reboots | Accepted | Auto-recovery via kubelet. Pods crashloop until PostgreSQL ready — acceptable for dev. `local-path` data intact (node-local). |
+| 2 | Worker-01 disk failure | Accepted | `local-path` PVCs are node-local — data lost if disk fails. Re-seed from source. Acceptable risk for dev environment. **Updated from NFS:** NFS incompatible with supabase/postgres and Storage API. |
 | 3 | JWT secret rotation/leak | Accepted | Rotation requires updating 3 places (Supabase secret + calsync + pilates configs). Leak risk low due to Tailscale-only access. |
 | 4 | Edge Functions OOM | Mitigated | Resource limits: 128Mi request / 256Mi limit. Isolated blast radius, automatic restart. |
-| 5 | Helm chart upgrade breaks things | Mitigated | Pin chart version explicitly. Always `helm diff` before upgrading. NFS data survives PVC recreation. |
+| 5 | Kong OOM | Mitigated | **Discovered during implementation:** Kong OOMKilled at 256Mi. Set to 256Mi request / 1Gi limit. |
+| 6 | Helm chart upgrade breaks things | Mitigated | Pin chart version explicitly. Always `helm diff` before upgrading. **Critical:** dnsPolicy patches (auth/kong/functions) must be re-applied after every Helm upgrade. |
 
 **Key Insight:** No critical vulnerabilities found. The architecture is resilient enough for a dev environment. The main operational awareness item is JWT rotation requiring coordinated updates across 3 configs.
 
@@ -122,20 +123,21 @@ This session took a methodical infrastructure challenge and systematically decom
 - Hybrid Helm strategy (official chart + custom overrides)
 
 **Theme 2: Component Selection**
-- Full GoTrue auth with cluster-local Protonmail Bridge SMTP
+- Full GoTrue auth with cluster-local Protonmail Bridge SMTP (autoconfirm enabled — self-signed TLS cert incompatible)
 - Full Deno Edge Functions with tight resource limits
 - Realtime disabled for lean v1
 
 **Theme 3: Infrastructure & Placement**
 - Co-locate all Supabase pods on worker-01 with dev containers
 - Worker-01 RAM upgrade 16Gi → 24Gi (Proxmox has capacity)
-- NFS (Synology) for PostgreSQL and file storage durability
+- `local-path` for PostgreSQL and file storage (NFS incompatible — chown/xattr issues)
 - Wildcard cert `*.supabase.home.jetzinger.com` with 5 IngressRoutes
 
 **Theme 4: Operational Resilience**
-- `dnsPolicy: None` on GoTrue, Edge Functions, Kong
-- Pin Helm chart version + `helm diff` before upgrades
+- `dnsPolicy: None` on GoTrue, Edge Functions, Kong (via post-deploy kubectl patch — chart doesn't support natively)
+- Pin Helm chart version + `helm diff` before upgrades + re-apply dnsPolicy patches after upgrades
 - Edge Functions resource limits (128Mi request / 256Mi limit)
+- Kong resource limits (256Mi request / 1Gi limit — OOMKilled at lower limits)
 - Crashloop-tolerant startup (no dependency ordering)
 
 **Theme 5: Migration Path**
