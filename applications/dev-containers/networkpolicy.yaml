@@ -16,11 +16,12 @@
 #   - Allow PostgreSQL access (data namespace, port 5432)
 #   - Allow Ollama access (ml namespace, port 11434)
 #   - Allow n8n access (apps namespace, port 5678)
+#   - Allow Supabase access (backend namespace, Kong port 8000) — Story 28.4
 #   - Allow internet access (HTTP/HTTPS for package installation)
 #
 # Prerequisites:
 #   - Namespace labels: kubectl label namespace <ns> name=<ns>
-#   - Applied to: data, ml, apps, kube-system
+#   - Applied to: data, ml, apps, backend, kube-system
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -105,6 +106,15 @@ spec:
     ports:
     - protocol: TCP
       port: 5678
+
+  # Allow Supabase access (backend namespace, Kong port 8000) — Story 28.4
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: backend
+    ports:
+    - protocol: TCP
+      port: 8000
 
   # Allow internet access (HTTP/HTTPS for npm, pip, git, etc.)
   - to:
