@@ -271,10 +271,10 @@ development_status:
   epic-27-retrospective: optional
 
   # Epic 28: Self-Hosted Supabase Backend [Phase 7]
-  epic-28: in-progress
-  28-1-prepare-infrastructure-namespace-ram-secrets: review
-  28-2-deploy-supabase-core-via-helm: review
-  28-3-configure-ingress-and-tls: review
-  28-4-migrate-calsync-to-cluster-local-supabase: review
-  28-5-migrate-pilates-to-cluster-local-supabase: review
+  epic-28: done
+  28-1-prepare-infrastructure-namespace-ram-secrets: done
+  28-2-deploy-supabase-core-via-helm: done
+  28-3-configure-ingress-and-tls: done
+  28-4-migrate-calsync-to-cluster-local-supabase: done
+  28-5-migrate-pilates-to-cluster-local-supabase: done
   epic-28-retrospective: optional
