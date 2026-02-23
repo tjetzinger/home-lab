@@ -2,17 +2,18 @@
 stepsCompleted: [1, 2, 3, 4]
 workflow_completed: true
 completedAt: '2026-01-29'
-lastModified: '2026-02-19'
-epicCount: 27
+lastModified: '2026-02-23'
+epicCount: 28
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/architecture.md'
+  - 'docs/analysis/brainstorming-session-2026-02-23.md'
 workflowType: 'epics-and-stories'
 date: '2025-12-27'
 author: 'Tom'
 project_name: 'home-lab'
-updateReason: 'Self-hosted ntfy (2026-02-19): Added Epic 27 — FR29 updated, FR224-FR226, NFR5 updated, NFR126-NFR127. 3 stories: deploy ntfy to monitoring ns, configure Alertmanager internal webhook, validate mobile end-to-end. Previous: Epic 26 Ollama Pro cloud model integration (FR215-FR223, NFR121-NFR125).'
-currentStep: 'Workflow Complete - Epic 27 stories validated, ready for implementation'
+updateReason: 'Self-hosted Supabase Backend (2026-02-23): Added Epic 28 — FR227-FR250, NFR128-NFR140. 5 stories: prepare infrastructure (namespace, RAM, secrets), deploy Supabase core via Helm, configure ingress and TLS, migrate calsync, migrate pilates. Previous: Self-hosted ntfy (2026-02-19): Epic 27, FR224-FR226, NFR126-NFR127.'
+currentStep: 'Workflow Complete - Epic 28 stories validated, ready for implementation'
 ---
 
 # home-lab - Epic Breakdown
@@ -6413,3 +6414,246 @@ So that **I receive timely, private, authenticated notifications for critical cl
 
 **FRs covered:** FR29 (updated), FR226
 **NFRs covered:** NFR5 (updated)
+
+---
+
+## Epic 28: Self-Hosted Supabase Backend
+
+**Goal:** Deploy self-hosted Supabase to a new `backend` namespace on k3s-worker-01, replacing supabase.com for dev container backends. Full GoTrue auth with Resend SMTP, Edge Functions (Deno), Storage API, and PostgREST — all accessible via per-service subdomains with wildcard TLS. Migrate calsync and pilates dev containers to the cluster-local instance.
+
+**Brainstorming Session:** `docs/analysis/brainstorming-session-2026-02-23.md`
+
+**Dependencies:** Epic 3 (cert-manager), Epic 7 (Dev Containers), Epic 2 (NFS storage)
+
+**Architecture Decision:** Supabase-bundled PostgreSQL (isolated from `data` namespace), new `backend` namespace, hybrid Helm (official chart + custom overrides for dnsPolicy/affinity/resource limits), per-service subdomains with wildcard cert, Resend SMTP relay for GoTrue, Realtime disabled for v1, Edge Functions with 128Mi/256Mi limits. Worker-01 RAM upgrade 16Gi → 24Gi in Proxmox.
+
+**FRs:** FR227-FR250
+**NFRs:** NFR128-NFR140
+
+---
+
+### Story 28.1: Prepare Infrastructure (Namespace, RAM, Secrets)
+
+As a **cluster operator**,
+I want **to create the `backend` namespace, upgrade worker-01 RAM to 24Gi, and prepare Supabase secrets**,
+So that **the cluster has adequate resources and secure credential management ready for the Supabase deployment**.
+
+**Acceptance Criteria:**
+
+**Given** the cluster is running and Proxmox host has ~39Gi available memory
+**When** I increase the k3s-worker-01 VM memory from 16Gi to 24Gi in Proxmox (hot-plug or VM restart)
+**Then** `kubectl top node k3s-worker-01` reports ~24Gi total allocatable memory (FR228)
+**And** all existing pods on worker-01 continue running without disruption
+
+**Given** worker-01 has 24Gi RAM
+**When** I create the `backend` namespace with `kubectl create namespace backend`
+**Then** the namespace exists and is ready for workload scheduling (FR227)
+
+**Given** the `backend` namespace exists
+**When** I create `secrets/supabase-secrets.yaml` with empty placeholder values for `POSTGRES_PASSWORD`, `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `GOTRUE_SMTP_PASS`, and `DASHBOARD_PASSWORD`
+**Then** the file is committed to git with empty placeholders only (FR246)
+**And** no real secret values are present in the committed file
+
+**Given** the placeholder secret file exists in git
+**When** I generate real values (JWT secret, derived ANON_KEY and SERVICE_ROLE_KEY, PostgreSQL password, Resend API key, dashboard password) and apply them via `kubectl patch secret supabase-secrets -n backend --type='merge' -p '{"stringData":{...}}'`
+**Then** the secret is created in the `backend` namespace with all required keys populated (FR247)
+**And** `kubectl get secret supabase-secrets -n backend` confirms the secret exists with 6 data keys (NFR136)
+
+**Given** secrets are applied
+**When** I verify node affinity labels on worker-01
+**Then** `kubernetes.io/hostname: k3s-worker-01` label is present and can be used for pod scheduling (FR229)
+
+**FRs covered:** FR227, FR228, FR229, FR246, FR247
+**NFRs covered:** NFR136, NFR139
+
+---
+
+### Story 28.2: Deploy Supabase Core via Helm
+
+As a **cluster operator**,
+I want **to deploy Supabase (PostgreSQL, PostgREST, GoTrue, Storage, Edge Functions, Kong, Studio) via the official Helm chart with hybrid overrides**,
+So that **a fully functional Supabase instance runs in the `backend` namespace with proper DNS policy, node affinity, NFS persistence, and resource limits**.
+
+**Acceptance Criteria:**
+
+**Given** the `backend` namespace and `supabase-secrets` exist (Story 28.1 complete)
+**When** I create `applications/supabase/values-homelab.yaml` with:
+- Node affinity: `kubernetes.io/hostname: k3s-worker-01` for all Supabase pods
+- Supabase-bundled PostgreSQL with NFS PVC (`storageClass: nfs-client`)
+- GoTrue configured with Resend SMTP relay (`smtp.resend.com:465`, port 465, `GOTRUE_SMTP_PASS` from secret)
+- GoTrue pods with `dnsPolicy: None` and explicit DNS config (nameservers: `10.43.0.10`, searches: `backend.svc.cluster.local`, `svc.cluster.local`, `cluster.local` — no `jetzinger.com`)
+- Kong pods with `dnsPolicy: None` and same explicit DNS config
+- Edge Functions (Deno) with `dnsPolicy: None`, resource requests 128Mi, limits 256Mi
+- Storage API with NFS PVC (`storageClass: nfs-client`)
+- Realtime disabled
+- Helm chart version pinned explicitly
+**Then** the values file is committed to git (FR230)
+
+**Given** the values file exists
+**When** I run `helm upgrade --install supabase <chart> -f applications/supabase/values-homelab.yaml -n backend`
+**Then** all Supabase pods reach Running state on k3s-worker-01 (FR229)
+**And** `kubectl get pods -n backend` shows PostgreSQL, PostgREST, GoTrue, Kong, Studio, Storage, and Edge Functions pods
+
+**Given** all pods are running
+**When** I check the PostgreSQL StatefulSet
+**Then** the PostgreSQL pod is bound to an NFS PVC and data directory is mounted (FR231, NFR130)
+**And** Supabase extensions (`pgsodium`, `pg_graphql`, `pg_net`, `pgcrypto`, `pgjwt`) are available
+
+**Given** PostgreSQL is healthy
+**When** I query PostgREST health endpoint from within the cluster (`curl http://supabase-kong.backend.svc.cluster.local/rest/v1/`)
+**Then** PostgREST returns a valid response (FR232, NFR128)
+
+**Given** GoTrue is running with `dnsPolicy: None`
+**When** I trigger a test signup via GoTrue API
+**Then** GoTrue processes the auth request (FR235)
+**And** an email confirmation is sent via Resend SMTP relay (FR236)
+**And** GoTrue can resolve `smtp.resend.com` despite the `*.jetzinger.com` wildcard DNS (FR237, NFR135)
+
+**Given** the Storage API is running
+**When** I upload a test file via the Storage API
+**Then** the file is persisted on the NFS PVC and can be retrieved (FR239, NFR131)
+
+**Given** Edge Functions runtime is deployed
+**When** I check the Edge Functions pod resource limits
+**Then** requests are 128Mi and limits are 256Mi (FR241, NFR133)
+**And** the pod has `dnsPolicy: None` configured (FR242)
+
+**Given** Studio is running
+**When** I access Studio via port-forward (`kubectl port-forward -n backend svc/supabase-studio 3000`)
+**Then** the Supabase dashboard loads and shows all tables and auth users (FR233)
+
+**Given** the full deployment is running
+**When** I check total memory requests for all Supabase pods in `backend` namespace
+**Then** total memory requests are under 2Gi (NFR139)
+
+**FRs covered:** FR230, FR231, FR232, FR233, FR234, FR235, FR236, FR237, FR238, FR239, FR240, FR241, FR242, FR243
+**NFRs covered:** NFR128, NFR129, NFR130, NFR131, NFR132, NFR133, NFR134, NFR135, NFR139
+
+---
+
+### Story 28.3: Configure Ingress and TLS
+
+As a **cluster operator**,
+I want **to provision a wildcard TLS certificate and create IngressRoutes for all 5 Supabase services**,
+So that **I can access Supabase Studio, API, Auth, Storage, and Edge Functions via browser at their respective `*.supabase.home.jetzinger.com` subdomains**.
+
+**Acceptance Criteria:**
+
+**Given** Supabase is running in the `backend` namespace (Story 28.2 complete) and cert-manager is operational with the `dnsPolicy: None` fix
+**When** I create a Certificate resource for `*.supabase.home.jetzinger.com` in the `backend` namespace using the existing ClusterIssuer
+**Then** cert-manager provisions a wildcard TLS certificate (FR244)
+**And** `kubectl get certificate -n backend` shows the certificate in Ready state
+
+**Given** the wildcard certificate is ready
+**When** I create 5 IngressRoutes following the existing 3-part pattern (Certificate + HTTPS route + HTTP redirect) for:
+- `api.supabase.home.jetzinger.com` → PostgREST service
+- `auth.supabase.home.jetzinger.com` → GoTrue service
+- `studio.supabase.home.jetzinger.com` → Studio service
+- `storage.supabase.home.jetzinger.com` → Storage API service
+- `functions.supabase.home.jetzinger.com` → Edge Functions service
+**Then** all 5 IngressRoutes are created and visible in Traefik dashboard (FR245)
+
+**Given** IngressRoutes are active
+**When** I access `https://studio.supabase.home.jetzinger.com` from a Tailscale-connected device
+**Then** the Supabase Studio dashboard loads with a valid TLS certificate (NFR137)
+**And** the certificate shows `*.supabase.home.jetzinger.com` as the subject
+
+**Given** all ingress routes are active
+**When** I access `https://api.supabase.home.jetzinger.com` from a Tailscale-connected device
+**Then** PostgREST responds with the API schema (FR232)
+
+**Given** GoTrue ingress is active
+**When** I access `https://auth.supabase.home.jetzinger.com/health` from a Tailscale-connected device
+**Then** GoTrue returns a healthy status (FR238)
+**And** email confirmation links in auth emails point to `auth.supabase.home.jetzinger.com` (NFR138)
+
+**Given** all 5 subdomains are accessible
+**When** I attempt to access any Supabase subdomain from a non-Tailscale device
+**Then** the connection is refused or times out (NFR137)
+
+**Given** the implementation is complete
+**When** I commit the IngressRoute manifests to git
+**Then** `applications/supabase/` contains all IngressRoute YAML files and the Certificate resource
+
+**FRs covered:** FR244, FR245
+**NFRs covered:** NFR137, NFR138
+
+---
+
+### Story 28.4: Migrate calsync Dev Container to Cluster-Local Supabase
+
+As a **developer using the calsync dev container**,
+I want **to switch calsync from supabase.com to the cluster-local Supabase instance**,
+So that **calsync operates on a self-hosted backend with no external dependency on supabase.com**.
+
+**Acceptance Criteria:**
+
+**Given** Supabase is running and accessible via ingress (Stories 28.2 + 28.3 complete)
+**When** I connect to the cluster-local Supabase Studio at `https://studio.supabase.home.jetzinger.com`
+**Then** I can create the calsync database schema and seed data required by the application (FR250)
+
+**Given** the calsync schema is seeded on the new Supabase instance
+**When** I update the calsync dev container configuration with:
+- `SUPABASE_URL` → `https://api.supabase.home.jetzinger.com` (or cluster-internal `http://supabase-kong.backend.svc.cluster.local`)
+- `SUPABASE_ANON_KEY` → the `ANON_KEY` from `supabase-secrets`
+- `SUPABASE_SERVICE_ROLE_KEY` → the `SERVICE_ROLE_KEY` from `supabase-secrets`
+**Then** the env vars are updated in the calsync deployment manifest (FR248)
+**And** no application code changes are required (NFR140)
+
+**Given** the env vars are updated
+**When** the calsync pod restarts with the new configuration
+**Then** calsync connects to the cluster-local Supabase instance
+**And** auth operations (login, signup) work against the local GoTrue
+**And** database CRUD operations work against the local PostgREST
+**And** the application functions identically to when it used supabase.com
+
+**Given** calsync is operational on the local instance
+**When** I verify the NetworkPolicy for the `dev` namespace
+**Then** egress to the `backend` namespace is allowed (enabling Supabase access)
+
+**Given** the migration is validated
+**When** I commit the updated calsync deployment manifest to git
+**Then** the manifest reflects the cluster-local Supabase configuration
+
+**FRs covered:** FR248, FR250
+**NFRs covered:** NFR140
+
+---
+
+### Story 28.5: Migrate pilates Dev Container to Cluster-Local Supabase
+
+As a **developer using the pilates dev container**,
+I want **to switch pilates from supabase.com to the cluster-local Supabase instance**,
+So that **pilates operates on a self-hosted backend with no external dependency on supabase.com**.
+
+**Acceptance Criteria:**
+
+**Given** Supabase is running, calsync migration is validated (Story 28.4 complete — proving the migration pattern works)
+**When** I connect to the cluster-local Supabase Studio at `https://studio.supabase.home.jetzinger.com`
+**Then** I can create the pilates database schema and seed data required by the application (FR250)
+
+**Given** the pilates schema is seeded on the new Supabase instance
+**When** I update the pilates dev container configuration with:
+- `SUPABASE_URL` → `https://api.supabase.home.jetzinger.com` (or cluster-internal `http://supabase-kong.backend.svc.cluster.local`)
+- `SUPABASE_ANON_KEY` → the `ANON_KEY` from `supabase-secrets`
+- `SUPABASE_SERVICE_ROLE_KEY` → the `SERVICE_ROLE_KEY` from `supabase-secrets`
+**Then** the env vars are updated in the pilates deployment manifest (FR249)
+**And** no application code changes are required (NFR140)
+
+**Given** the env vars are updated
+**When** the pilates pod restarts with the new configuration
+**Then** pilates connects to the cluster-local Supabase instance
+**And** auth operations (login, signup) work against the local GoTrue
+**And** database CRUD operations work against the local PostgREST
+**And** the application functions identically to when it used supabase.com
+
+**Given** the migration is validated
+**When** I commit the updated pilates deployment manifest to git
+**Then** the manifest reflects the cluster-local Supabase configuration
+
+**Given** both dev containers are migrated
+**When** I verify that no dev container pods reference supabase.com in their environment variables
+**Then** the supabase.com dependency is fully decommissioned for the `dev` namespace
+
+**FRs covered:** FR249, FR250
+**NFRs covered:** NFR140
