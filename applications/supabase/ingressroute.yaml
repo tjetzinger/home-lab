@@ -1,0 +1,302 @@
+# Supabase IngressRoutes — Home Lab
+# Story: 28.3 - Configure Ingress and TLS
+# Epic: 28 - Self-Hosted Supabase Backend
+#
+# FRs: FR244 (wildcard cert), FR245 (5 IngressRoutes)
+# NFRs: NFR137 (Tailscale-only), NFR138 (auth email links)
+#
+# Pattern: 3-part (Certificate + HTTPS route + HTTP redirect)
+# Single wildcard cert covers all 5 subdomains.
+# Access: Tailscale VPN only (*.home.jetzinger.com resolves via NextDNS rewrites)
+
+---
+# =============================================================================
+# Part 0: HTTPS Redirect Middleware (backend namespace)
+# =============================================================================
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  redirectScheme:
+    permanent: true
+    scheme: https
+
+---
+# =============================================================================
+# Part 1: Wildcard TLS Certificate
+# =============================================================================
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: supabase-tls
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  secretName: supabase-tls
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  dnsNames:
+    - "*.supabase.home.jetzinger.com"
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+# =============================================================================
+# Part 2: api.supabase → Kong API Gateway (port 8000)
+# =============================================================================
+# Kong is the unified Supabase API gateway. Client SDKs and Studio use this
+# endpoint. Kong routes internally: /rest/v1/* → PostgREST, /auth/v1/* → GoTrue,
+# /storage/v1/* → Storage, /functions/v1/* → Edge Functions.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-api-ingress
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-kong
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`api.supabase.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: supabase-supabase-kong
+          port: 8000
+  tls:
+    secretName: supabase-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-api-ingress-redirect
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-kong-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`api.supabase.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: backend
+      services:
+        - name: supabase-supabase-kong
+          port: 8000
+
+---
+# =============================================================================
+# Part 3: studio.supabase → Studio Dashboard (port 3000)
+# =============================================================================
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-studio-ingress
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-studio
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`studio.supabase.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: supabase-supabase-studio
+          port: 3000
+  tls:
+    secretName: supabase-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-studio-ingress-redirect
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-studio-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`studio.supabase.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: backend
+      services:
+        - name: supabase-supabase-studio
+          port: 3000
+
+---
+# =============================================================================
+# Part 4: auth.supabase → GoTrue Auth (port 9999)
+# =============================================================================
+# Direct access to GoTrue for health checks and debugging.
+# Client SDKs access auth via Kong at api.supabase/auth/v1/*.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-auth-ingress
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-auth
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`auth.supabase.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: supabase-supabase-auth
+          port: 9999
+  tls:
+    secretName: supabase-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-auth-ingress-redirect
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-auth-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`auth.supabase.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: backend
+      services:
+        - name: supabase-supabase-auth
+          port: 9999
+
+---
+# =============================================================================
+# Part 5: storage.supabase → Storage API (port 5000)
+# =============================================================================
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-storage-ingress
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-storage
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`storage.supabase.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: supabase-supabase-storage
+          port: 5000
+  tls:
+    secretName: supabase-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-storage-ingress-redirect
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-storage-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`storage.supabase.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: backend
+      services:
+        - name: supabase-supabase-storage
+          port: 5000
+
+---
+# =============================================================================
+# Part 6: functions.supabase → Edge Functions (port 9000)
+# =============================================================================
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-functions-ingress
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-functions
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`functions.supabase.home.jetzinger.com`)
+      kind: Rule
+      services:
+        - name: supabase-supabase-functions
+          port: 9000
+  tls:
+    secretName: supabase-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: supabase-functions-ingress-redirect
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: supabase
+    app.kubernetes.io/instance: supabase-functions-redirect
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`functions.supabase.home.jetzinger.com`)
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+          namespace: backend
+      services:
+        - name: supabase-supabase-functions
+          port: 9000
