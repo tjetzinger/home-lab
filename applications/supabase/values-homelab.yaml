@@ -1,0 +1,355 @@
+# Supabase Helm Values — Home Lab Overrides
+# Story: 28.2 - Deploy Supabase Core via Helm
+# Epic: 28 - Self-Hosted Supabase Backend
+# Chart: supabase-community/supabase v0.5.0
+#
+# FRs: FR229 (node affinity), FR230 (Helm values), FR231 (PostgreSQL NFS),
+#       FR232 (PostgREST), FR233 (Studio), FR234 (Kong), FR235 (GoTrue auth),
+#       FR236 (SMTP via Protonmail Bridge), FR237 (cluster-local SMTP),
+#       FR238 (Meta), FR239 (Storage NFS), FR240 (Storage API),
+#       FR241 (Edge Functions limits), FR242 (Edge Functions dnsPolicy),
+#       FR243 (chart version pinning)
+# NFRs: NFR128 (health checks), NFR129 (SMTP config), NFR130 (PostgreSQL NFS),
+#        NFR131 (Storage NFS), NFR132 (Kong resources), NFR133 (Edge Functions limits),
+#        NFR134 (chart pinning), NFR135 (dnsPolicy), NFR139 (memory < 2Gi)
+
+# =============================================================================
+# SECRETS — Map supabase-secrets K8s Secret to chart's individual secret blocks
+# =============================================================================
+secret:
+  jwt:
+    anonKey: ""
+    serviceKey: ""
+    secret: ""
+    secretRef: "supabase-secrets"
+    secretRefKey:
+      anonKey: ANON_KEY
+      serviceKey: SERVICE_ROLE_KEY
+      secret: JWT_SECRET
+
+  db:
+    password: ""
+    database: ""
+    secretRef: "supabase-secrets"
+    secretRefKey:
+      password: POSTGRES_PASSWORD
+      database: DB_DATABASE
+
+  smtp:
+    username: ""
+    password: ""
+    secretRef: "supabase-secrets"
+    secretRefKey:
+      username: SMTP_USERNAME
+      password: GOTRUE_SMTP_PASS
+
+  dashboard:
+    username: ""
+    password: ""
+    openAiApiKey: ""
+    secretRef: "supabase-secrets"
+    secretRefKey:
+      username: DASHBOARD_USERNAME
+      password: DASHBOARD_PASSWORD
+      openAiApiKey: OPENAI_API_KEY
+
+  # Not used — Realtime disabled
+  realtime:
+    secretKeyBase: "not-used-realtime-disabled"
+
+  # Not used — Meta crypto key (generate a throwaway)
+  meta:
+    cryptoKey: "not-used-meta-placeholder-key-32c"
+
+# =============================================================================
+# DEPLOYMENT — Enable/disable components, node affinity, resources
+# =============================================================================
+deployment:
+  # --- Disabled components (minimize footprint, NFR139) ---
+  analytics:
+    enabled: false
+  imgproxy:
+    enabled: false
+  minio:
+    enabled: false
+  realtime:
+    enabled: false
+  vector:
+    enabled: false
+
+  # --- Enabled components ---
+  db:
+    enabled: true
+    replicaCount: 1
+    nodeSelector:
+      kubernetes.io/hostname: k3s-worker-01
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+
+  auth:
+    enabled: true
+    replicaCount: 1
+    nodeSelector:
+      kubernetes.io/hostname: k3s-worker-01
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 50m
+      limits:
+        memory: 256Mi
+
+  rest:
+    enabled: true
+    replicaCount: 1
+    nodeSelector:
+      kubernetes.io/hostname: k3s-worker-01
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 50m
+      limits:
+        memory: 256Mi
+
+  kong:
+    enabled: true
+    replicaCount: 1
+    nodeSelector:
+      kubernetes.io/hostname: k3s-worker-01
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 1Gi
+
+  meta:
+    enabled: true
+    replicaCount: 1
+    nodeSelector:
+      kubernetes.io/hostname: k3s-worker-01
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 50m
+      limits:
+        memory: 256Mi
+
+  storage:
+    enabled: true
+    replicaCount: 1
+    nodeSelector:
+      kubernetes.io/hostname: k3s-worker-01
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 50m
+      limits:
+        memory: 256Mi
+
+  functions:
+    enabled: true
+    replicaCount: 1
+    nodeSelector:
+      kubernetes.io/hostname: k3s-worker-01
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 50m
+      limits:
+        memory: 256Mi
+
+  studio:
+    enabled: true
+    replicaCount: 1
+    nodeSelector:
+      kubernetes.io/hostname: k3s-worker-01
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 50m
+      limits:
+        memory: 256Mi
+
+# =============================================================================
+# ENVIRONMENT — Component-specific env var overrides
+# =============================================================================
+environment:
+  auth:
+    DB_USER: supabase_auth_admin
+    DB_PORT: "5432"
+    DB_DRIVER: postgres
+    DB_SSL: disable
+    API_EXTERNAL_URL: https://api.supabase.home.jetzinger.com
+    GOTRUE_API_HOST: "0.0.0.0"
+    GOTRUE_API_PORT: "9999"
+    GOTRUE_SITE_URL: https://studio.supabase.home.jetzinger.com
+    GOTRUE_URI_ALLOW_LIST: "*"
+    GOTRUE_DISABLE_SIGNUP: "false"
+    GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+    GOTRUE_JWT_ADMIN_ROLES: service_role
+    GOTRUE_JWT_AUD: authenticated
+    GOTRUE_JWT_EXP: "3600"
+    GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+    # Autoconfirm enabled — calsync/pilates are programmatic backends
+    # with no human email verification flows. SMTP delivery not needed.
+    GOTRUE_MAILER_AUTOCONFIRM: "true"
+    GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
+    GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+    GOTRUE_SMS_AUTOCONFIRM: "false"
+    # Protonmail Bridge SMTP (cluster-local, FR236/FR237)
+    GOTRUE_SMTP_HOST: "protonmail-bridge.docs.svc.cluster.local"
+    GOTRUE_SMTP_PORT: "25"
+    GOTRUE_SMTP_ADMIN_EMAIL: "thomas@jetzinger.com"
+    GOTRUE_SMTP_SENDER_NAME: "Supabase Auth"
+    GOTRUE_MAILER_URLPATHS_INVITE: "/auth/v1/verify"
+    GOTRUE_MAILER_URLPATHS_CONFIRMATION: "/auth/v1/verify"
+    GOTRUE_MAILER_URLPATHS_RECOVERY: "/auth/v1/verify"
+    GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: "/auth/v1/verify"
+
+  db:
+    POSTGRES_HOST: /var/run/postgresql
+    PGPORT: "5432"
+    POSTGRES_PORT: "5432"
+    JWT_EXP: 3600
+
+  functions:
+    DB_USERNAME: postgres
+    DB_PORT: "5432"
+    DB_DRIVER: postgresql
+    DB_SSL: disable
+    VERIFY_JWT: "false"
+
+  kong:
+    KONG_DATABASE: "off"
+    KONG_DECLARATIVE_CONFIG: /usr/local/kong/kong.yml
+    KONG_DNS_ORDER: LAST,A,CNAME
+    KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+    KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+    KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+    KONG_LOG_LEVEL: warn
+
+  meta:
+    DB_USER: supabase_admin
+    DB_PORT: "5432"
+    DB_DRIVER: postgres
+    DB_SSL: disable
+    PG_META_PORT: "8080"
+
+  rest:
+    DB_USER: authenticator
+    DB_PORT: "5432"
+    DB_DRIVER: postgres
+    DB_SSL: disable
+    PGRST_DB_SCHEMAS: public,storage,graphql_public
+    PGRST_DB_ANON_ROLE: anon
+    PGRST_DB_USE_LEGACY_GUCS: "false"
+    PGRST_APP_SETTINGS_JWT_EXP: "3600"
+
+  storage:
+    DB_USER: supabase_storage_admin
+    DB_PORT: "5432"
+    DB_DRIVER: postgres
+    DB_SSL: disable
+    REQUEST_ALLOW_X_FORWARDED_PATH: "true"
+    FILE_SIZE_LIMIT: "52428800"
+    FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+    TENANT_ID: stub
+    REGION: stub
+    GLOBAL_S3_BUCKET: stub
+    ENABLE_IMAGE_TRANSFORMATION: "false"
+
+  studio:
+    HOSTNAME: "::"
+    STUDIO_PORT: "3000"
+    POSTGRES_PORT: "5432"
+    DEFAULT_ORGANIZATION_NAME: Home Lab
+    DEFAULT_PROJECT_NAME: Home Lab Supabase
+    SUPABASE_PUBLIC_URL: https://api.supabase.home.jetzinger.com
+    NEXT_PUBLIC_ENABLE_LOGS: "false"
+    NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
+
+# =============================================================================
+# PERSISTENCE — NFS for PostgreSQL and Storage (FR231, NFR130, NFR131)
+# =============================================================================
+persistence:
+  db:
+    enabled: true
+    # local-path instead of NFS — supabase/postgres image requires chown on data dir
+    # which NFS root_squash blocks. local-path supports full POSIX permissions.
+    # Node affinity ensures data stays on k3s-worker-01.
+    storageClassName: "local-path"
+    size: 5Gi
+    accessModes:
+      - ReadWriteOnce
+
+  storage:
+    enabled: true
+    # local-path instead of NFS — Storage API requires xattr support
+    # which NFS doesn't provide. Node affinity ensures data stays on k3s-worker-01.
+    storageClassName: "local-path"
+    size: 2Gi
+    accessModes:
+      - ReadWriteOnce
+
+  functions:
+    enabled: true
+    storageClassName: "nfs-client"
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
+
+  deno:
+    enabled: true
+    storageClassName: "nfs-client"
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
+
+  # Disabled components — no persistence needed
+  imgproxy:
+    enabled: false
+  minio:
+    enabled: false
+  snippets:
+    enabled: false
+
+# =============================================================================
+# AUTOSCALING — Disable all (single-replica dev environment)
+# =============================================================================
+autoscaling:
+  analytics:
+    enabled: false
+  auth:
+    enabled: false
+  db:
+    enabled: false
+  functions:
+    enabled: false
+  imgproxy:
+    enabled: false
+  kong:
+    enabled: false
+  meta:
+    enabled: false
+  minio:
+    enabled: false
+  realtime:
+    enabled: false
+  rest:
+    enabled: false
+  storage:
+    enabled: false
+  studio:
+    enabled: false
+  vector:
+    enabled: false
+
+# =============================================================================
+# INGRESS — Disabled (Traefik IngressRoutes in Story 28.3)
+# =============================================================================
+ingress:
+  enabled: false

@@ -1993,9 +1993,9 @@ Alertmanager (monitoring ns)
 | **PostgreSQL** | **Supabase-bundled (isolated)** | **FR231: Full extension compatibility (pgsodium, pg_graphql, pg_net, pgjwt); own migration lifecycle; no risk to existing `data` namespace workloads** |
 | **Namespace** | **`backend`** | **FR227: New namespace for backend services consumed by dev containers — Supabase today, extensible for future services** |
 | **Auth (GoTrue)** | **Full GoTrue deployment** | **FR235: Complete auth feature parity with supabase.com (email/password, OAuth, magic links); no dev container code changes** |
-| **SMTP** | **Cluster-local Protonmail Bridge (`protonmail-bridge.docs.svc.cluster.local:25`)** | **FR236: GoTrue email confirmations; bridge password as K8s secret; reuses existing email bridge from Epic 10** |
+| **SMTP** | **Cluster-local Protonmail Bridge (`protonmail-bridge.docs.svc.cluster.local:25`) — autoconfirm enabled** | **FR236: GoTrue email confirmations configured but autoconfirm enabled due to Protonmail Bridge self-signed TLS cert (GoTrue x509 verification fails). Root cause: GoTrue uses `gomail.v2` which attempts STARTTLS when server advertises it, with no env var to set `InsecureSkipVerify`. Bridge always advertises STARTTLS. Future fix options: (1) SMTP relay service (e.g. `boky/postfix`) that strips TLS between GoTrue and bridge, (2) issue cert-manager cert for `protonmail-bridge.docs.svc.cluster.local` SAN mounted into bridge pod. Bridge password as K8s secret; reuses existing email bridge from Epic 10** |
 | **Realtime** | **Disabled (v1)** | **Not used by calsync or pilates; add later if needed; reduces resource footprint** |
-| **Storage Backend** | **NFS (Synology)** | **FR239, NFR130-131: Durability for PostgreSQL data and file uploads; survives node failure** |
+| **Storage Backend** | **`local-path` (node-local)** | **FR231, FR239, NFR130-131: NFS incompatible with supabase/postgres (chown blocked by root_squash) and Storage API (requires xattr). Node affinity to k3s-worker-01 ensures data locality. Data survives pod restarts but not node disk failure.** |
 | **Edge Functions** | **Full Deno runtime** | **FR241: Serverless in-cluster; resource-limited to 128Mi/256Mi (NFR133)** |
 | **Node Placement** | **worker-01 (node affinity)** | **FR229: Co-located with dev container consumers; minimizes network latency** |
 | **Worker-01 RAM** | **16Gi → 24Gi (Proxmox upgrade)** | **FR228: Supabase adds ~1.7Gi under load; existing 76% request allocation required headroom** |
@@ -2017,16 +2017,16 @@ Supabase Stack (backend ns, worker-01 — node affinity)
   │     └── dnsPolicy: None       (external health checks)
   ├── PostgREST (REST API)        → api.supabase.home.jetzinger.com
   ├── GoTrue (Auth)               → auth.supabase.home.jetzinger.com
-  │     ├── SMTP → protonmail-bridge.docs.svc:25 (cluster-internal, no dnsPolicy needed)
+  │     ├── SMTP → protonmail-bridge.docs.svc:25 (configured but autoconfirm=true; TLS cert mismatch)
   │     └── GOTRUE_SMTP_PASS      → K8s Secret (Protonmail Bridge password)
   ├── Studio (Dashboard)          → studio.supabase.home.jetzinger.com
   ├── Storage API                 → storage.supabase.home.jetzinger.com
-  │     └── PVC: NFS (Synology)   (file uploads)
+  │     └── PVC: local-path       (file uploads — NFS lacks xattr support)
   ├── Edge Functions (Deno)       → functions.supabase.home.jetzinger.com
   │     ├── dnsPolicy: None       (external API calls)
   │     └── limits: 128Mi/256Mi   (NFR133: blast radius containment)
   └── PostgreSQL (bundled)
-        └── PVC: NFS (Synology)   (data durability, NFR130)
+        └── PVC: local-path       (data durability — NFS root_squash blocks chown)
 
 TLS: *.supabase.home.jetzinger.com (wildcard cert, cert-manager)
 Access: Tailscale VPN only (NFR137)
@@ -2045,15 +2045,20 @@ Access: Tailscale VPN only (NFR137)
 **IngressRoute Pattern:** 3-part (Certificate + HTTPS route + HTTP redirect), consistent with all cluster ingress. Single wildcard Certificate resource for all 5 subdomains.
 
 **Deployment Pattern:**
-- Helm chart: Official Supabase community chart (version pinned, NFR134)
+- Helm chart: Official Supabase community chart v0.5.0 (version pinned, NFR134)
 - Values: `applications/supabase/values-homelab.yaml`
 - Overrides applied via Helm values for:
-  - `dnsPolicy: None` + explicit DNS config (excluding `jetzinger.com` from search domains)
-  - Node affinity: `kubernetes.io/hostname: k3s-worker-01`
-  - Resource limits: Edge Functions 128Mi/256Mi; other components use chart defaults
+  - Node affinity: `kubernetes.io/hostname: k3s-worker-01` on all components
+  - Resource limits: Kong 256Mi/1Gi (OOMKilled at lower limits); Edge Functions 128Mi/256Mi; other components 128Mi/256Mi
+  - `local-path` storage for PostgreSQL and Storage API (NFS incompatible)
+  - Disabled components: analytics, imgproxy, minio, realtime, vector (minimize footprint)
+  - All autoscaling disabled (single-replica dev environment)
+  - Chart ingress disabled (Traefik IngressRoutes in Story 28.3)
+- **Post-deploy `kubectl patch`** required for `dnsPolicy: None` on auth/kong/functions (chart doesn't support dnsPolicy natively). Must re-apply after Helm upgrades.
 - `helm diff` required before any chart upgrade (NFR134)
+- Total memory requests: 1280Mi (1.25Gi) — well under 2Gi target (NFR139)
 
-**Secrets (`secrets/supabase-secrets.yaml` — placeholder only):**
+**Secrets (`secrets/supabase-secrets.yaml` — placeholder only, 9 keys):**
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -2068,6 +2073,12 @@ stringData:
   SERVICE_ROLE_KEY: ""       # Pre-generated JWT for service-role (bypasses RLS)
   GOTRUE_SMTP_PASS: ""       # Protonmail Bridge password for email confirmations
   DASHBOARD_PASSWORD: ""     # Supabase Studio access
+  DB_DATABASE: ""            # PostgreSQL database name (default: postgres)
+  DASHBOARD_USERNAME: ""     # Supabase Studio dashboard username
+  SMTP_USERNAME: ""          # SMTP username for GoTrue email confirmations
+  OPENAI_API_KEY: ""         # Studio AI assistant (empty placeholder)
+  # Additional keys (DB_DATABASE, DASHBOARD_USERNAME, SMTP_USERNAME, OPENAI_API_KEY) required
+  # by Helm chart secretRef mapping — chart reads ALL keys from referenced secret.
   # Applied via: kubectl patch secret supabase-secrets -n backend --type='merge' -p '{"stringData":{...}}'
   # NEVER: kubectl apply -f (overwrites live values with empty placeholders)
 ```
@@ -2089,10 +2100,11 @@ stringData:
 
 | Scenario | Impact | Recovery |
 |----------|--------|----------|
-| Worker-01 reboot | Total Supabase + dev container outage | Auto — pods restart, NFS PVCs remount. Crashloop until PostgreSQL ready (acceptable for dev) |
-| NFS offline | PostgreSQL hangs, Storage API fails | Same risk as all NFS workloads — recovers when Synology returns |
+| Worker-01 reboot | Total Supabase + dev container outage | Auto — pods restart, local-path PVCs remount. Crashloop until PostgreSQL ready (acceptable for dev) |
+| Worker-01 disk failure | PostgreSQL and Storage data loss | `local-path` PVCs are node-local — data lost if disk fails. Re-seed from source. Acceptable risk for dev environment. |
 | Edge Functions OOM | 502/503 for function callers only | Isolated — 256Mi limit prevents impact on co-located pods |
-| Helm chart upgrade | Potential config breakage | Pinned version + `helm diff` pre-upgrade; NFS data survives PVC recreation |
+| Kong OOM | API gateway down, all Supabase APIs unavailable | Kong requires 256Mi+ at startup; 1Gi limit set after OOMKill at 256Mi |
+| Helm chart upgrade | dnsPolicy patches lost | Pinned version + `helm diff` pre-upgrade; **must re-apply `kubectl patch` for dnsPolicy on auth/kong/functions after every Helm upgrade** |
 
 **Explicitly Out of Scope (v1):**
 - Supabase Realtime (add later if dev containers need live subscriptions)
@@ -2101,13 +2113,13 @@ stringData:
 
 **NFR Compliance (Epic 28):**
 - NFR128: PostgREST responds within 500ms for CRUD (same-node, minimal latency)
-- NFR129: GoTrue auth requests within 2s including cluster-local Protonmail Bridge SMTP
-- NFR130-131: PostgreSQL + Storage data persists via NFS PVC across restarts/reboots
+- NFR129: GoTrue auth requests within 2s; SMTP deferred (autoconfirm enabled due to Protonmail Bridge self-signed TLS cert)
+- NFR130-131: PostgreSQL + Storage data persists via `local-path` PVC across restarts/reboots (NFS incompatible)
 - NFR132: All pods auto-recover after worker-01 reboot (crashloop acceptable)
 - NFR133: Edge Functions constrained to 128Mi/256Mi
 - NFR134: Helm chart version pinned; `helm diff` before upgrades
-- NFR135: `dnsPolicy: None` on GoTrue, Edge Functions, Kong
-- NFR136: All secrets in K8s Secret; never committed to git
+- NFR135: `dnsPolicy: None` on GoTrue, Edge Functions, Kong (applied via post-deploy `kubectl patch` — chart doesn't support natively)
+- NFR136: All secrets in K8s Secret (9 keys); never committed to git
 - NFR137: All ingress Tailscale-only
 - NFR138: Auth email links only reachable from Tailnet
 - NFR139: Total Supabase footprint under 2Gi memory requests

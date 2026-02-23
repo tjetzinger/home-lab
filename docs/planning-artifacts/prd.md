@@ -757,7 +757,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 #### Supabase Core Deployment
 
 - FR230: Supabase deployed via official community Helm chart with hybrid overrides in `applications/supabase/values-homelab.yaml`
-- FR231: Supabase-bundled PostgreSQL deployed as StatefulSet with NFS PVC for data persistence (isolated from existing PostgreSQL in `data` namespace)
+- FR231: Supabase-bundled PostgreSQL deployed as StatefulSet with `local-path` PVC for data persistence (isolated from existing PostgreSQL in `data` namespace). **Implementation note:** NFS incompatible — `supabase/postgres` image requires `chown` on data dir, blocked by NFS root_squash. Node affinity ensures data locality on k3s-worker-01.
 - FR232: PostgREST (REST API) deployed and accessible at `api.supabase.home.jetzinger.com`
 - FR233: Supabase Studio (dashboard) deployed and accessible at `studio.supabase.home.jetzinger.com`
 - FR234: Kong API gateway deployed as Supabase's internal router with `dnsPolicy: None` and explicit DNS config (excluding `jetzinger.com` from search domains)
@@ -765,13 +765,13 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 #### Authentication (GoTrue)
 
 - FR235: GoTrue auth server deployed with full feature set (email/password, OAuth, magic links)
-- FR236: GoTrue configured with cluster-local Protonmail Bridge SMTP (`protonmail-bridge.docs.svc.cluster.local:25`) for email confirmations using bridge password stored in K8s secret
+- FR236: GoTrue configured with cluster-local Protonmail Bridge SMTP (`protonmail-bridge.docs.svc.cluster.local:25`) for email confirmations using bridge password stored in K8s secret. **Implementation note:** Protonmail Bridge uses self-signed TLS cert that GoTrue cannot verify; `GOTRUE_MAILER_AUTOCONFIRM: true` enabled for dev environment.
 - FR237: GoTrue pods configured with `dnsPolicy: None` and explicit DNS config for external SMTP access (proven fix for `*.jetzinger.com` wildcard DNS interception)
 - FR238: GoTrue accessible at `auth.supabase.home.jetzinger.com`
 
 #### Storage
 
-- FR239: Supabase Storage API deployed with NFS PVC for file upload persistence
+- FR239: Supabase Storage API deployed with `local-path` PVC for file upload persistence. **Implementation note:** NFS incompatible — Storage API requires xattr support not available on NFS. Node affinity ensures data locality on k3s-worker-01.
 - FR240: Storage API accessible at `storage.supabase.home.jetzinger.com`
 
 #### Edge Functions
@@ -787,7 +787,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 #### Secrets
 
-- FR246: `secrets/supabase-secrets.yaml` placeholder created with empty values for `POSTGRES_PASSWORD`, `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `GOTRUE_SMTP_PASS` (Protonmail Bridge password), `DASHBOARD_PASSWORD`
+- FR246: `secrets/supabase-secrets.yaml` placeholder created with empty values for `POSTGRES_PASSWORD`, `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `GOTRUE_SMTP_PASS` (Protonmail Bridge password), `DASHBOARD_PASSWORD`, `DB_DATABASE`, `DASHBOARD_USERNAME`, `SMTP_USERNAME`, `OPENAI_API_KEY` (9 keys total — additional keys required by Helm chart `secretRef` mapping)
 - FR247: Real secret values applied manually via `kubectl patch` before first Helm install; never committed to git
 
 #### Dev Container Migration
@@ -1007,14 +1007,14 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 ### Self-Hosted Supabase Backend (Epic 28)
 
 - NFR128: Supabase API (PostgREST) responds within 500ms for typical CRUD operations from dev containers on the same node
-- NFR129: GoTrue authentication requests complete within 2 seconds including SMTP relay to cluster-local Protonmail Bridge for email confirmations
-- NFR130: Supabase-bundled PostgreSQL data persists across pod restarts and node reboots via NFS PVC
-- NFR131: File uploads via Storage API persist across pod restarts via NFS PVC
+- NFR129: GoTrue authentication requests complete within 2 seconds. **Implementation note:** SMTP relay to Protonmail Bridge deferred (self-signed TLS cert incompatible with GoTrue); autoconfirm enabled for dev environment.
+- NFR130: Supabase-bundled PostgreSQL data persists across pod restarts and node reboots via `local-path` PVC on k3s-worker-01 (NFS incompatible due to root_squash blocking chown)
+- NFR131: File uploads via Storage API persist across pod restarts via `local-path` PVC on k3s-worker-01 (NFS incompatible due to missing xattr support)
 - NFR132: All Supabase pods recover automatically after k3s-worker-01 reboot without manual intervention (crashloop during PostgreSQL init acceptable)
 - NFR133: Edge Functions container constrained to 128Mi request / 256Mi limit to prevent OOM impact on co-located workloads
 - NFR134: Supabase Helm chart version pinned explicitly; `helm diff` required before any chart upgrade
 - NFR135: All Supabase pods requiring external network access (GoTrue, Edge Functions, Kong) use `dnsPolicy: None` with explicit DNS config excluding `jetzinger.com` from search domains
-- NFR136: `JWT_SECRET`, `POSTGRES_PASSWORD`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `GOTRUE_SMTP_PASS`, and `DASHBOARD_PASSWORD` stored as K8s secrets; never committed to git
+- NFR136: `JWT_SECRET`, `POSTGRES_PASSWORD`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `GOTRUE_SMTP_PASS`, `DASHBOARD_PASSWORD`, `DB_DATABASE`, `DASHBOARD_USERNAME`, `SMTP_USERNAME`, `OPENAI_API_KEY` stored as K8s secrets (9 keys); never committed to git
 - NFR137: All Supabase ingress endpoints accessible exclusively over Tailscale VPN (no public internet exposure)
 - NFR138: Auth email confirmation links point to `auth.supabase.home.jetzinger.com` (reachable only from Tailnet devices)
 - NFR139: Total Supabase resource footprint stays under 2Gi memory requests on k3s-worker-01 (with 24Gi VM allocation providing adequate headroom)
