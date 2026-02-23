@@ -8,6 +8,7 @@ inputDocuments:
   - 'docs/planning-artifacts/research/domain-k8s-platform-career-positioning-research-2025-12-27.md'
   - 'docs/analysis/brainstorming-session-2025-12-27.md'
   - 'docs/analysis/brainstorming-session-2026-02-19.md'
+  - 'docs/analysis/brainstorming-session-2026-02-23.md'
   - 'external: github.com/openclaw/openclaw'
 workflowType: 'prd'
 lastStep: 11
@@ -16,7 +17,7 @@ researchCount: 1
 brainstormingCount: 1
 projectDocsCount: 0
 date: '2025-12-27'
-lastUpdated: '2026-02-19'
+lastUpdated: '2026-02-23'
 author: 'Tom'
 project_name: 'home-lab'
 ---
@@ -24,9 +25,10 @@ project_name: 'home-lab'
 # Product Requirements Document - home-lab
 
 **Author:** Tom
-**Date:** 2025-12-27 | **Last Updated:** 2026-02-19
+**Date:** 2025-12-27 | **Last Updated:** 2026-02-23
 
 **Changelog:**
+- 2026-02-23: Added Self-Hosted Supabase Backend (Epic 28, FR227-FR250, NFR128-NFR140). Self-hosted Supabase deployed to new `backend` namespace on k3s-worker-01 (co-located with dev containers). Supabase-bundled PostgreSQL with NFS persistence, full GoTrue auth with Resend SMTP relay, Edge Functions (Deno runtime), Storage API on NFS. Realtime disabled for v1. Per-service subdomains (`*.supabase.home.jetzinger.com`) with wildcard cert. Worker-01 RAM upgraded 16Gi → 24Gi in Proxmox. Hybrid Helm deployment (official chart + custom overrides for dnsPolicy, node affinity, resource limits). Dev containers calsync and pilates migrated from supabase.com to cluster-local instance.
 - 2026-02-19: Migrated mobile notifications from public ntfy.sh to self-hosted ntfy (FR224-FR226, NFR126-NFR127). ntfy.sh topic was rate-limited (250 msg/day free tier) and topic URL was inadvertently published to GitHub, making alerts publicly readable. Self-hosted ntfy deployed to `monitoring` namespace with authentication, private IngressRoute at `ntfy.home.jetzinger.com`, and internal Alertmanager webhook routing. Updated FR29 to reference authenticated self-hosted endpoint.
 - 2026-02-19: Added Ollama Pro Cloud Model Integration (Epic 26, FR215-FR223, NFR121-NFR125). LiteLLM becomes explicit gatekeeper for cloud routing — three Ollama Pro models (cloud-minimax/minimax-m2.5, cloud-kimi/kimi-k2.5, cloud-qwen3-coder/qwen3-coder-next) added as primary tier with local fallback chain (vllm-qwen → ollama-qwen). paperless-gpt and open-webui switch to cloud-minimax as default. n8n gains LiteLLM credential via UI. openclaw primary migrated to cloud-minimax; coder sub-agents to cloud-qwen3-coder (pending live config inspection). openai-gpt4o demoted to explicit-only parallel selection.
 - 2026-02-14: Added VLM OCR Pipeline for Docling (Story 25.5, FR209-FR214, NFR117-NFR120). Enables scanned/image-only PDF processing via Granite-Docling 258M served by Ollama through LiteLLM proxy. Model natively available on Ollama (`ibm/granite-docling:258m`). Graceful degradation to standard EasyOCR pipeline when VLM unavailable. Updates FR199, NFR114.
@@ -744,6 +746,62 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - FR222: `openclaw.json` inspected live before migration (`kubectl exec`) to identify the LLM provider and primary model configuration key names; primary model migrated to `cloud-minimax` via LiteLLM endpoint after inspection confirms key names
 - FR223: openclaw coder sub-agent model migrated to `cloud-qwen3-coder` via LiteLLM endpoint after live config inspection confirms sub-agent model key names
 
+### Self-Hosted Supabase Backend (Epic 28)
+
+#### Infrastructure & Namespace
+
+- FR227: New `backend` namespace created for Supabase and future backend services consumed by dev containers
+- FR228: k3s-worker-01 VM memory upgraded from 16Gi to 24Gi in Proxmox to accommodate Supabase workloads alongside existing dev containers
+- FR229: Supabase pods scheduled on k3s-worker-01 via node affinity rules to co-locate with dev container consumers
+
+#### Supabase Core Deployment
+
+- FR230: Supabase deployed via official community Helm chart with hybrid overrides in `applications/supabase/values-homelab.yaml`
+- FR231: Supabase-bundled PostgreSQL deployed as StatefulSet with NFS PVC for data persistence (isolated from existing PostgreSQL in `data` namespace)
+- FR232: PostgREST (REST API) deployed and accessible at `api.supabase.home.jetzinger.com`
+- FR233: Supabase Studio (dashboard) deployed and accessible at `studio.supabase.home.jetzinger.com`
+- FR234: Kong API gateway deployed as Supabase's internal router with `dnsPolicy: None` and explicit DNS config (excluding `jetzinger.com` from search domains)
+
+#### Authentication (GoTrue)
+
+- FR235: GoTrue auth server deployed with full feature set (email/password, OAuth, magic links)
+- FR236: GoTrue configured with Resend SMTP relay (`smtp.resend.com:465`) for email confirmations using API key stored in K8s secret
+- FR237: GoTrue pods configured with `dnsPolicy: None` and explicit DNS config for external SMTP access (proven fix for `*.jetzinger.com` wildcard DNS interception)
+- FR238: GoTrue accessible at `auth.supabase.home.jetzinger.com`
+
+#### Storage
+
+- FR239: Supabase Storage API deployed with NFS PVC for file upload persistence
+- FR240: Storage API accessible at `storage.supabase.home.jetzinger.com`
+
+#### Edge Functions
+
+- FR241: Supabase Edge Functions (Deno runtime) deployed with resource limits (128Mi request / 256Mi limit)
+- FR242: Edge Functions pods configured with `dnsPolicy: None` for external API access
+- FR243: Edge Functions accessible at `functions.supabase.home.jetzinger.com`
+
+#### Ingress & TLS
+
+- FR244: Wildcard TLS certificate provisioned via cert-manager for `*.supabase.home.jetzinger.com` (single Certificate resource)
+- FR245: Five IngressRoutes created following existing 3-part pattern (Certificate + HTTPS route + HTTP redirect) for api, auth, studio, storage, and functions subdomains
+
+#### Secrets
+
+- FR246: `secrets/supabase-secrets.yaml` placeholder created with empty values for `POSTGRES_PASSWORD`, `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `GOTRUE_SMTP_PASS` (Resend API key), `DASHBOARD_PASSWORD`
+- FR247: Real secret values applied manually via `kubectl patch` before first Helm install; never committed to git
+
+#### Dev Container Migration
+
+- FR248: calsync dev container migrated from supabase.com to cluster-local Supabase (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` updated)
+- FR249: pilates dev container migrated from supabase.com to cluster-local Supabase (same env var updates)
+- FR250: Database schemas and seed data recreated on new Supabase instance for both calsync and pilates
+
+#### Explicitly Out of Scope (v1)
+
+- Supabase Realtime (disabled; add in future if dev containers need live subscriptions)
+- Automated PostgreSQL backups (re-seed if needed; add pg_dump cronjob later)
+- Public internet exposure (Tailscale VPN only)
+
 ### Blog Article Completion (Epic 9)
 
 - FR146: Technical blog post published covering Phase 1 MVP and new feature additions
@@ -945,6 +1003,22 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 - NFR123: LiteLLM failover from cloud models to local tier (`vllm-qwen` → `ollama-qwen`) activates within 5 seconds of cloud API unavailability, consistent with NFR65
 - NFR124: All three cloud models automatically visible in Open-WebUI model picker via LiteLLM `/v1/models` without per-model wiring in the Helm values
 - NFR125: openclaw local LiteLLM fallback (vLLM GPU → Ollama CPU) remains fully functional after cloud model primary migration; fallback behavior unchanged from pre-migration state
+
+### Self-Hosted Supabase Backend (Epic 28)
+
+- NFR128: Supabase API (PostgREST) responds within 500ms for typical CRUD operations from dev containers on the same node
+- NFR129: GoTrue authentication requests complete within 2 seconds including SMTP relay to Resend for email confirmations
+- NFR130: Supabase-bundled PostgreSQL data persists across pod restarts and node reboots via NFS PVC
+- NFR131: File uploads via Storage API persist across pod restarts via NFS PVC
+- NFR132: All Supabase pods recover automatically after k3s-worker-01 reboot without manual intervention (crashloop during PostgreSQL init acceptable)
+- NFR133: Edge Functions container constrained to 128Mi request / 256Mi limit to prevent OOM impact on co-located workloads
+- NFR134: Supabase Helm chart version pinned explicitly; `helm diff` required before any chart upgrade
+- NFR135: All Supabase pods requiring external network access (GoTrue, Edge Functions, Kong) use `dnsPolicy: None` with explicit DNS config excluding `jetzinger.com` from search domains
+- NFR136: `JWT_SECRET`, `POSTGRES_PASSWORD`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `GOTRUE_SMTP_PASS`, and `DASHBOARD_PASSWORD` stored as K8s secrets; never committed to git
+- NFR137: All Supabase ingress endpoints accessible exclusively over Tailscale VPN (no public internet exposure)
+- NFR138: Auth email confirmation links point to `auth.supabase.home.jetzinger.com` (reachable only from Tailnet devices)
+- NFR139: Total Supabase resource footprint stays under 2Gi memory requests on k3s-worker-01 (with 24Gi VM allocation providing adequate headroom)
+- NFR140: Dev container migration (calsync, pilates) requires only env var updates (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) — no application code changes
 
 ### Blog Article Completion (Epic 9)
 

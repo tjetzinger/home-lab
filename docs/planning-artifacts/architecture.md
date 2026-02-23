@@ -2,8 +2,8 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 workflow_completed: true
 completedAt: '2025-12-27'
-lastModified: '2026-02-19'
-updateReason: 'Self-hosted ntfy (2026-02-19): ntfy.sh replaced with self-hosted ntfy in monitoring namespace — public topic URL published to GitHub (security), rate-limited at 250 msg/day. Alertmanager webhook → internal cluster service. Tailscale-only ingress + auth. FR29 updated, FR224-FR226, NFR5 updated, NFR126-NFR127. Previous: Epic 26 (2026-02-19): Ollama Pro cloud model integration. FR215-FR223, NFR121-NFR125.'
+lastModified: '2026-02-23'
+updateReason: 'Self-hosted Supabase Backend (2026-02-23): Epic 28 — self-hosted Supabase in new `backend` namespace on worker-01. Bundled PostgreSQL + GoTrue + Edge Functions + Storage on NFS. Per-service subdomains with wildcard cert. Worker-01 RAM 16→24Gi. Hybrid Helm. dnsPolicy overrides. Dev containers calsync/pilates migrated from supabase.com. FR227-FR250, NFR128-NFR140. Previous: Self-hosted ntfy (2026-02-19): FR224-FR226, NFR126-NFR127.'
 inputDocuments:
   - 'docs/planning-artifacts/prd.md'
   - 'docs/planning-artifacts/product-brief-home-lab-2025-12-27.md'
@@ -12,6 +12,7 @@ inputDocuments:
   - 'docs/analysis/brainstorming-session-2026-02-12.md'
   - 'docs/adrs/ADR-012-document-processing-pipeline-upgrade.md'
   - 'docs/analysis/brainstorming-session-2026-02-19.md'
+  - 'docs/analysis/brainstorming-session-2026-02-23.md'
 workflowType: 'architecture'
 project_name: 'home-lab'
 user_name: 'Tom'
@@ -1983,6 +1984,145 @@ Alertmanager (monitoring ns)
 - FR225: Alertmanager webhook → `http://ntfy.monitoring.svc.cluster.local` (internal only) ✓
 - FR226: ntfy mobile app configured with custom server + K8s Secret for credentials ✓
 
+### Self-Hosted Supabase Backend Architecture (Epic 28)
+
+**Supersedes:** Dev containers' dependency on external supabase.com — migrates calsync and pilates to cluster-local Supabase instance.
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **PostgreSQL** | **Supabase-bundled (isolated)** | **FR231: Full extension compatibility (pgsodium, pg_graphql, pg_net, pgjwt); own migration lifecycle; no risk to existing `data` namespace workloads** |
+| **Namespace** | **`backend`** | **FR227: New namespace for backend services consumed by dev containers — Supabase today, extensible for future services** |
+| **Auth (GoTrue)** | **Full GoTrue deployment** | **FR235: Complete auth feature parity with supabase.com (email/password, OAuth, magic links); no dev container code changes** |
+| **SMTP** | **Resend via SMTP relay (`smtp.resend.com:465`)** | **FR236: GoTrue email confirmations; API key as K8s secret; free tier 100 emails/day sufficient for dev** |
+| **Realtime** | **Disabled (v1)** | **Not used by calsync or pilates; add later if needed; reduces resource footprint** |
+| **Storage Backend** | **NFS (Synology)** | **FR239, NFR130-131: Durability for PostgreSQL data and file uploads; survives node failure** |
+| **Edge Functions** | **Full Deno runtime** | **FR241: Serverless in-cluster; resource-limited to 128Mi/256Mi (NFR133)** |
+| **Node Placement** | **worker-01 (node affinity)** | **FR229: Co-located with dev container consumers; minimizes network latency** |
+| **Worker-01 RAM** | **16Gi → 24Gi (Proxmox upgrade)** | **FR228: Supabase adds ~1.7Gi under load; existing 76% request allocation required headroom** |
+| **Ingress** | **Per-service subdomains (`*.supabase.home.jetzinger.com`)** | **FR244-245: Wildcard cert, 5 IngressRoutes; explicit routing per component** |
+| **Helm Strategy** | **Hybrid (official chart + custom overrides)** | **FR230: Community chart for core deployment; overrides for dnsPolicy, node affinity, resource limits** |
+| **DNS Policy** | **`dnsPolicy: None` on GoTrue, Edge Functions, Kong** | **FR234, FR237, FR242, NFR135: Proven fix for `*.jetzinger.com` wildcard DNS interception on pods needing external access** |
+| **Secrets** | **K8s Secret in `backend` namespace** | **FR246-247, NFR136: Placeholder YAML in `secrets/`; real values via `kubectl patch`; never committed** |
+
+**Architecture:**
+```
+Dev Containers (dev ns, worker-01)
+  ├── calsync  ──┐
+  └── pilates  ──┤
+                 │  SUPABASE_URL=https://api.supabase.home.jetzinger.com
+                 │  (or cluster-internal: supabase-kong.backend.svc)
+                 ▼
+Supabase Stack (backend ns, worker-01 — node affinity)
+  ├── Kong (API Gateway)          → routes to all Supabase services
+  │     └── dnsPolicy: None       (external health checks)
+  ├── PostgREST (REST API)        → api.supabase.home.jetzinger.com
+  ├── GoTrue (Auth)               → auth.supabase.home.jetzinger.com
+  │     ├── dnsPolicy: None       (SMTP to smtp.resend.com:465)
+  │     └── GOTRUE_SMTP_PASS      → K8s Secret (Resend API key)
+  ├── Studio (Dashboard)          → studio.supabase.home.jetzinger.com
+  ├── Storage API                 → storage.supabase.home.jetzinger.com
+  │     └── PVC: NFS (Synology)   (file uploads)
+  ├── Edge Functions (Deno)       → functions.supabase.home.jetzinger.com
+  │     ├── dnsPolicy: None       (external API calls)
+  │     └── limits: 128Mi/256Mi   (NFR133: blast radius containment)
+  └── PostgreSQL (bundled)
+        └── PVC: NFS (Synology)   (data durability, NFR130)
+
+TLS: *.supabase.home.jetzinger.com (wildcard cert, cert-manager)
+Access: Tailscale VPN only (NFR137)
+```
+
+**Ingress Map (FR244-FR245):**
+
+| Subdomain | Routes to | Purpose |
+|-----------|-----------|---------|
+| `api.supabase.home.jetzinger.com` | PostgREST | REST API (FR232) |
+| `auth.supabase.home.jetzinger.com` | GoTrue | Authentication (FR238) |
+| `studio.supabase.home.jetzinger.com` | Supabase Studio | Dashboard UI (FR233) |
+| `storage.supabase.home.jetzinger.com` | Storage API | File uploads/downloads (FR240) |
+| `functions.supabase.home.jetzinger.com` | Edge Functions | Deno serverless runtime (FR243) |
+
+**IngressRoute Pattern:** 3-part (Certificate + HTTPS route + HTTP redirect), consistent with all cluster ingress. Single wildcard Certificate resource for all 5 subdomains.
+
+**Deployment Pattern:**
+- Helm chart: Official Supabase community chart (version pinned, NFR134)
+- Values: `applications/supabase/values-homelab.yaml`
+- Overrides applied via Helm values for:
+  - `dnsPolicy: None` + explicit DNS config (excluding `jetzinger.com` from search domains)
+  - Node affinity: `kubernetes.io/hostname: k3s-worker-01`
+  - Resource limits: Edge Functions 128Mi/256Mi; other components use chart defaults
+- `helm diff` required before any chart upgrade (NFR134)
+
+**Secrets (`secrets/supabase-secrets.yaml` — placeholder only):**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: supabase-secrets
+  namespace: backend
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: ""      # Supabase-bundled PostgreSQL superuser
+  JWT_SECRET: ""             # Signs all Supabase auth tokens (ANON_KEY, SERVICE_ROLE_KEY derived)
+  ANON_KEY: ""               # Pre-generated JWT for anonymous API access
+  SERVICE_ROLE_KEY: ""       # Pre-generated JWT for service-role (bypasses RLS)
+  GOTRUE_SMTP_PASS: ""       # Resend API key for email confirmations
+  DASHBOARD_PASSWORD: ""     # Supabase Studio access
+  # Applied via: kubectl patch secret supabase-secrets -n backend --type='merge' -p '{"stringData":{...}}'
+  # NEVER: kubectl apply -f (overwrites live values with empty placeholders)
+```
+
+**Dev Container Migration (FR248-FR250):**
+
+| Container | Env Var Changes | Schema |
+|-----------|----------------|--------|
+| calsync | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Re-seed on new instance |
+| pilates | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Re-seed on new instance |
+
+**JWT Rotation Awareness:** Rotating `JWT_SECRET` requires updating 3 places — Supabase secret + calsync env + pilates env. All tokens derived from JWT_SECRET become invalid.
+
+**NetworkPolicy Update (Dev Containers):**
+- Existing: Egress to `data`, `ml`, `apps` namespaces
+- **Add:** Egress to `backend` namespace (Supabase services)
+
+**Resilience Profile (Chaos Engineering validated):**
+
+| Scenario | Impact | Recovery |
+|----------|--------|----------|
+| Worker-01 reboot | Total Supabase + dev container outage | Auto — pods restart, NFS PVCs remount. Crashloop until PostgreSQL ready (acceptable for dev) |
+| NFS offline | PostgreSQL hangs, Storage API fails | Same risk as all NFS workloads — recovers when Synology returns |
+| Edge Functions OOM | 502/503 for function callers only | Isolated — 256Mi limit prevents impact on co-located pods |
+| Helm chart upgrade | Potential config breakage | Pinned version + `helm diff` pre-upgrade; NFS data survives PVC recreation |
+
+**Explicitly Out of Scope (v1):**
+- Supabase Realtime (add later if dev containers need live subscriptions)
+- Automated PostgreSQL backups (re-seed if needed; add pg_dump cronjob later)
+- Public internet exposure (Tailscale VPN only)
+
+**NFR Compliance (Epic 28):**
+- NFR128: PostgREST responds within 500ms for CRUD (same-node, minimal latency)
+- NFR129: GoTrue auth requests within 2s including Resend SMTP relay
+- NFR130-131: PostgreSQL + Storage data persists via NFS PVC across restarts/reboots
+- NFR132: All pods auto-recover after worker-01 reboot (crashloop acceptable)
+- NFR133: Edge Functions constrained to 128Mi/256Mi
+- NFR134: Helm chart version pinned; `helm diff` before upgrades
+- NFR135: `dnsPolicy: None` on GoTrue, Edge Functions, Kong
+- NFR136: All secrets in K8s Secret; never committed to git
+- NFR137: All ingress Tailscale-only
+- NFR138: Auth email links only reachable from Tailnet
+- NFR139: Total Supabase footprint under 2Gi memory requests
+- NFR140: Migration = env var updates only, no code changes
+
+**Requirements Coverage (Epic 28):**
+- FR227-FR229: Namespace, RAM upgrade, node affinity ✓
+- FR230-FR234: Helm deployment, bundled PostgreSQL, PostgREST, Studio, Kong ✓
+- FR235-FR238: GoTrue auth, Resend SMTP, dnsPolicy, ingress ✓
+- FR239-FR240: Storage API with NFS ✓
+- FR241-FR243: Edge Functions with dnsPolicy and resource limits ✓
+- FR244-FR245: Wildcard cert, 5 IngressRoutes ✓
+- FR246-FR247: Secrets placeholder + manual apply ✓
+- FR248-FR250: Dev container migration (calsync, pilates) ✓
+
 ### Backup & Recovery Architecture
 
 | Decision | Choice | Rationale |
@@ -2233,6 +2373,7 @@ home-lab/
 | `apps` | n8n, Open-WebUI, OpenClaw | General applications |
 | `ml` | vLLM, Ollama, LiteLLM | AI/ML inference |
 | `docs` | Paperless-ngx, Paperless-GPT, Docling, Tika, Gotenberg, Redis | Document management |
+| `backend` | Supabase (PostgreSQL, GoTrue, PostgREST, Storage, Edge Functions, Kong, Studio) | Backend services for dev containers |
 | `dev` | Nginx proxy, dev containers | Development tools + remote dev environments |
 
 ### Network Boundaries
