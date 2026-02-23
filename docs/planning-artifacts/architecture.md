@@ -1993,7 +1993,7 @@ Alertmanager (monitoring ns)
 | **PostgreSQL** | **Supabase-bundled (isolated)** | **FR231: Full extension compatibility (pgsodium, pg_graphql, pg_net, pgjwt); own migration lifecycle; no risk to existing `data` namespace workloads** |
 | **Namespace** | **`backend`** | **FR227: New namespace for backend services consumed by dev containers — Supabase today, extensible for future services** |
 | **Auth (GoTrue)** | **Full GoTrue deployment** | **FR235: Complete auth feature parity with supabase.com (email/password, OAuth, magic links); no dev container code changes** |
-| **SMTP** | **Resend via SMTP relay (`smtp.resend.com:465`)** | **FR236: GoTrue email confirmations; API key as K8s secret; free tier 100 emails/day sufficient for dev** |
+| **SMTP** | **Cluster-local Protonmail Bridge (`protonmail-bridge.docs.svc.cluster.local:25`)** | **FR236: GoTrue email confirmations; bridge password as K8s secret; reuses existing email bridge from Epic 10** |
 | **Realtime** | **Disabled (v1)** | **Not used by calsync or pilates; add later if needed; reduces resource footprint** |
 | **Storage Backend** | **NFS (Synology)** | **FR239, NFR130-131: Durability for PostgreSQL data and file uploads; survives node failure** |
 | **Edge Functions** | **Full Deno runtime** | **FR241: Serverless in-cluster; resource-limited to 128Mi/256Mi (NFR133)** |
@@ -2001,7 +2001,7 @@ Alertmanager (monitoring ns)
 | **Worker-01 RAM** | **16Gi → 24Gi (Proxmox upgrade)** | **FR228: Supabase adds ~1.7Gi under load; existing 76% request allocation required headroom** |
 | **Ingress** | **Per-service subdomains (`*.supabase.home.jetzinger.com`)** | **FR244-245: Wildcard cert, 5 IngressRoutes; explicit routing per component** |
 | **Helm Strategy** | **Hybrid (official chart + custom overrides)** | **FR230: Community chart for core deployment; overrides for dnsPolicy, node affinity, resource limits** |
-| **DNS Policy** | **`dnsPolicy: None` on GoTrue, Edge Functions, Kong** | **FR234, FR237, FR242, NFR135: Proven fix for `*.jetzinger.com` wildcard DNS interception on pods needing external access** |
+| **DNS Policy** | **`dnsPolicy: None` on GoTrue, Edge Functions, Kong** | **FR234, FR237, FR242, NFR135: Proven fix for `*.jetzinger.com` wildcard DNS interception on pods needing external access. GoTrue SMTP is now cluster-internal (Protonmail Bridge) but dnsPolicy retained for OAuth provider callbacks** |
 | **Secrets** | **K8s Secret in `backend` namespace** | **FR246-247, NFR136: Placeholder YAML in `secrets/`; real values via `kubectl patch`; never committed** |
 
 **Architecture:**
@@ -2017,8 +2017,8 @@ Supabase Stack (backend ns, worker-01 — node affinity)
   │     └── dnsPolicy: None       (external health checks)
   ├── PostgREST (REST API)        → api.supabase.home.jetzinger.com
   ├── GoTrue (Auth)               → auth.supabase.home.jetzinger.com
-  │     ├── dnsPolicy: None       (SMTP to smtp.resend.com:465)
-  │     └── GOTRUE_SMTP_PASS      → K8s Secret (Resend API key)
+  │     ├── SMTP → protonmail-bridge.docs.svc:25 (cluster-internal, no dnsPolicy needed)
+  │     └── GOTRUE_SMTP_PASS      → K8s Secret (Protonmail Bridge password)
   ├── Studio (Dashboard)          → studio.supabase.home.jetzinger.com
   ├── Storage API                 → storage.supabase.home.jetzinger.com
   │     └── PVC: NFS (Synology)   (file uploads)
@@ -2066,7 +2066,7 @@ stringData:
   JWT_SECRET: ""             # Signs all Supabase auth tokens (ANON_KEY, SERVICE_ROLE_KEY derived)
   ANON_KEY: ""               # Pre-generated JWT for anonymous API access
   SERVICE_ROLE_KEY: ""       # Pre-generated JWT for service-role (bypasses RLS)
-  GOTRUE_SMTP_PASS: ""       # Resend API key for email confirmations
+  GOTRUE_SMTP_PASS: ""       # Protonmail Bridge password for email confirmations
   DASHBOARD_PASSWORD: ""     # Supabase Studio access
   # Applied via: kubectl patch secret supabase-secrets -n backend --type='merge' -p '{"stringData":{...}}'
   # NEVER: kubectl apply -f (overwrites live values with empty placeholders)
@@ -2101,7 +2101,7 @@ stringData:
 
 **NFR Compliance (Epic 28):**
 - NFR128: PostgREST responds within 500ms for CRUD (same-node, minimal latency)
-- NFR129: GoTrue auth requests within 2s including Resend SMTP relay
+- NFR129: GoTrue auth requests within 2s including cluster-local Protonmail Bridge SMTP
 - NFR130-131: PostgreSQL + Storage data persists via NFS PVC across restarts/reboots
 - NFR132: All pods auto-recover after worker-01 reboot (crashloop acceptable)
 - NFR133: Edge Functions constrained to 128Mi/256Mi
@@ -2116,7 +2116,7 @@ stringData:
 **Requirements Coverage (Epic 28):**
 - FR227-FR229: Namespace, RAM upgrade, node affinity ✓
 - FR230-FR234: Helm deployment, bundled PostgreSQL, PostgREST, Studio, Kong ✓
-- FR235-FR238: GoTrue auth, Resend SMTP, dnsPolicy, ingress ✓
+- FR235-FR238: GoTrue auth, Protonmail Bridge SMTP, dnsPolicy, ingress ✓
 - FR239-FR240: Storage API with NFS ✓
 - FR241-FR243: Edge Functions with dnsPolicy and resource limits ✓
 - FR244-FR245: Wildcard cert, 5 IngressRoutes ✓

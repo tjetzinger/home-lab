@@ -28,7 +28,7 @@ project_name: 'home-lab'
 **Date:** 2025-12-27 | **Last Updated:** 2026-02-23
 
 **Changelog:**
-- 2026-02-23: Added Self-Hosted Supabase Backend (Epic 28, FR227-FR250, NFR128-NFR140). Self-hosted Supabase deployed to new `backend` namespace on k3s-worker-01 (co-located with dev containers). Supabase-bundled PostgreSQL with NFS persistence, full GoTrue auth with Resend SMTP relay, Edge Functions (Deno runtime), Storage API on NFS. Realtime disabled for v1. Per-service subdomains (`*.supabase.home.jetzinger.com`) with wildcard cert. Worker-01 RAM upgraded 16Gi → 24Gi in Proxmox. Hybrid Helm deployment (official chart + custom overrides for dnsPolicy, node affinity, resource limits). Dev containers calsync and pilates migrated from supabase.com to cluster-local instance.
+- 2026-02-23: Added Self-Hosted Supabase Backend (Epic 28, FR227-FR250, NFR128-NFR140). Self-hosted Supabase deployed to new `backend` namespace on k3s-worker-01 (co-located with dev containers). Supabase-bundled PostgreSQL with NFS persistence, full GoTrue auth with cluster-local Protonmail Bridge SMTP, Edge Functions (Deno runtime), Storage API on NFS. Realtime disabled for v1. Per-service subdomains (`*.supabase.home.jetzinger.com`) with wildcard cert. Worker-01 RAM upgraded 16Gi → 24Gi in Proxmox. Hybrid Helm deployment (official chart + custom overrides for dnsPolicy, node affinity, resource limits). Dev containers calsync and pilates migrated from supabase.com to cluster-local instance.
 - 2026-02-19: Migrated mobile notifications from public ntfy.sh to self-hosted ntfy (FR224-FR226, NFR126-NFR127). ntfy.sh topic was rate-limited (250 msg/day free tier) and topic URL was inadvertently published to GitHub, making alerts publicly readable. Self-hosted ntfy deployed to `monitoring` namespace with authentication, private IngressRoute at `ntfy.home.jetzinger.com`, and internal Alertmanager webhook routing. Updated FR29 to reference authenticated self-hosted endpoint.
 - 2026-02-19: Added Ollama Pro Cloud Model Integration (Epic 26, FR215-FR223, NFR121-NFR125). LiteLLM becomes explicit gatekeeper for cloud routing — three Ollama Pro models (cloud-minimax/minimax-m2.5, cloud-kimi/kimi-k2.5, cloud-qwen3-coder/qwen3-coder-next) added as primary tier with local fallback chain (vllm-qwen → ollama-qwen). paperless-gpt and open-webui switch to cloud-minimax as default. n8n gains LiteLLM credential via UI. openclaw primary migrated to cloud-minimax; coder sub-agents to cloud-qwen3-coder (pending live config inspection). openai-gpt4o demoted to explicit-only parallel selection.
 - 2026-02-14: Added VLM OCR Pipeline for Docling (Story 25.5, FR209-FR214, NFR117-NFR120). Enables scanned/image-only PDF processing via Granite-Docling 258M served by Ollama through LiteLLM proxy. Model natively available on Ollama (`ibm/granite-docling:258m`). Graceful degradation to standard EasyOCR pipeline when VLM unavailable. Updates FR199, NFR114.
@@ -765,7 +765,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 #### Authentication (GoTrue)
 
 - FR235: GoTrue auth server deployed with full feature set (email/password, OAuth, magic links)
-- FR236: GoTrue configured with Resend SMTP relay (`smtp.resend.com:465`) for email confirmations using API key stored in K8s secret
+- FR236: GoTrue configured with cluster-local Protonmail Bridge SMTP (`protonmail-bridge.docs.svc.cluster.local:25`) for email confirmations using bridge password stored in K8s secret
 - FR237: GoTrue pods configured with `dnsPolicy: None` and explicit DNS config for external SMTP access (proven fix for `*.jetzinger.com` wildcard DNS interception)
 - FR238: GoTrue accessible at `auth.supabase.home.jetzinger.com`
 
@@ -787,7 +787,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 
 #### Secrets
 
-- FR246: `secrets/supabase-secrets.yaml` placeholder created with empty values for `POSTGRES_PASSWORD`, `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `GOTRUE_SMTP_PASS` (Resend API key), `DASHBOARD_PASSWORD`
+- FR246: `secrets/supabase-secrets.yaml` placeholder created with empty values for `POSTGRES_PASSWORD`, `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `GOTRUE_SMTP_PASS` (Protonmail Bridge password), `DASHBOARD_PASSWORD`
 - FR247: Real secret values applied manually via `kubectl patch` before first Helm install; never committed to git
 
 #### Dev Container Migration
@@ -1007,7 +1007,7 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 ### Self-Hosted Supabase Backend (Epic 28)
 
 - NFR128: Supabase API (PostgREST) responds within 500ms for typical CRUD operations from dev containers on the same node
-- NFR129: GoTrue authentication requests complete within 2 seconds including SMTP relay to Resend for email confirmations
+- NFR129: GoTrue authentication requests complete within 2 seconds including SMTP relay to cluster-local Protonmail Bridge for email confirmations
 - NFR130: Supabase-bundled PostgreSQL data persists across pod restarts and node reboots via NFS PVC
 - NFR131: File uploads via Storage API persist across pod restarts via NFS PVC
 - NFR132: All Supabase pods recover automatically after k3s-worker-01 reboot without manual intervention (crashloop during PostgreSQL init acceptable)
