@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-OPENCLAW_VERSION="2026.2.1"
+OPENCLAW_VERSION="2026.2.23"
 OPENCLAW_REPO="https://github.com/openclaw/openclaw.git"
 BUILD_DIR="/tmp/openclaw-build"
 TARGET_HOST="k3s-worker-01"
