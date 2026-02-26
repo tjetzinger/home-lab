@@ -12,6 +12,7 @@ echo "Values: applications/n8n/values-homelab.yaml"
 echo "Secrets: secrets/n8n-secrets.yaml"
 
 helm upgrade --install n8n community-charts/n8n \
+  --version 1.16.22 \
   -f "$PROJECT_ROOT/applications/n8n/values-homelab.yaml" \
   -f "$PROJECT_ROOT/secrets/n8n-secrets.yaml" \
   -n apps --create-namespace

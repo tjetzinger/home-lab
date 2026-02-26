@@ -127,7 +127,6 @@ main:
     DB_POSTGRESDB_SCHEMA: "public"
 
     # Execution settings
-    EXECUTIONS_PROCESS: "main"
     EXECUTIONS_MODE: "regular"
     EXECUTIONS_DATA_PRUNE: "true"
     EXECUTIONS_DATA_MAX_AGE: "336"  # 14 days
