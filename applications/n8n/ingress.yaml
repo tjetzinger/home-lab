@@ -62,7 +62,7 @@ spec:
     - match: Host(`n8n.home.jetzinger.com`)
       kind: Rule
       services:
-        - name: n8n
+        - name: n8n-app
           port: 5678
   tls:
     secretName: n8n-tls
@@ -88,5 +88,5 @@ spec:
         - name: https-redirect
           namespace: apps
       services:
-        - name: n8n
+        - name: n8n-app
           port: 5678
