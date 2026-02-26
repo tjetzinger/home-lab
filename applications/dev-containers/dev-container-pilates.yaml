@@ -97,6 +97,9 @@ spec:
             - name: ssh
               containerPort: 22
               protocol: TCP
+            - name: http
+              containerPort: 3000
+              protocol: TCP
           resources:
             requests:
               cpu: "500m"
@@ -153,4 +156,8 @@ spec:
     - name: ssh
       port: 22
       targetPort: 22
+      protocol: TCP
+    - name: http
+      port: 3000
+      targetPort: 3000
       protocol: TCP
