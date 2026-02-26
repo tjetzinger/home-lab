@@ -7,6 +7,10 @@
 # - FR8: Deploy applications using Helm charts
 # - FR40: Deploy n8n for workflow automation
 
+# Override service/deployment name to avoid K8s service discovery injecting
+# N8N_PORT=tcp://... which breaks n8n's own N8N_PORT config.
+fullnameOverride: n8n-app
+
 # Image configuration
 image:
   repository: n8nio/n8n
@@ -97,11 +101,9 @@ main:
 
   # Environment variables for n8n
   # DB_POSTGRESDB_PASSWORD is in secrets/n8n-secrets.yaml (gitignored).
-  # N8N_PORT must be explicit — K8s injects N8N_PORT=tcp://... from service discovery.
   extraEnvVars:
     N8N_PROTOCOL: "https"
     N8N_HOST: "n8n.home.jetzinger.com"
-    N8N_PORT: "5678"
     WEBHOOK_URL: "https://n8n.home.jetzinger.com/"
 
     # Database configuration
