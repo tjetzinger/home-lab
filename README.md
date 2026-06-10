@@ -456,7 +456,7 @@ This project was built incrementally across 24 epics, each delivering specific i
 
 ## Development Methodology
 
-This project demonstrates systematic AI-assisted infrastructure development using **Claude Code** and the **BMAD (Build-Measure-Achieve-Document)** methodology. Every component was implemented through structured planning, execution, and documentation cycles.
+This project demonstrates systematic AI-assisted infrastructure development using **Claude Code** and the **BMAD (Breakthrough Method for Agile AI-Driven Development)** methodology. Every component was implemented through structured planning, execution, and documentation cycles.
 
 ### Claude Code: AI-Powered Development
 
