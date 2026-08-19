@@ -539,7 +539,7 @@ BMAD is a multi-agent AI workflow framework that enforces systematic software de
 
 ## Contact and Feedback
 
-**Tom Jetzinger**
+**Thomas Jetzinger**
 Platform Engineering | Kubernetes | Systems Architecture
 
 Questions about this lab, my transition from automotive to cloud-native, or how I implemented specific features? I'm happy to discuss!
