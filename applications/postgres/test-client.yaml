@@ -10,7 +10,7 @@ metadata:
 spec:
   containers:
   - name: postgres-client
-    image: registry-1.docker.io/bitnami/postgresql:latest
+    image: registry-1.docker.io/soldevelo/postgresql:latest
     command: ["sleep", "infinity"]
     env:
     - name: PGHOST
