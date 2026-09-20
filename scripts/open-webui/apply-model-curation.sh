@@ -123,6 +123,28 @@ if [[ "$VERIFY_ONLY" != true ]]; then
   check "update openai config" "$(in_pod POST /openai/config/update "$openai_payload")"
 fi
 
+# The model_ids whitelist only FILTERS names - it never checks that the connection
+# actually works. Open-WebUI will happily list cloud-docs while pointing at
+# api.openai.com. Verified the hard way: the 0.11.3 upgrade reseeded config defaults
+# and silently reset OPENAI_API_BASE_URLS to https://api.openai.com/v1 with an empty
+# key, while the picker still showed all the right models. Assert the endpoint too.
+echo "Verifying connection endpoints..."
+openai_live="$(in_pod GET /openai/config)"; check "read openai config" "$openai_live"
+live_url="$(jq -r '.OPENAI_API_BASE_URLS[0] // ""' <<<"${openai_live%$'\n'*}")"
+live_key_set="$(jq -r '(.OPENAI_API_KEYS[0] // "") | length > 0' <<<"${openai_live%$'\n'*}")"
+want_url="$(jq -r '.connections.openai.url' "$MANIFEST")"
+echo "  base url: $live_url"
+if [[ "$live_url" != "$want_url" ]]; then
+  echo "ERROR: OpenAI connection points at '$live_url', expected '$want_url'." >&2
+  echo "Open-WebUI config in the DB overrides the Helm env vars. Fix via /openai/config/update." >&2
+  exit 4
+fi
+if [[ "$live_key_set" != "true" ]]; then
+  echo "ERROR: OpenAI connection has no API key set - requests to LiteLLM will 400." >&2
+  exit 4
+fi
+echo "  api key:  set"
+
 echo "Verifying model picker..."
 models_out="$(in_pod GET /api/models)"; check "read /api/models" "$models_out"
 visible="$(jq -r '[.data[].id] | sort | join(" ")' <<<"${models_out%$'\n'*}")"

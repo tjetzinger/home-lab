@@ -139,6 +139,14 @@ The picker is curated down from ~33 entries to the 13 above. The keep/hide lists
    whitelist they expose is the right mechanism, but upstream never implemented JSON parsing for them
    ([issue #19017](https://github.com/open-webui/open-webui/issues/19017), closed as *not planned*).
 
+A third trap, found during the 16.5.0 upgrade: on startup 0.11.3 logged
+`Seeded 341 new config defaults` and silently reset `OPENAI_API_BASE_URLS` to
+`https://api.openai.com/v1` with an empty key, overriding the `openaiBaseApiUrl` and
+`openaiApiKeyExistingSecret` values from Helm. Chat returned HTTP 400 with OpenAI's
+"You didn't provide an API key" error. The picker still listed every `cloud-*` model
+throughout, because `model_ids` only filters names and never checks that the connection
+works. The apply script now asserts the base URL and key, not just the visible model set.
+
 Model visibility therefore lives in the Open-WebUI DB on the NFS PVC, not in Git. The script is both
 the declarative substitute and the recovery path if that PVC is ever lost. It needs an admin API key in
 `open-webui-secrets` as `OPENWEBUI_API_KEY` (generate in Open-WebUI → Settings → Account, then apply
