@@ -731,14 +731,14 @@ K3s config: `--flannel-iface tailscale0 --node-external-ip <tailscale-ip>`
 #### LiteLLM Cloud Model Configuration
 
 - FR215: OLLAMA_API_KEY added to `litellm-secrets` via `kubectl patch` for Ollama Pro cloud model authentication; never applied via `kubectl apply` with placeholder
-- FR216: LiteLLM `model_list` updated with three cloud model entries — `cloud-minimax` (minimax-m2.5), `cloud-kimi` (kimi-k2.5), `cloud-qwen3-coder` (qwen3-coder-next) — all routing to `api_base: https://ollama.com` via `ollama_chat` provider
+- FR216: LiteLLM `model_list` updated with three cloud model entries — `cloud-minimax` (minimax-m2.5), `cloud-kimi` (kimi-k2.5), `cloud-qwen3-coder` (qwen3-coder-next) — all routing to `api_base: https://ollama.com` via `ollama_chat` provider *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
 - FR217: LiteLLM `fallbacks` updated so each cloud model cascades to `["vllm-qwen", "ollama-qwen"]` when the cloud API is unavailable, preserving full local inference as backup
 - FR218: `openai-gpt4o` removed from the automatic fallback chain; retained as an explicit parallel-only selection
 
 #### Service Default Model Updates
 
-- FR219: `paperless-gpt` configmap updated with `LLM_MODEL: "cloud-minimax"` (replacing `"vllm-qwen"`) for improved multilingual German document processing via minimax-m2.5
-- FR220: `open-webui` values-homelab.yaml updated with `DEFAULT_MODELS: "cloud-minimax"`; all three cloud models auto-exposed in the model picker via LiteLLM `/v1/models` with no per-model wiring required
+- FR219: `paperless-gpt` configmap updated with `LLM_MODEL: "cloud-minimax"` (replacing `"vllm-qwen"`) for improved multilingual German document processing via minimax-m2.5 *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
+- FR220: `open-webui` values-homelab.yaml updated with `DEFAULT_MODELS: "cloud-minimax"`; all three cloud models auto-exposed in the model picker via LiteLLM `/v1/models` with no per-model wiring required *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
 - FR221: n8n configured with an OpenAI-compatible LiteLLM credential via the n8n UI (base URL: `http://litellm.ml.svc.cluster.local:4000/v1`); no Helm changes required; per-workflow model selection supports `cloud-minimax`, `cloud-kimi`, `cloud-qwen3-coder`
 
 #### OpenClaw Cloud Model Migration

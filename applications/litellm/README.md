@@ -11,29 +11,59 @@ LiteLLM provides a unified OpenAI-compatible API endpoint for all inference mode
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │   FALLBACK CHAIN (automatic failover)                           │
-│   ┌─────────┐    ┌─────────┐    ┌─────────┐                    │
-│   │ vLLM    │───▶│ Ollama  │───▶│ OpenAI  │                    │
-│   │ (GPU)   │    │ (CPU)   │    │ (Cloud) │                    │
-│   └─────────┘    └─────────┘    └─────────┘                    │
+│   ┌──────────────┐   ┌─────────┐   ┌─────────┐                 │
+│   │ Ollama Pro   │──▶│  vLLM   │──▶│ Ollama  │                 │
+│   │ (Cloud)      │   │  (GPU)  │   │  (CPU)  │                 │
+│   └──────────────┘   └─────────┘   └─────────┘                 │
+│    cloud-docs                                                    │
+│    cloud-fast                                                    │
+│    cloud-smart                                                   │
 │                                                                  │
 │   PARALLEL MODELS (explicit selection)                          │
-│   ┌─────────┐  ┌─────────┐  ┌─────────┐                        │
-│   │  Groq   │  │ Gemini  │  │ Mistral │                        │
-│   └─────────┘  └─────────┘  └─────────┘                        │
+│   ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────────┐          │
+│   │  Groq   │ │ Gemini  │ │ Mistral │ │ openai-gpt4o│          │
+│   └─────────┘ └─────────┘ └─────────┘ └─────────────┘          │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Available Models
 
-### Fallback Chain Models
-These models participate in automatic failover. Request `vllm-qwen` and if unavailable, LiteLLM automatically routes to the next tier.
+### Cloud Tier (primary) — ADR-013
+
+Role-based aliases backed by Ollama Pro cloud models. Request the **role**, never the vendor model
+name: when Ollama retires a tag, only the `model:` line in `configmap.yaml` changes.
+
+| Model Name | Backing model | Timeout | Description |
+|------------|---------------|---------|-------------|
+| `cloud-docs` | `mistral-large-3:675b` | 90s | Document metadata extraction (Paperless-GPT). Strongest German; no thinking mode, so it cannot leak reasoning into an empty `content` field |
+| `cloud-fast` | `deepseek-v4.1-flash` | 60s | Quick general inference, 1M context |
+| `cloud-smart` | `kimi-k3` | 60s | Frontier reasoning / agentic work (Open-WebUI default), 1M context |
+
+Each alias is the newest model of a **different lab** (Mistral AI / DeepSeek / Moonshot) so a single
+lab's retirement wave cannot break the whole chain.
+
+### Local Tier (fallback)
 
 | Model Name | Backend | Timeout | Description |
 |------------|---------|---------|-------------|
-| `vllm-qwen` | vLLM (GPU) | 30s | Primary - Qwen2.5-7B on RTX 3060 |
-| `ollama-qwen` | Ollama (CPU) | 120s | Fallback - Qwen2.5:3b on CPU |
-| `openai-gpt4o` | OpenAI Cloud | 30s | Emergency - gpt-4o-mini |
+| `vllm-qwen` | vLLM (GPU) | 60s | Qwen3-8B-AWQ on RTX 3060 |
+| `ollama-qwen` | Ollama (CPU) | 300s | phi4-mini on CPU, 128K context |
+| `openai-gpt4o` | OpenAI Cloud | 30s | gpt-4o-mini — **explicit selection only**, NOT in the auto-fallback chain (FR218) |
+
+### Fallback chain
+
+```
+cloud-docs → cloud-fast → cloud-smart → vllm-qwen → ollama-qwen
+cloud-fast → cloud-smart → vllm-qwen → ollama-qwen
+cloud-smart → cloud-fast → vllm-qwen → ollama-qwen
+vllm-qwen  → ollama-qwen
+```
+
+> **Silent fallback warning.** A retired cloud model returns HTTP 410 and LiteLLM transparently falls
+> through to the next tier, so a broken alias still answers and looks healthy. In Sept 2026 three
+> aliases were dead for weeks before anyone noticed. Always confirm which model actually served a
+> request via the `model` field in the response body, not by the absence of errors.
 
 ### Mode-Dependent Models (vLLM R1)
 The vLLM backend can serve different models depending on the active GPU mode. The `vllm-r1` model is only available when the GPU worker is in **R1-Mode**.
@@ -87,7 +117,7 @@ These models are independent and must be requested explicitly by name. They do N
 curl -X POST https://litellm.home.jetzinger.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "vllm-qwen",
+    "model": "cloud-docs",
     "messages": [{"role": "user", "content": "Hello"}]
   }'
 ```
@@ -221,7 +251,7 @@ kubectl get pods -n ml -l app=ollama
 # Test fallback chain
 curl https://litellm.home.jetzinger.com/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model": "vllm-qwen", "messages": [{"role": "user", "content": "test"}]}'
+  -d '{"model": "cloud-docs", "messages": [{"role": "user", "content": "test"}]}'
 ```
 
 ## References

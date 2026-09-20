@@ -3,6 +3,7 @@
 #
 # Story: 25.4 - Deploy Paperless-GPT and Remove Paperless-AI
 # Story: 26.2 - Update Service Default Models to Cloud Tier
+# ADR-013 - Cloud Model Tier Refresh (role-based aliases)
 # Epic: 25 - Document Processing Pipeline Upgrade
 # Epic: 26 - Ollama Pro Cloud Model Integration
 #
@@ -11,7 +12,8 @@
 # - FR193: Docling integration for two-stage document processing
 # - FR194: LiteLLM integration for LLM-based metadata generation
 # - FR197: Manual review (paperless-gpt tag) and automatic processing (paperless-gpt-auto tag)
-# - FR219: Paperless-GPT uses cloud-minimax for document metadata generation (Story 26.2)
+# - FR219: Paperless-GPT uses a cloud-tier model for document metadata generation (Story 26.2)
+#   ADR-013: now cloud-docs (mistral-large-3) — verified on German and English invoices
 #
 # NFRs:
 # - NFR112: Prompt template changes take effect without pod restart
@@ -47,12 +49,14 @@ data:
   PDF_SKIP_EXISTING_OCR: "true"
 
   # LLM Provider - LiteLLM (OpenAI-compatible proxy)
-  # Cloud-tier primary: cloud-kimi (Ollama Pro) with LiteLLM fallback chain
-  # Fallback: cloud-kimi → vllm-qwen (GPU) → ollama-qwen (CPU)
+  # Cloud-tier primary: cloud-docs (Ollama Pro) with LiteLLM fallback chain
+  # Fallback: cloud-docs → cloud-fast → cloud-smart → vllm-qwen (GPU) → ollama-qwen (CPU)
+  # cloud-docs = mistral-large-3: strongest German of the catalogue, and the only
+  # candidate with no thinking mode, so it cannot leak reasoning into an empty content field
   # Service DNS: litellm.ml.svc.cluster.local:4000
   LLM_PROVIDER: "openai"
   OPENAI_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"
-  LLM_MODEL: "cloud-kimi"
+  LLM_MODEL: "cloud-docs"
   LLM_LANGUAGE: "German"
 
   # Tag-based workflow triggers

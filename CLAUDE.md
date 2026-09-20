@@ -45,11 +45,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ML Inference Stack
 
-Three-tier architecture with automatic failover via LiteLLM:
+Cloud-primary architecture with automatic failover via LiteLLM:
 
 ```
-LiteLLM Proxy (litellm.ml.svc) → vLLM (GPU) → Ollama (CPU) → OpenAI (Cloud)
+LiteLLM Proxy (litellm.ml.svc)
+  cloud-docs  (mistral-large-3)     ─┐
+  cloud-fast  (deepseek-v4.1-flash) ─┼─→ vLLM (GPU) → Ollama (CPU)
+  cloud-smart (kimi-k3)             ─┘
 ```
+
+Cloud aliases are **role-based**, not vendor/version-based (ADR-013): when Ollama retires a model tag,
+only the `model:` line in `applications/litellm/configmap.yaml` changes — consumers keep their alias.
+Each alias is the newest model of a different lab so one retirement wave cannot break the chain.
+
+| Alias | Backing model | Used by |
+|-------|---------------|---------|
+| `cloud-docs` | `mistral-large-3:675b` | Paperless-GPT metadata (German/English) |
+| `cloud-fast` | `deepseek-v4.1-flash` | Quick general inference |
+| `cloud-smart` | `kimi-k3` | Open-WebUI default, reasoning/agentic |
+
+`openai-gpt4o` is explicit-selection only and NOT in the auto-fallback chain.
 
 **GPU Modes** (on k3s-gpu-worker):
 - `ml` - Qwen3-8B-AWQ (general inference)

@@ -1,0 +1,71 @@
+{
+  "_comment": [
+    "Open-WebUI model picker curation — version-controlled source of truth.",
+    "ADR-013: Cloud Model Tier Refresh.",
+    "",
+    "WHY THIS FILE EXISTS INSTEAD OF HELM VALUES:",
+    "Open-WebUI exposes per-connection model filtering via OLLAMA_API_CONFIGS /",
+    "OPENAI_API_CONFIGS, but upstream never implemented JSON parsing for those env",
+    "vars (open-webui issue #19017, closed as not planned). Model visibility therefore",
+    "lives only in the Open-WebUI DB on the NFS PVC. This manifest plus",
+    "scripts/open-webui/apply-model-curation.sh reproduces that state declaratively",
+    "and is the recovery path if the PVC is ever lost.",
+    "",
+    "Apply with: ./scripts/open-webui/apply-model-curation.sh"
+  ],
+
+  "connections": {
+    "ollama": {
+      "url": "https://ollama.com",
+      "_comment": "Direct Ollama Pro cloud connection — self-updating catalogue, whitelist below",
+      "keep": [
+        { "id": "kimi-k3",              "why": "Most powerful available: 1.56TB, 1M ctx, vision + thinking + tools" },
+        { "id": "deepseek-v4-pro:0813", "why": "893GB, 1M ctx — top-tier reasoning" },
+        { "id": "glm-5.3",              "why": "755GB, 1M ctx — current GLM flagship" },
+        { "id": "mistral-large-3:675b", "why": "Best German of the catalogue; vision; no thinking-mode quirks" },
+        { "id": "minimax-m3",           "why": "Current MiniMax flagship, 512K ctx, vision" },
+        { "id": "kimi-k2.7-code",       "why": "Dedicated coding model" },
+        { "id": "deepseek-v4.1-flash",  "why": "Fast tier, 1M ctx, vision" },
+        { "id": "gpt-oss:120b",         "why": "Open-weight option, distinct lineage" },
+        { "id": "gemma4:31b",           "why": "Small and quick, strong multilingual" },
+        { "id": "nemotron-3-ultra",     "why": "NVIDIA flagship, distinct lab" }
+      ],
+      "hide": [
+        { "id": "glm-5.1",                "why": "Superseded by glm-5.3" },
+        { "id": "glm-5.2",                "why": "Superseded by glm-5.3" },
+        { "id": "glm-5.3-flash",          "why": "Ignores think:false and leaks chain-of-thought into content (ADR-013)" },
+        { "id": "kimi-k2.6",              "why": "Superseded by kimi-k3" },
+        { "id": "minimax-m2.7",           "why": "Superseded by minimax-m3" },
+        { "id": "qwen3.5:397b",           "why": "Retired by Ollama 2026-09-25" },
+        { "id": "nemotron-3-super",       "why": "Superseded by nemotron-3-ultra" },
+        { "id": "nemotron-3-nano:30b",    "why": "Superseded by nemotron-3-ultra" },
+        { "id": "deepseek-v4-flash:0731", "why": "Superseded by deepseek-v4.1-flash" },
+        { "id": "gpt-oss:20b",            "why": "Superseded by gpt-oss:120b" }
+      ]
+    },
+
+    "openai": {
+      "url": "http://litellm.ml.svc.cluster.local:4000/v1",
+      "_comment": "LiteLLM proxy — only the role aliases are chat-worthy; they carry the fallback chain",
+      "keep": [
+        { "id": "cloud-docs",  "why": "mistral-large-3 + automatic fallback chain" },
+        { "id": "cloud-fast",  "why": "deepseek-v4.1-flash + automatic fallback chain" },
+        { "id": "cloud-smart", "why": "kimi-k3 + automatic fallback chain (default model)" }
+      ],
+      "hide": [
+        { "id": "granite-docling",                "why": "258m OCR vision model — infrastructure only, useless in chat" },
+        { "id": "vllm-qwen",                      "why": "Fallback plumbing; GPU worker currently NotReady" },
+        { "id": "vllm-r1",                        "why": "Fallback plumbing; GPU worker currently NotReady" },
+        { "id": "ollama-qwen",                    "why": "Fallback plumbing (phi4-mini on CPU)" },
+        { "id": "openai-gpt4o",                   "why": "Explicit-selection emergency tier only" },
+        { "id": "groq/llama-3.3-70b-versatile",   "why": "Parallel provider, not for routine chat" },
+        { "id": "groq/mixtral-8x7b-32768",        "why": "Parallel provider, not for routine chat" },
+        { "id": "gemini/gemini-2.0-flash",        "why": "Parallel provider, not for routine chat" },
+        { "id": "gemini/gemini-2.5-flash",        "why": "Parallel provider, not for routine chat" },
+        { "id": "mistral/mistral-small-latest",   "why": "Parallel provider, not for routine chat" }
+      ]
+    }
+  },
+
+  "default_model": "cloud-smart"
+}

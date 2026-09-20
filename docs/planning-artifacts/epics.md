@@ -222,11 +222,11 @@ This document provides the complete epic and story breakdown for home-lab, decom
 
 **Ollama Pro Cloud Model Integration (9 FRs)**
 - FR215: OLLAMA_API_KEY added to `litellm-secrets` via `kubectl patch` for Ollama Pro cloud model authentication; never applied via `kubectl apply` with placeholder
-- FR216: LiteLLM `model_list` updated with three cloud model entries — `cloud-minimax` (minimax-m2.5), `cloud-kimi` (kimi-k2.5), `cloud-qwen3-coder` (qwen3-coder:480b-cloud) — all routing to `api_base: https://ollama.com/api` via `ollama_chat` provider
+- FR216: LiteLLM `model_list` updated with three cloud model entries — `cloud-minimax` (minimax-m2.5), `cloud-kimi` (kimi-k2.5), `cloud-qwen3-coder` (qwen3-coder:480b-cloud) — all routing to `api_base: https://ollama.com/api` via `ollama_chat` provider *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
 - FR217: LiteLLM `fallbacks` updated so each cloud model cascades to `["vllm-qwen", "ollama-qwen"]` when cloud API is unavailable, preserving full local inference as backup
 - FR218: `openai-gpt4o` removed from the automatic fallback chain; retained as an explicit parallel-only selection
-- FR219: `paperless-gpt` configmap updated with `LLM_MODEL: "cloud-minimax"` (replacing `"vllm-qwen"`) for improved multilingual German document processing via minimax-m2.5
-- FR220: `open-webui` values-homelab.yaml updated with `DEFAULT_MODELS: "cloud-minimax"`; all three cloud models auto-exposed in the model picker via LiteLLM `/v1/models` with no per-model wiring required
+- FR219: `paperless-gpt` configmap updated with `LLM_MODEL: "cloud-minimax"` (replacing `"vllm-qwen"`) for improved multilingual German document processing via minimax-m2.5 *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
+- FR220: `open-webui` values-homelab.yaml updated with `DEFAULT_MODELS: "cloud-minimax"`; all three cloud models auto-exposed in the model picker via LiteLLM `/v1/models` with no per-model wiring required *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
 - FR221: n8n configured with an OpenAI-compatible LiteLLM credential via the n8n UI (base URL: `http://litellm.ml.svc.cluster.local:4000/v1`); no Helm changes required; per-workflow model selection supports `cloud-minimax`, `cloud-kimi`, `cloud-qwen3-coder`
 - FR222: `openclaw.json` inspected live before migration (`kubectl exec`) to identify the LLM provider and primary model configuration key names; primary model migrated to `cloud-kimi` via LiteLLM endpoint; Anthropic OAuth fully removed (legal constraint)
 - FR223: openclaw coder sub-agent model migrated to `cloud-qwen3-coder` via LiteLLM endpoint after live config inspection confirms sub-agent model key names
@@ -712,8 +712,8 @@ This document provides the complete epic and story breakdown for home-lab, decom
 | FR216 | Epic 26 | LiteLLM model_list updated with three cloud model entries |
 | FR217 | Epic 26 | LiteLLM fallbacks updated — cloud cascades to local tier |
 | FR218 | Epic 26 | openai-gpt4o removed from auto-fallback chain |
-| FR219 | Epic 26 | paperless-gpt updated to cloud-minimax default model |
-| FR220 | Epic 26 | open-webui updated to cloud-minimax default; cloud models in picker |
+| FR219 | Epic 26 | paperless-gpt updated to cloud-minimax default model *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)* |
+| FR220 | Epic 26 | open-webui updated to cloud-minimax default; cloud models in picker *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)* |
 | FR221 | Epic 26 | n8n configured with LiteLLM credential via UI |
 | FR222 | Epic 26 | openclaw primary migrated to cloud-kimi; Anthropic removed |
 | FR223 | Epic 26 | openclaw coder sub-agents migrated to cloud-qwen3-coder |
@@ -1257,11 +1257,11 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 
 **FRs covered:** FR215-FR223
 - FR215: OLLAMA_API_KEY added to `litellm-secrets` via `kubectl patch`
-- FR216: LiteLLM model_list updated with `cloud-kimi`, `cloud-minimax`, `cloud-qwen3-coder` entries via `ollama_chat` provider → `https://ollama.com/api`
+- FR216: LiteLLM model_list updated with `cloud-kimi`, `cloud-minimax`, `cloud-qwen3-coder` entries via `ollama_chat` provider → `https://ollama.com/api` *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
 - FR217: LiteLLM fallbacks updated — each cloud model cascades to `vllm-qwen` → `ollama-qwen`
 - FR218: `openai-gpt4o` removed from auto-fallback chain (explicit-only parallel selection)
-- FR219: `paperless-gpt` updated to `LLM_MODEL: cloud-minimax`
-- FR220: `open-webui` updated to `DEFAULT_MODELS: cloud-minimax`; all cloud models auto-exposed in picker
+- FR219: `paperless-gpt` updated to `LLM_MODEL: cloud-minimax` *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
+- FR220: `open-webui` updated to `DEFAULT_MODELS: cloud-minimax`; all cloud models auto-exposed in picker *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
 - FR221: n8n configured with LiteLLM OpenAI-compatible credential via UI
 - FR222: openclaw primary migrated to `cloud-kimi`; Anthropic OAuth fully removed (legal constraint)
 - FR223: openclaw coder sub-agents migrated to `cloud-qwen3-coder`
@@ -6207,7 +6207,7 @@ So that **document processing and chat workloads benefit from frontier model qua
 
 **Given** `cloud-minimax` is available in LiteLLM and LiteLLM is reachable from the `docs` namespace
 **When** I update the `paperless-gpt` configmap with `LLM_MODEL: "cloud-minimax"` (replacing `"vllm-qwen"`)
-**Then** Paperless-GPT uses cloud-minimax for document metadata generation (FR219)
+**Then** Paperless-GPT uses cloud-minimax for document metadata generation (FR219) *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
 **And** the change takes effect without pod restart (hot-reload from configmap update)
 **And** document classification still produces valid title, tags, correspondent, document type
 
@@ -6218,7 +6218,7 @@ So that **document processing and chat workloads benefit from frontier model qua
 
 **Given** LiteLLM `/v1/models` now includes `cloud-kimi`, `cloud-minimax`, and `cloud-qwen3-coder`
 **When** I update `open-webui` values-homelab.yaml with `DEFAULT_MODELS: "cloud-minimax"` and redeploy
-**Then** Open-WebUI shows `cloud-minimax` as the default model selection (FR220)
+**Then** Open-WebUI shows `cloud-minimax` as the default model selection (FR220) *(ADR-013: model names retired by Ollama 2026-09; aliases are now `cloud-docs`/`cloud-fast`/`cloud-smart`)*
 **And** all three cloud models appear in the model picker without additional per-model configuration (NFR124)
 **And** local models (`vllm-qwen`, `ollama-qwen`) remain selectable
 

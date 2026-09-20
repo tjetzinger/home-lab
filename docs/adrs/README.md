@@ -45,6 +45,8 @@ These ADRs document decisions for the OpenClaw personal AI assistant platform:
 | ADR | Title | Description | Status |
 |-----|-------|-------------|--------|
 | [ADR-011](ADR-011-openclaw-personal-ai-assistant.md) | OpenClaw Personal AI Assistant | Deploy self-hosted AI assistant with Opus 4.5 primary, LiteLLM fallback, Telegram/Discord channels, log-based observability | Accepted |
+| [ADR-012](ADR-012-document-processing-pipeline-upgrade.md) | Document Processing Pipeline Upgrade | Replace Paperless-AI with Paperless-GPT, add Docling OCR provider, upgrade vLLM for Qwen3 | Accepted |
+| [ADR-013](ADR-013-cloud-model-tier-refresh.md) | Cloud Model Tier Refresh | Role-based `cloud-{role}` aliases across three different labs after Ollama retired the vendor-named models; Open-WebUI picker curated to 13 | Accepted |
 
 ## ADR Lifecycle
 

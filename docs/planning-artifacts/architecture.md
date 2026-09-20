@@ -1767,6 +1767,12 @@ applications/
 
 ### Ollama Pro Cloud Model Integration Architecture (Epic 26)
 
+> **⚠️ SUPERSEDED 2026-09-20 — see [Cloud Model Tier Refresh (ADR-013)](#cloud-model-tier-refresh-adr-013) below.**
+> Ollama retired `kimi-k2.5`, `minimax-m2.5` and `qwen3-coder:480b` (all now HTTP 410) and `qwen3.5:397b`
+> (2026-09-25). The vendor-named aliases `cloud-kimi` / `cloud-minimax` / `cloud-qwen3-coder` no longer
+> exist. The decision table and YAML below are retained as the Epic 26 record, not current configuration.
+
+
 **Supersedes:** openclaw model configuration in [OpenClaw Personal AI Assistant Architecture](#openclaw-personal-ai-assistant-architecture) — Anthropic fully removed per legal constraint.
 
 | Decision | Choice | Rationale |
@@ -1938,6 +1944,104 @@ kubectl patch secret openclaw-secrets -n apps --type='merge' \
 - FR221: n8n → LiteLLM credential via UI ✓
 - FR222: openclaw primary → cloud-kimi (revised from brainstorm: cloud-minimax — kimi has image input for browser automation); Anthropic fully removed ✓
 - FR223: openclaw coder sub-agents → cloud-qwen3-coder ✓
+
+
+### Cloud Model Tier Refresh (ADR-013)
+
+**Supersedes:** the model names in [Ollama Pro Cloud Model Integration Architecture (Epic 26)](#ollama-pro-cloud-model-integration-architecture-epic-26).
+
+**Trigger:** Ollama retired `kimi-k2.5`, `minimax-m2.5` and `qwen3-coder:480b` (HTTP 410) and announced
+`qwen3.5:397b` retirement for 2026-09-25. Because LiteLLM falls through a 410 transparently, every
+Paperless-GPT request had been silently served by `cloud-qwen3.5` for weeks while the configured
+primary `cloud-kimi` was dead.
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Alias naming** | **Role-based (`cloud-{role}`)** | Vendor/version-encoded aliases force a rename across every consumer on each retirement. Role aliases confine a retirement to one `model:` line |
+| **Vendor diversity** | **One model per lab** | Mistral AI / DeepSeek / Moonshot — a single lab's retirement wave cannot break the whole chain |
+| **Version policy** | **Newest member of each family** | Minimises near-term retirement risk |
+| **`cloud-docs` primary** | **`mistral-large-3:675b`** | Strongest German of the catalogue; **only finalist with no `thinking` capability**, so the empty-`content`/`reasoning_content` failure mode is structurally impossible |
+| **`glm-5.3-flash` rejected** | **Leaks chain-of-thought** | Ignored `think: false` and emitted 18.5s of English reasoning into `content` instead of JSON — proves `think: false` is not a reliable blanket fix |
+| **`cloud-docs` timeout** | **90s (others 60s)** | 675b on full OCR prompts; measured 5.6s for a 14.4K-token prompt, so ample headroom |
+| **paperless-gpt Primary** | **`cloud-docs`** | Verified on German and English invoices — clean JSON, umlauts restored from OCR-stripped input |
+| **open-webui Default** | **`cloud-smart`** | Closest equivalent to the frontier general model the old default pointed at |
+| **open-webui picker** | **Curated to 13 of ~33** | `model-curation.json` + apply script; see the Open-WebUI constraints below |
+
+**Current Routing Architecture:**
+```
+LiteLLM (gatekeeper)
+├── cloud-docs   → mistral-large-3:675b  → cloud-fast → cloud-smart → vllm-qwen → ollama-qwen
+├── cloud-fast   → deepseek-v4.1-flash   → cloud-smart → vllm-qwen → ollama-qwen
+├── cloud-smart  → kimi-k3               → cloud-fast → vllm-qwen → ollama-qwen
+├── vllm-qwen    → vLLM GPU              → ollama-qwen
+├── ollama-qwen  → Ollama CPU (phi4-mini)
+├── granite-docling → Ollama CPU
+└── [parallel] groq/*, gemini/*, mistral/*, openai-gpt4o  (explicit selection only)
+```
+
+**Service → Model Assignment (current):**
+
+| Service | Primary Model | Fallback Chain |
+|---------|--------------|----------------|
+| `paperless-gpt` | `cloud-docs` | `cloud-fast` → `cloud-smart` → `vllm-qwen` → `ollama-qwen` |
+| `open-webui` | `cloud-smart` (default) | `cloud-fast` → `vllm-qwen` → `ollama-qwen` |
+| `n8n` | User-selectable per workflow | — |
+| `openclaw` | Shut down — still references dead `cloud-kimi`/`cloud-qwen3-coder`; repoint before restarting | — |
+
+**LiteLLM Config (as implemented):**
+```yaml
+model_list:
+  # mistral-large-3 has NO thinking capability — no extra_body needed
+  - model_name: cloud-docs
+    litellm_params:
+      model: ollama_chat/mistral-large-3:675b
+      api_base: https://ollama.com
+      api_key: os.environ/OLLAMA_API_KEY
+      timeout: 90
+    model_info: {mode: chat}
+
+  - model_name: cloud-fast
+    litellm_params:
+      model: ollama_chat/deepseek-v4.1-flash
+      api_base: https://ollama.com
+      api_key: os.environ/OLLAMA_API_KEY
+      timeout: 60
+      extra_body: {think: false}
+    model_info: {mode: chat}
+
+  - model_name: cloud-smart
+    litellm_params:
+      model: ollama_chat/kimi-k3
+      api_base: https://ollama.com
+      api_key: os.environ/OLLAMA_API_KEY
+      timeout: 60
+      extra_body: {think: false}
+    model_info: {mode: chat}
+
+litellm_settings:
+  fallbacks:
+    - {"cloud-docs":  ["cloud-fast", "cloud-smart", "vllm-qwen", "ollama-qwen"]}
+    - {"cloud-fast":  ["cloud-smart", "vllm-qwen", "ollama-qwen"]}
+    - {"cloud-smart": ["cloud-fast", "vllm-qwen", "ollama-qwen"]}
+    - {"vllm-qwen":   ["ollama-qwen"]}
+```
+
+**Open-WebUI model curation constraints:**
+
+Model visibility cannot be expressed in Helm values and lives in the Open-WebUI DB on the NFS PVC:
+
+1. `DEFAULT_MODELS` is a `ConfigVar` — with `ENABLE_PERSISTENT_CONFIG=true` the DB value wins and the
+   env var is ignored on an existing install.
+2. `OLLAMA_API_CONFIGS` / `OPENAI_API_CONFIGS` are documented but never parsed from env
+   (open-webui issue #19017, closed as *not planned*).
+
+Mitigation: `applications/open-webui/model-curation.json` is the version-controlled source of truth,
+applied by `scripts/open-webui/apply-model-curation.sh` via the admin REST API. This doubles as the
+recovery path if the PVC is lost.
+
+**Operational gap identified:** a retired cloud model returns 410 and LiteLLM falls through silently, so
+a dead alias looks healthy. There is currently no alert on LiteLLM fallback-event metrics despite the
+`prometheus` callback being enabled — three aliases were dead for weeks before detection.
 
 ### Self-Hosted Notification Architecture (ntfy)
 

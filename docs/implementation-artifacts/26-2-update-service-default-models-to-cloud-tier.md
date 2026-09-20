@@ -1,5 +1,10 @@
 # Story 26.2: Update Service Default Models to Cloud Tier
 
+> **⚠️ Superseded 2026-09-20:** Ollama retired `kimi-k2.5`, `minimax-m2.5` and `qwen3-coder:480b`
+> (HTTP 410) and `qwen3.5:397b` (2026-09-25). The aliases `cloud-kimi` / `cloud-minimax` /
+> `cloud-qwen3-coder` no longer exist — see [ADR-013](../adrs/ADR-013-cloud-model-tier-refresh.md).
+> Retained as a point-in-time record, not current configuration.
+
 Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->

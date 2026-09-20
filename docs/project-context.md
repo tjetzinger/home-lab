@@ -28,7 +28,7 @@ _Critical rules and patterns for implementing Kubernetes resources in the home-l
 | Database | PostgreSQL (Bitnami Helm) | Namespace: `data` |
 | GPU Inference | vLLM v0.5.5 → v0.10.2+ (Epic 25) | Qwen3-8B-AWQ on RTX 3060 |
 | CPU Inference | Ollama | qwen3:4b on k3s-worker-02 |
-| Inference Proxy | LiteLLM | Three-tier fallback: vLLM → Ollama → OpenAI |
+| Inference Proxy | LiteLLM | Cloud-primary fallback: Ollama Pro cloud → vLLM → Ollama (ADR-013) |
 | VPN | Tailscale | All cluster access via VPN only |
 | GPU Operator | NVIDIA GPU Operator | On k3s-gpu-worker only |
 
@@ -102,9 +102,16 @@ middlewares:
 ### ML Inference Stack Rules
 
 **LiteLLM model aliasing** — Consumers MUST use LiteLLM aliases, NEVER direct model paths:
-- Request `vllm-qwen` → auto-routes to best available tier
+- Request `cloud-docs` → document metadata extraction (Paperless-GPT entry point, German/English)
+- Request `cloud-fast` → quick general inference
+- Request `cloud-smart` → frontier reasoning / agentic work (Open-WebUI default)
+- Request `vllm-qwen` → auto-routes to best available local tier
 - Request `vllm-r1` → DeepSeek-R1 reasoning model (GPU only)
-- NEVER request `openai/Qwen/Qwen3-8B-AWQ` directly
+- NEVER request `openai/Qwen/Qwen3-8B-AWQ` or `ollama_chat/kimi-k3` directly
+
+Cloud aliases are **role-based, not vendor/version-based** (ADR-013). Ollama retires model tags
+regularly — encoding a vendor or version in the alias forces a rename across every consumer. When a
+tag is retired, change only the `model:` line in `applications/litellm/configmap.yaml`.
 
 **LiteLLM endpoint**: `http://litellm.ml.svc.cluster.local:4000/v1` — all apps connect here, not to vLLM/Ollama directly
 
@@ -120,8 +127,17 @@ gpu-mode status   # Show current mode
 
 **Fallback chain configuration** in LiteLLM:
 ```yaml
-fallbacks: [{"vllm-qwen": ["ollama-qwen"]}, {"ollama-qwen": ["openai-gpt4o"]}]
+fallbacks:
+  - {"cloud-docs":  ["cloud-fast", "cloud-smart", "vllm-qwen", "ollama-qwen"]}
+  - {"cloud-fast":  ["cloud-smart", "vllm-qwen", "ollama-qwen"]}
+  - {"cloud-smart": ["cloud-fast", "vllm-qwen", "ollama-qwen"]}
+  - {"vllm-qwen":   ["ollama-qwen"]}
 ```
+`openai-gpt4o` is deliberately NOT in the auto-fallback chain — explicit selection only (FR218).
+
+**Watch for silent fallback**: a retired cloud model returns HTTP 410 and LiteLLM transparently falls
+through to the next tier, so a broken alias looks healthy. Verify which model actually served a request
+via the `model` field in the response, or the Ollama usage dashboard — not by the absence of errors.
 
 ### DNS Gotchas
 
