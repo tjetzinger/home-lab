@@ -135,6 +135,21 @@ extraEnvVars:
       secretKeyRef:
         name: open-webui-secrets
         key: WEBUI_SECRET_KEY
+  # Admin-level default for per-user interface settings. `webSearch: always` makes
+  # every chat run Exa without touching the composer toggle.
+  #
+  # This is the ONLY durable place for it. Writing ui.webSearch on the user record
+  # via /api/v1/users/user/settings/update does not survive: the frontend rewrites
+  # the whole `ui` object from its own state and drops keys it did not load. The
+  # admin default is applied server-side instead, and routers/users.py:71
+  # (strip_default_interface_settings) removes any per-user value that matches it,
+  # so there is nothing left for the browser to clobber.
+  #
+  # PersistentConfig: seeds a fresh install only. On an existing install set it via
+  # POST /api/v1/auths/admin/config (read-modify-write — that endpoint rewrites
+  # every admin field it receives).
+  - name: DEFAULT_INTERFACE_SETTINGS
+    value: '{"webSearch":"always"}'
   # Hardening. Defaults are CORS_ALLOW_ORIGIN='*' and non-secure, lax cookies;
   # this instance is HTTPS-only behind Tailscale, so tighten all three.
   - name: CORS_ALLOW_ORIGIN
