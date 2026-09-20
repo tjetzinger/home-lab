@@ -34,7 +34,16 @@ image:
 env:
   TZ: Europe/Berlin  # German timezone
   PAPERLESS_URL: "https://paperless.home.jetzinger.com"  # Public-facing URL (Story 10.4)
-  PAPERLESS_SECRET_KEY: "placeholder-secret-key"  # Override with --set during deployment
+  # From secret paperless-secrets (see secret.yaml). Was an inline value passed with
+  # --set, which contradicted the repo's no-inline---set rule and meant the real value
+  # lived only in Helm release history. A `helm upgrade -f values-homelab.yaml` without
+  # that --set silently replaced it with the placeholder below — which happened on
+  # 2026-09-20 and left Django signing sessions with a string published in this repo.
+  PAPERLESS_SECRET_KEY:
+    valueFrom:
+      secretKeyRef:
+        name: paperless-secrets
+        key: PAPERLESS_SECRET_KEY
   PAPERLESS_REDIS: "redis://redis:6379"  # Redis connection for standalone deployment
 
   # PostgreSQL database configuration (Story 10.2)
@@ -46,7 +55,12 @@ env:
   PAPERLESS_DBNAME: paperless
   PAPERLESS_DBUSER: paperless_user
   PAPERLESS_DBPORT: "5432"
-  PAPERLESS_DBPASS: "placeholder-db-password"  # Override with --set during deployment
+  # From secret paperless-secrets (see secret.yaml) — same reason as SECRET_KEY above.
+  PAPERLESS_DBPASS:
+    valueFrom:
+      secretKeyRef:
+        name: paperless-secrets
+        key: PAPERLESS_DBPASS
 
   # OCR configuration (Story 10.3)
   PAPERLESS_OCR_LANGUAGE: "deu+eng"  # German + English OCR support
