@@ -119,6 +119,26 @@ Open-WebUI draws models from **two independent connections**:
 **Fallback Chain (LiteLLM aliases only):** Ollama Pro cloud → vLLM (GPU) → Ollama (CPU).
 `openai-gpt4o` is explicit-selection only and not in the auto-fallback chain.
 
+## Web search (Exa)
+
+In-chat web search uses [Exa](https://exa.ai). Enable it per message with the web-search
+toggle in the chat input.
+
+| Setting | Value |
+|---------|-------|
+| `WEB_SEARCH_ENGINE` | `exa` |
+| `WEB_SEARCH_RESULT_COUNT` | `5` |
+| `EXA_API_KEY` | from `open-webui-secrets` |
+
+The key is the same one `openclaw-secrets` holds, copied into Open-WebUI's own secret so
+this app does not depend on another app's secret. Apply it with `kubectl patch`, never
+`kubectl apply` the secret file.
+
+**These are PersistentConfig vars.** The Helm `extraEnvVars` seed a fresh install only —
+on an existing install the database value wins and the env vars are ignored. Change them
+live via `POST /api/v1/retrieval/config/update` or Admin → Settings → Web Search. This is
+the same trap documented under Model curation below.
+
 ## Model curation
 
 The picker is curated down from ~33 entries to the 13 above. The keep/hide lists live in

@@ -97,6 +97,21 @@ extraEnvVars:
   # Enable OpenAI API for LiteLLM integration (Story 17.2)
   - name: ENABLE_OPENAI_API
     value: "true"
+  # Web search via Exa (ADR-013 follow-up)
+  # NOTE: all four of these are PersistentConfig vars — on an existing install the
+  # DB value wins and these env vars are IGNORED. They seed a fresh install only.
+  # Live changes go through /api/v1/retrieval/config or Admin -> Settings -> Web Search.
+  - name: ENABLE_WEB_SEARCH
+    value: "true"
+  - name: WEB_SEARCH_ENGINE
+    value: "exa"
+  - name: WEB_SEARCH_RESULT_COUNT
+    value: "5"
+  - name: EXA_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: open-webui-secrets
+        key: EXA_API_KEY
   # NOTE: OPENAI_API_BASE_URL and OPENAI_API_KEY are deliberately NOT set here.
   # They come from openaiBaseApiUrl / openaiApiKeyExistingSecret above.
   # Default model - cloud-smart (kimi-k3) via LiteLLM
