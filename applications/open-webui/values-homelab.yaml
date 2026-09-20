@@ -150,6 +150,39 @@ extraEnvVars:
   # every admin field it receives).
   - name: DEFAULT_INTERFACE_SETTINGS
     value: '{"webSearch":"always"}'
+  # Search query generation. The stock template says "prioritize generating 1-3
+  # broad and relevant search queries", so one question cost three Exa calls.
+  # This caps it at one while keeping the rewriting that matters: the model still
+  # resolves "heute" into the actual date via {{CURRENT_DATE}}, which is what made
+  # the German election answer correct.
+  #
+  # PersistentConfig: seeds a fresh install only. Live changes go through
+  # POST /api/v1/tasks/config/update (read-modify-write — it rewrites every field).
+  # Set ENABLE_SEARCH_QUERY_GENERATION=false instead to skip generation entirely
+  # and search the raw message; cheaper again, but loses the date resolution.
+  - name: QUERY_GENERATION_PROMPT_TEMPLATE
+    value: |
+      ### Task:
+      Analyze the chat history and generate **exactly one** search query, in the given language, that best retrieves the information needed to answer the latest message. Return an empty list only if it is entirely certain that no search is required.
+
+      ### Guidelines:
+      - Respond **EXCLUSIVELY** with a JSON object. Any form of extra commentary, explanation, or additional text is strictly prohibited.
+      - Respond in the format: { "queries": ["query1"] }. Never return more than one query.
+      - If and only if it is entirely certain that no useful results can be retrieved by a search, return: { "queries": [] }.
+      - Make the single query broad enough to cover the question on its own, since it is the only one that will run.
+      - Today's date is: {{CURRENT_DATE}}. Resolve relative time references such as "heute", "today" or "this week" into the query.
+      - Be concise. No elaboration, commentary, or assumptions.
+
+      ### Output:
+      Strictly return in JSON format:
+      {
+        "queries": ["query1"]
+      }
+
+      ### Chat History:
+      <chat_history>
+      {{MESSAGES:END:6}}
+      </chat_history>
   # Hardening. Defaults are CORS_ALLOW_ORIGIN='*' and non-secure, lax cookies;
   # this instance is HTTPS-only behind Tailscale, so tighten all three.
   - name: CORS_ALLOW_ORIGIN
