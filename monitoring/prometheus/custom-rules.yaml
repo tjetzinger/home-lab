@@ -157,3 +157,86 @@ spec:
             description: "OpenClaw pod {{ $labels.pod }} in namespace 'apps' has been in CrashLoopBackOff for more than 2 minutes."
             impact: "Telegram channel, Control UI, and LLM routing are unavailable."
             action: "Check pod logs: kubectl logs -n apps {{ $labels.pod }} --previous. Check openclaw.json for invalid config keys."
+
+        # LiteLLM Cloud Primary Failing Over Alert (P2)
+        # ADR-013 - Cloud Model Tier Refresh
+        #
+        # THE FAILURE THIS CATCHES: Ollama retires a model tag and the endpoint starts
+        # returning HTTP 410. LiteLLM treats that as a routine failure and falls through
+        # to the next tier, so the dead alias still answers and every health check stays
+        # green. In Sept 2026 three aliases were dead for weeks before anyone noticed --
+        # every Paperless request was silently served by a different model than configured.
+        #
+        # DO NOT key this on exception_status="410". Verified against a genuinely retired
+        # model (kimi-k2.5): LiteLLM's ollama_chat provider wraps the upstream 410 as
+        # exception_class="Ollama_chat.APIConnectionError" with exception_status="500".
+        # The upstream status code never reaches the metric, so a 410 matcher never fires.
+        #
+        # Instead this alerts on ANY fallback away from a cloud-* alias. Cloud models are
+        # hosted and highly available, so a fallback means the configured model is wrong,
+        # unreachable or unauthorised -- all of which need a human. The raw counter is used
+        # rather than increase()/rate() because a new failure mode creates a BRAND NEW
+        # series, and increase() over a new series returns 0 (Prometheus cannot tell a new
+        # series starting at 1 from a counter reset). That would miss the first occurrence,
+        # which is exactly the one worth catching. The counter resets on pod restart, so
+        # the alert re-fires after a restart if the problem persists.
+        - alert: LiteLLMCloudPrimaryFallingBack
+          expr: |
+            litellm_deployment_successful_fallbacks_total{requested_model=~"cloud-.*"} > 0
+            or
+            litellm_deployment_failed_fallbacks_total{requested_model=~"cloud-.*"} > 0
+          for: 0s  # Catch the first occurrence - silent fallback is the whole problem
+          labels:
+            severity: warning
+            component: ml-inference
+            service: litellm
+            priority: P2
+          annotations:
+            summary: "LiteLLM cloud model '{{ $labels.requested_model }}' is falling back to '{{ $labels.fallback_model }}'"
+            description: "Requests to '{{ $labels.requested_model }}' are failing ({{ $labels.exception_class }}) and being served by '{{ $labels.fallback_model }}' instead. The configured cloud model is unreachable, retired or unauthorised."
+            impact: "Requests still succeed, so nothing looks broken, but they are served by a different model than configured. Quality and language behaviour may differ silently."
+            action: "Check whether the model still exists: POST https://ollama.com/api/show with the model name from applications/litellm/configmap.yaml - HTTP 410 means retired. Then repoint the `model:` line and restart LiteLLM. See docs/adrs/ADR-013-cloud-model-tier-refresh.md."
+
+        # LiteLLM Sustained Fallback Alert (P2)
+        # ADR-013 - Cloud Model Tier Refresh
+        #
+        # Catches a primary that is persistently unhealthy for any reason (timeouts,
+        # auth failure, rate limiting), not just retirement. Requests still succeed via
+        # fallback, which is exactly why this needs an explicit alert.
+        # Threshold is deliberately loose: a single fallback is normal, a steady stream
+        # for 15 minutes means the primary is effectively down.
+        - alert: LiteLLMSustainedFallback
+          expr: |
+            sum by (requested_model, fallback_model) (
+              rate(litellm_deployment_successful_fallbacks_total[15m])
+            ) > 0
+          for: 15m
+          labels:
+            severity: warning
+            component: ml-inference
+            service: litellm
+            priority: P2
+          annotations:
+            summary: "LiteLLM '{{ $labels.requested_model }}' has been failing over for 15 minutes"
+            description: "Requests to '{{ $labels.requested_model }}' have been continuously served by '{{ $labels.fallback_model }}' for over 15 minutes. The configured primary is effectively unavailable."
+            impact: "Inference still works but runs on a fallback model. If the whole cloud tier is affected, the next hop is vLLM on the GPU worker, which may itself be down."
+            action: "Check LiteLLM logs: kubectl logs -n ml deployment/litellm --tail=100. Confirm which model actually served a request via the `model` field in a test response."
+
+        # LiteLLM Fallback Chain Exhausted Alert (P1)
+        # ADR-013 - Cloud Model Tier Refresh
+        #
+        # Every tier failed - cloud, GPU and CPU. Requests are now returning errors.
+        - alert: LiteLLMFallbackChainExhausted
+          expr: |
+            increase(litellm_deployment_failed_fallbacks_total[5m]) > 0
+          for: 0s
+          labels:
+            severity: critical
+            component: ml-inference
+            service: litellm
+            priority: P1
+          annotations:
+            summary: "LiteLLM fallback chain exhausted for '{{ $labels.requested_model }}'"
+            description: "Every tier in the fallback chain failed for '{{ $labels.requested_model }}'. Cloud, vLLM and Ollama are all unavailable."
+            impact: "Inference is down. Paperless-GPT document processing and Open-WebUI chat will fail."
+            action: "Check cloud reachability from the LiteLLM pod, then vLLM (kubectl get pods -n ml) and Ollama. Note k3s-gpu-worker may be NotReady - see docs/runbooks/egpu-hotplug.md."
