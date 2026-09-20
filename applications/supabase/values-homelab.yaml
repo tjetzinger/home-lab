@@ -57,9 +57,16 @@ secret:
   realtime:
     secretKeyBase: "not-used-realtime-disabled"
 
-  # Not used — Meta crypto key (generate a throwaway)
+  # Meta crypto key — postgres-meta is ENABLED, so this key is live.
+  # It only decrypts the inbound `x-connection-encrypted` request header at
+  # request time (see routes/index.js); nothing is encrypted at rest, so it is
+  # safe to rotate. Previously a hardcoded placeholder committed to a public
+  # repo — moved to supabase-secrets and rotated 2026-09-20.
   meta:
-    cryptoKey: "***REDACTED-ROTATED-2026-09-20***"
+    cryptoKey: ""
+    secretRef: "supabase-secrets"
+    secretRefKey:
+      cryptoKey: META_CRYPTO_KEY
 
 # =============================================================================
 # DEPLOYMENT — Enable/disable components, node affinity, resources
