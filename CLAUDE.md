@@ -109,6 +109,7 @@ Operational runbooks are in `docs/runbooks/`:
 - `egpu-hotplug.md` — eGPU hot-plug on k3s-gpu-worker
 - `cluster-backup.md` / `cluster-restore.md` — Full cluster state backup/restore
 - `k3s-svclb-recovery.md` — Recover from svclb issues after node changes
+- `secret-rotation.md` — Rotate a shared credential and scrub it from git history
 
 ## Repository Structure
 

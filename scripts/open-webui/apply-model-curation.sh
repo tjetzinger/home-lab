@@ -50,10 +50,12 @@ echo "Target pod: $POD"
 OLLAMA_IDS="$(jq -c '[.connections.ollama.keep[].id]' "$MANIFEST")"
 OPENAI_IDS="$(jq -c '[.connections.openai.keep[].id]' "$MANIFEST")"
 DEFAULT_MODEL="$(jq -r '.default_model' "$MANIFEST")"
+MODEL_PARAMS="$(jq -c '.model_params // {}' "$MANIFEST")"
 
 echo "Keep (ollama, $(jq 'length' <<<"$OLLAMA_IDS")): $(jq -r 'join(", ")' <<<"$OLLAMA_IDS")"
 echo "Keep (openai, $(jq 'length' <<<"$OPENAI_IDS")): $(jq -r 'join(", ")' <<<"$OPENAI_IDS")"
 echo "Default model: $DEFAULT_MODEL"
+echo "Model params:  $MODEL_PARAMS"
 
 if [[ "$DRY_RUN" == true ]]; then
   echo "--dry-run: no changes made"
@@ -121,6 +123,19 @@ if [[ "$VERIFY_ONLY" != true ]]; then
                             end)' \
     <<<"${openai_cfg%$'\n'*}")"
   check "update openai config" "$(in_pod POST /openai/config/update "$openai_payload")"
+
+  # Per-model params. Without a stored record a model inherits function_calling
+  # 'native' (main.py builds metadata.params with that fallback), and on native the
+  # forced web-search path in middleware.py is skipped. /models/import is a batch
+  # upsert, so this both creates missing records and updates existing ones.
+  if [[ "$(jq 'length' <<<"$MODEL_PARAMS")" -gt 0 ]]; then
+    echo "Applying model params..."
+    import_payload="$(jq -c --argjson params "$MODEL_PARAMS" \
+      '{models: [.connections[].keep[] | {id: .id, name: .id, base_model_id: null,
+                                          meta: {description: .why},
+                                          params: $params}]}' "$MANIFEST")"
+    check "import model params" "$(in_pod POST /api/v1/models/import "$import_payload")"
+  fi
 fi
 
 # The model_ids whitelist only FILTERS names - it never checks that the connection
@@ -156,6 +171,32 @@ if [[ "$visible" != "$expected" ]]; then
   echo "WARNING: visible model set does not match the manifest." >&2
   echo "Models already cached as workspace records may need hiding in Admin -> Models." >&2
   exit 4
+fi
+
+if [[ "$(jq 'length' <<<"$MODEL_PARAMS")" -gt 0 ]]; then
+  echo "Verifying model params..."
+  want_fc="$(jq -r '.function_calling // ""' <<<"$MODEL_PARAMS")"
+  if [[ -n "$want_fc" ]]; then
+    # Read the DB, not the API. `ModelParams` allows extra keys so the value is
+    # stored and honoured at request time (main.py calls .model_dump()), but the
+    # /api/models and /api/v1/models responses serialise params as {} and drop it.
+    # Asserting against the API here reports a false failure on a correct config.
+    bad="$(kubectl --context "$CONTEXT" exec -n "$NAMESPACE" "$POD" -c open-webui -- \
+      python3 -c "
+import json, sqlite3, sys
+want = sys.argv[1]
+db = sqlite3.connect('/app/backend/data/webui.db')
+rows = db.execute('select id, params from model').fetchall()
+bad = [i for i, p in rows if (json.loads(p or '{}') or {}).get('function_calling') != want]
+print(' '.join(bad))
+" "$want_fc")"
+    if [[ -n "$bad" ]]; then
+      echo "ERROR: function_calling != '$want_fc' on: $bad" >&2
+      echo "Web search will silently not run on those models." >&2
+      exit 4
+    fi
+    echo "  function_calling: $want_fc on all stored models"
+  fi
 fi
 
 echo "Model curation applied and verified ($(jq '[.connections[].keep[]] | length' "$MANIFEST") models visible)."

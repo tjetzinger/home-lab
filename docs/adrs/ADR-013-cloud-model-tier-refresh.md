@@ -135,11 +135,25 @@ Mitigation: `applications/open-webui/model-curation.json` is the version-control
 applied via the admin REST API by `scripts/open-webui/apply-model-curation.sh`. This doubles as the
 recovery path if the NFS PVC is lost.
 
-### Follow-ups not addressed here
+The same manifest also carries `model_params` (2026-09-20), currently
+`{"function_calling": "legacy"}`. Open-WebUI defaults this to `native` (`main.py:1267`), and on
+`native` the forced web-search path is skipped (`utils/middleware.py:2677`) — the model is merely
+offered a `web_search` tool, and only when the request carries a websocket `session_id`. Left at the
+default, Exa never reliably runs. `legacy` trades native tool calling for deterministic search.
 
-- **No alerting on cloud-model failure.** This incident was invisible precisely because fallback worked.
-  A Prometheus alert on LiteLLM fallback-event metrics would have caught it weeks earlier; the
-  `prometheus` callback is already enabled. This is the highest-value follow-up.
+### Follow-ups
+
+- **Alerting on cloud-model failure — done (2026-09-20).** This incident was invisible precisely
+  because fallback worked. Three rules now live in `monitoring/prometheus/custom-rules.yaml`:
+  `LiteLLMCloudPrimaryFallingBack` (P2), `LiteLLMSustainedFallback` (P2, `for: 15m`) and
+  `LiteLLMFallbackChainExhausted` (P1).
+
+  Two things were wrong in the first draft of these rules and are worth remembering. Keying on
+  `exception_status="410"` would never have fired: LiteLLM wraps Ollama's 410 as
+  `exception_class="Ollama_chat.APIConnectionError"` with `exception_status="500"`. And
+  `increase()` / `rate()` both return 0 on a brand-new series, so the first occurrence — the one
+  that matters — is missed. The rules now trigger on any fallback from a `cloud-*` alias, reading
+  the raw counter.
 - **`k3s-gpu-worker` is `NotReady`**, `vllm-server` `Pending` — the local GPU tier of the fallback chain
   is dead, leaving cloud as the only real inference path. See `docs/runbooks/egpu-hotplug.md`.
 - **OpenClaw** is shut down and its `openclaw.json` on the `openclaw-data` PVC still references the dead

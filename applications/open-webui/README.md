@@ -121,11 +121,11 @@ Open-WebUI draws models from **two independent connections**:
 
 ## Web search (Exa)
 
-In-chat web search uses [Exa](https://exa.ai). Enable it per message with the web-search
-toggle in the chat input.
+In-chat web search uses [Exa](https://exa.ai).
 
 | Setting | Value |
 |---------|-------|
+| `ENABLE_WEB_SEARCH` | `true` |
 | `WEB_SEARCH_ENGINE` | `exa` |
 | `WEB_SEARCH_RESULT_COUNT` | `5` |
 | `EXA_API_KEY` | from `open-webui-secrets` |
@@ -139,6 +139,86 @@ on an existing install the database value wins and the env vars are ignored. Cha
 live via `POST /api/v1/retrieval/config/update` or Admin → Settings → Web Search. This is
 the same trap documented under Model curation below.
 
+### Default-on per user
+
+Engine config alone does not switch search on for a chat. Each user carries their own
+`ui.webSearch` setting, applied via `POST /api/v1/users/user/settings/update`:
+
+```bash
+# 'always' | 'on' | 'off'
+curl -s -X POST https://chat.home.jetzinger.com/api/v1/users/user/settings/update \
+  -H "Authorization: Bearer $OPENWEBUI_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"ui":{"webSearch":"always"}}'
+```
+
+**Read the value back from the database, not from the API response.** The update endpoint
+echoes the value it was sent whether or not it persisted — a first attempt on 2026-09-20
+returned `always` and then read back as `None`.
+
+```bash
+kubectl --context default exec -n apps statefulset/open-webui -- \
+  python3 -c "import sqlite3,json; \
+    r=sqlite3.connect('/app/backend/data/webui.db').execute( \
+      'select settings from user').fetchone(); \
+    print(json.loads(r[0])['ui'].get('webSearch'))"
+```
+
+### Why `function_calling: legacy` is set on every model
+
+**Status as of 2026-09-20: verified working.** A chat asking for the current Kubernetes release
+returns `sources: 1` and the real answer (v1.37, August 2026). Before this change the same question
+returned v1.29 from December 2023 — the model's training data, with no search at all.
+
+Open-WebUI has two paths for web search, chosen by a model's `function_calling` param:
+
+| `function_calling` | Behaviour |
+|---|---|
+| `native` (default) | Offers the model a `web_search` tool and lets it decide. Skipped entirely unless the request carries a websocket `session_id`. |
+| `legacy` | Runs Exa and injects the results into the prompt. Deterministic. |
+
+The relevant code in app 0.11.3:
+
+```python
+# utils/middleware.py:2677 — the forced-search path
+if metadata.get('params', {}).get('function_calling') == 'legacy':
+    form_data = await chat_web_search_handler(request, form_data, extra_params, user)
+
+# utils/middleware.py:2769 — the native path, which also needs a live socket session
+use_builtin_tools = is_note_chat or (
+    bool(metadata.get('session_id'))
+    and metadata.get('params', {}).get('function_calling') != 'legacy'
+    ...
+)
+```
+
+`main.py:1267` defaults the value to `'native'` when neither the request nor the stored model record
+sets it, so doing nothing means search never reliably runs.
+
+**The trade-off:** `legacy` routes *all* tool use through prompt-based calling
+(`chat_completion_tools_handler`) instead of the provider's native tool API. Web search becomes
+guaranteed; native tool calling is given up. Revert by setting `model_params` to `{}` in
+[`model-curation.json`](model-curation.json) and re-running the curation script.
+
+The value is stored per model and applied by
+[`apply-model-curation.sh`](../../scripts/open-webui/apply-model-curation.sh) from the
+`model_params` block in `model-curation.json`, so it survives a PVC restore.
+
+**Verifying it:** read the value from SQLite, not the API.
+
+```bash
+kubectl --context default exec -n apps statefulset/open-webui -c open-webui -- \
+  python3 -c "import sqlite3; print(sqlite3.connect( \
+    '/app/backend/data/webui.db').execute('select id, params from model').fetchall())"
+```
+
+`ModelParams` is declared with `extra='allow'`, so the value is stored and honoured at request time
+— but `GET /api/models` and `GET /api/v1/models` both serialise `params` as `{}` and drop it.
+Asserting against either endpoint reports a false failure on a correct config.
+
+To confirm search actually ran, check the response for citation sources: `sources` non-empty via the
+API, or a sources block under the answer in the browser. Config values only prove it *can* run.
+
 ## Model curation
 
 The picker is curated down from ~33 entries to the 13 above. The keep/hide lists live in
@@ -148,6 +228,9 @@ The picker is curated down from ~33 entries to the 13 above. The keep/hide lists
 ./scripts/open-webui/apply-model-curation.sh            # apply
 ./scripts/open-webui/apply-model-curation.sh --dry-run  # preview
 ```
+
+It also applies the `model_params` block — currently `function_calling: legacy`, which is what
+makes web search actually run. See the web search section above.
 
 **Two upstream constraints make this a script rather than Helm values — read before editing:**
 
@@ -196,6 +279,68 @@ kubectl get ingressroute -n apps | grep open-webui
 - URL: `https://chat.home.jetzinger.com`
 - HTTP automatically redirects to HTTPS (308)
 - Valid TLS certificate from Let's Encrypt
+
+## Backup and restore
+
+Open-WebUI schema migrations are **one-way**. Rolling the image back does not undo them, so a
+pre-upgrade archive is the only rollback path. Take one before every chart or app upgrade, and
+before any bulk data change.
+
+Backups live on the `open-webui-backup` PVC (5Gi, `nfs-client`, see
+[`backup-pvc.yaml`](backup-pvc.yaml)), not on your workstation. See the truncation trap below.
+
+### Take a backup
+
+Scale the statefulset to 0 first. `tar` on a live data directory fails with
+`file changed as we read it` and leaves an inconsistent archive.
+
+```bash
+kubectl --context default scale statefulset open-webui -n apps --replicas=0
+
+# Run a busybox pod mounting both `open-webui` (data) and `open-webui-backup`, then:
+#   cd /data && tar czf /backup/open-webui-data-$(date +%Y%m%d-%H%M%S).tar.gz --exclude=./cache .
+
+kubectl --context default scale statefulset open-webui -n apps --replicas=1
+```
+
+Always verify the archive before trusting it:
+
+```bash
+gzip -t /backup/open-webui-data-<timestamp>.tar.gz   # silent = good
+```
+
+`cache/` is excluded. It holds ~1.1G of embedding models that regenerate on demand. Real state
+— `webui.db`, `uploads/`, `vector_db/` — is roughly 23MB, so a full archive lands near 22MB.
+
+For a quick, low-risk snapshot before a data change, copying `webui.db` alone is enough and does
+not need a scale-down:
+
+```bash
+kubectl --context default exec -n apps statefulset/open-webui -- \
+  cp /app/backend/data/webui.db /backup/webui-pre-<change>-$(date +%Y%m%d-%H%M%S).db
+```
+
+### Do not stream archives out of the cluster
+
+**`kubectl cp` and `kubectl exec -- cat` both truncate at ~17MB in this environment** and produce
+a corrupt gzip that `gzip -t` rejects. The truncation is silent — the command exits 0. This is why
+the backup PVC exists: write the archive inside the cluster and leave it there.
+
+### Restore
+
+```bash
+kubectl --context default scale statefulset open-webui -n apps --replicas=0
+
+# From a busybox pod mounting both volumes:
+#   cd /data && rm -rf ./* && tar xzf /backup/open-webui-data-<timestamp>.tar.gz
+
+kubectl --context default scale statefulset open-webui -n apps --replicas=1
+kubectl --context default rollout status statefulset/open-webui -n apps
+```
+
+A restore returns the database to its archived state, which includes the PersistentConfig values.
+Expect to re-apply anything changed since — model curation, web search config, the default model.
+Re-run [`apply-model-curation.sh`](../../scripts/open-webui/apply-model-curation.sh) afterwards.
 
 ## Stories
 
