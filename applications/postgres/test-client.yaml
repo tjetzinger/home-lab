@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: postgres-test-client
-  namespace: apps
+  namespace: data  # must match the namespace holding postgres-cnpg-superuser (ADR-014)
   labels:
     app.kubernetes.io/name: postgres-test-client
     app.kubernetes.io/component: test
@@ -14,7 +14,7 @@ spec:
     command: ["sleep", "infinity"]
     env:
     - name: PGHOST
-      value: "postgres-postgresql.data.svc.cluster.local"
+      value: "postgres-cnpg-rw.data.svc.cluster.local"
     - name: PGPORT
       value: "5432"
     - name: PGUSER
@@ -22,6 +22,6 @@ spec:
     - name: PGPASSWORD
       valueFrom:
         secretKeyRef:
-          name: postgres-postgresql
-          key: postgres-password
+          name: postgres-cnpg-superuser
+          key: password
   restartPolicy: Never

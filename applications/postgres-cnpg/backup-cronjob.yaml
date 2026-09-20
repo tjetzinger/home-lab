@@ -1,0 +1,101 @@
+---
+# Nightly pg_dumpall of the CloudNativePG cluster
+# ADR-014: PostgreSQL off Bitnami
+#
+# WHY A CRONJOB AND NOT A CNPG ScheduledBackup:
+# CNPG's declarative backups need either an S3-compatible object store
+# (spec.backup.barmanObjectStore) or CSI volume snapshots. This cluster has
+# neither — storage is nfs-subdir-external-provisioner, which has no snapshot
+# support, and there is no MinIO/S3 in the cluster. Verified 2026-09-20:
+# `kubectl get volumesnapshotclass` returns no such resource type.
+#
+# So this keeps the Epic 5 approach — pg_dumpall to the postgres-backup PVC —
+# with three changes from the old applications/postgres/backup-cronjob.yaml:
+#   1. points at postgres-cnpg-rw instead of the retired Bitnami service
+#   2. uses a PINNED image, not bitnami/postgresql:latest (the whole reason
+#      for ADR-014 — that tag no longer has versioned alternatives)
+#   3. verifies the archive with `gzip -t`, which the old job never did
+#
+# If MinIO ever lands in this cluster, replace this with a CNPG ScheduledBackup
+# and get PITR for free.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-cnpg-backup
+  namespace: data
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-cnpg
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: postgres
+            app.kubernetes.io/component: backup
+            app.kubernetes.io/part-of: home-lab
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: ghcr.io/cloudnative-pg/postgresql:18.6
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  echo "Starting PostgreSQL backup at $(date)"
+
+                  BACKUP_FILE="/backup/postgres-backup-$(date +%Y-%m-%d-%H%M%S).sql.gz"
+                  echo "Backup file: $BACKUP_FILE"
+
+                  # pipefail matters here: without it a pg_dumpall failure is
+                  # hidden by gzip exiting 0, producing a valid-looking empty archive.
+                  pg_dumpall -h "$PGHOST" -U postgres | gzip > "$BACKUP_FILE"
+
+                  gzip -t "$BACKUP_FILE"
+                  echo "gzip integrity OK"
+                  echo "Backup size: $(du -h "$BACKUP_FILE" | cut -f1)"
+
+                  echo "Databases captured:"
+                  zcat "$BACKUP_FILE" | grep -c '^CREATE DATABASE' || true
+
+                  echo "Applying retention policy (keep last 7)"
+                  cd /backup
+                  ls -t postgres-backup-*.sql.gz | tail -n +8 | xargs -r rm -v
+
+                  echo "Current backups:"
+                  ls -lh postgres-backup-*.sql.gz 2>/dev/null || echo "none"
+                  echo "Backup job finished at $(date)"
+              env:
+                - name: PGHOST
+                  value: postgres-cnpg-rw.data.svc.cluster.local
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-cnpg-superuser
+                      key: password
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: postgres-backup
