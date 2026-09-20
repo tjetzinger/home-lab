@@ -108,7 +108,10 @@ main:
 
     # Database configuration
     DB_TYPE: "postgresdb"
-    DB_POSTGRESDB_HOST: "postgres-postgresql.data"
+    # CloudNativePG (ADR-014). Was postgres-postgresql.data until 2026-09-20 —
+    # Bitnami removed all versioned tags from Docker Hub, leaving the data tier
+    # unpinnable. `-rw` is the CNPG primary service.
+    DB_POSTGRESDB_HOST: "postgres-cnpg-rw.data.svc.cluster.local"
     DB_POSTGRESDB_PORT: "5432"
     DB_POSTGRESDB_DATABASE: "n8n"
     DB_POSTGRESDB_USER: "n8n"

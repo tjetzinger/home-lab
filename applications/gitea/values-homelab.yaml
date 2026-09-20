@@ -50,7 +50,9 @@ gitea:
 
     database:
       DB_TYPE: postgres
-      HOST: postgres-postgresql.data.svc.cluster.local:5432
+      # CloudNativePG (ADR-014). Was postgres-postgresql.data.svc.cluster.local
+      # until 2026-09-20 — Bitnami removed all versioned tags from Docker Hub.
+      HOST: postgres-cnpg-rw.data.svc.cluster.local:5432
       NAME: gitea
       USER: gitea
       PASSWD: gitea-homelab-2026
