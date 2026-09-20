@@ -92,22 +92,57 @@ extraEnvVars:
         key: OPENAI_API_KEY
 ```
 
-**Available Models via LiteLLM:**
+Open-WebUI draws models from **two independent connections**:
 
-| Model | Type | Description |
-|-------|------|-------------|
-| `vllm-qwen` | Fallback Primary | Qwen2.5-7B on GPU (fast) |
-| `ollama-qwen` | Fallback Secondary | Qwen2.5:3b on CPU |
-| `openai-gpt4o` | Fallback Tertiary | GPT-4o-mini (cloud) |
-| `groq/llama-3.3-70b-versatile` | Parallel | Groq fast inference |
-| `groq/mixtral-8x7b-32768` | Parallel | MoE model, 32k context |
-| `gemini/gemini-2.0-flash` | Parallel | Google AI fast |
-| `gemini/gemini-2.5-flash` | Parallel | Google AI latest |
-| `mistral/mistral-small-latest` | Parallel | European provider |
+1. **Direct Ollama Pro cloud** (`ollamaUrls: https://ollama.com`) — enumerates the account catalogue
+   live, so new models appear and retired ones drop off with no config change.
+2. **LiteLLM** (`OPENAI_API_BASE_URL`) — the role aliases, which add automatic failover.
 
-**Fallback Chain:** vLLM (GPU) → Ollama (CPU) → OpenAI (cloud)
+**Visible models (curated, ADR-013):**
 
-When requesting `vllm-qwen`, LiteLLM automatically falls back to `ollama-qwen` if GPU unavailable, then to `openai-gpt4o` as last resort.
+| Model | Source | Why it is in the picker |
+|-------|--------|-------------------------|
+| `kimi-k3` | Cloud | Most powerful available: 1M ctx, vision + thinking + tools |
+| `deepseek-v4-pro:0813` | Cloud | Top-tier reasoning, 1M ctx |
+| `glm-5.3` | Cloud | Current GLM flagship, 1M ctx |
+| `mistral-large-3:675b` | Cloud | Best German of the catalogue, vision |
+| `minimax-m3` | Cloud | Current MiniMax flagship, 512K ctx, vision |
+| `kimi-k2.7-code` | Cloud | Dedicated coding model |
+| `deepseek-v4.1-flash` | Cloud | Fast tier, 1M ctx, vision |
+| `gpt-oss:120b` | Cloud | Open-weight option |
+| `gemma4:31b` | Cloud | Small and quick, strong multilingual |
+| `nemotron-3-ultra` | Cloud | NVIDIA flagship |
+| `cloud-docs` | LiteLLM | `mistral-large-3` + automatic fallback chain |
+| `cloud-fast` | LiteLLM | `deepseek-v4.1-flash` + automatic fallback chain |
+| `cloud-smart` | LiteLLM | `kimi-k3` + automatic fallback chain (**default model**) |
+
+**Fallback Chain (LiteLLM aliases only):** Ollama Pro cloud → vLLM (GPU) → Ollama (CPU).
+`openai-gpt4o` is explicit-selection only and not in the auto-fallback chain.
+
+## Model curation
+
+The picker is curated down from ~33 entries to the 13 above. The keep/hide lists live in
+[`model-curation.json`](model-curation.json) and are applied with:
+
+```bash
+./scripts/open-webui/apply-model-curation.sh            # apply
+./scripts/open-webui/apply-model-curation.sh --dry-run  # preview
+```
+
+**Two upstream constraints make this a script rather than Helm values — read before editing:**
+
+1. **`DEFAULT_MODELS` is a `ConfigVar` (PersistentConfig).** With `ENABLE_PERSISTENT_CONFIG=true` (the
+   default) the value stored in the Open-WebUI DB wins and the Helm env var is **ignored**. Changing it
+   in `values-homelab.yaml` and running `helm upgrade` has no effect on an existing install — it must
+   also be set in Admin Panel → Settings → General.
+2. **`OLLAMA_API_CONFIGS` / `OPENAI_API_CONFIGS` cannot be seeded from env vars.** The `model_ids`
+   whitelist they expose is the right mechanism, but upstream never implemented JSON parsing for them
+   ([issue #19017](https://github.com/open-webui/open-webui/issues/19017), closed as *not planned*).
+
+Model visibility therefore lives in the Open-WebUI DB on the NFS PVC, not in Git. The script is both
+the declarative substitute and the recovery path if that PVC is ever lost. It needs an admin API key in
+`open-webui-secrets` as `OPENWEBUI_API_KEY` (generate in Open-WebUI → Settings → Account, then apply
+with `kubectl patch` — never `kubectl apply` the secret file).
 
 ### Ingress (Story 17.3)
 

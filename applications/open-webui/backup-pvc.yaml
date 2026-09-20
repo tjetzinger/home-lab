@@ -1,0 +1,39 @@
+# Open-WebUI Backup Volume
+# ADR-013 - Cloud Model Tier Refresh (created during the 10.2.1 -> 16.5.0 upgrade)
+#
+# Holds tar.gz snapshots of /app/backend/data taken BEFORE a chart or app upgrade.
+# Open-WebUI schema migrations are one-way: rolling the image back does not undo
+# them, so a pre-upgrade tar is the only rollback path.
+#
+# Take a backup with the pod stopped, otherwise tar fails with
+# "file changed as we read it" and the archive is inconsistent:
+#   kubectl scale statefulset open-webui -n apps --replicas=0
+#   # run a busybox pod mounting both `open-webui` and `open-webui-backup`, then:
+#   #   cd /data && tar czf /backup/open-webui-data-$(date +%Y%m%d-%H%M%S).tar.gz --exclude=./cache .
+#   # verify with: gzip -t <file>
+#
+# `cache/` is excluded — it is ~1.1G of regenerable embedding models. Real state
+# (webui.db, uploads/, vector_db/) is roughly 23MB.
+#
+# NOTE: do not stream the archive out with `kubectl cp` or `kubectl exec -- cat`.
+# Both truncate at ~17MB in this environment and produce a corrupt gzip. Keep
+# backups on this PVC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui-backup
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/instance: open-webui-backup
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 5Gi

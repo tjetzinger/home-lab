@@ -9,16 +9,33 @@
 # - FR126: Open-WebUI deployed in `apps` namespace with persistent storage
 # - FR127: Open-WebUI configured to use LiteLLM as backend (Story 17.2)
 # - FR128: Open-WebUI accessible via ingress (Story 17.3)
-# - FR220: Open-WebUI default model set to cloud-minimax (Story 26.2)
+# - FR220: Open-WebUI default model set to a cloud-tier model (Story 26.2)
+#   ADR-013: now cloud-smart (kimi-k3 via LiteLLM, with fallback chain)
 #
 # NFRs:
 # - NFR75: Web interface loads within 3 seconds
 # - NFR76: Chat history persisted to NFS storage surviving pod restarts
 # - NFR124: Cloud models auto-visible in model picker without per-model config
 
-# Disable bundled Ollama (using LiteLLM instead - Story 17.2)
+# Disable bundled Ollama (using LiteLLM role aliases + direct Ollama Pro cloud connection)
 ollama:
   enabled: false
+
+# Ollama Pro cloud endpoint — enumerates the account catalogue directly, so new
+# models appear and retired ones drop off without any config change (ADR-013).
+# Which of them reach the picker is curated via applications/open-webui/model-curation.json
+ollamaUrls:
+  - "https://ollama.com"
+
+# OpenAI-compatible backend = LiteLLM proxy (FR127).
+# These are CHART-NATIVE keys. They must NOT be repeated in extraEnvVars: the chart
+# renders its own OPENAI_API_BASE_URL/OPENAI_API_KEY env vars, and a duplicate in
+# extraEnvVars produces two entries for the same name. Kubernetes warns
+# "hides previous definition ... may be dropped when using apply", and which one wins
+# depends on ordering the chart controls. Pre-16.5.0 this repo had exactly that bug.
+openaiBaseApiUrl: "http://litellm.ml.svc.cluster.local:4000/v1"
+openaiApiKeyExistingSecret: "open-webui-secrets"
+openaiApiKeyExistingSecretKey: "OPENAI_API_KEY"
 
 # Disable bundled Pipelines (not needed)
 pipelines:
@@ -71,24 +88,23 @@ ingress:
 
 # Environment variables
 extraEnvVars:
-  # Disable Ollama API (using LiteLLM OpenAI-compatible API)
-  - name: ENABLE_OLLAMA_API
-    value: "false"
-  # Enable OpenAI API for LiteLLM integration (Story 17.2)
-  - name: ENABLE_OPENAI_API
-    value: "true"
-  # LiteLLM endpoint (FR127 - Story 17.2)
-  - name: OPENAI_API_BASE_URL
-    value: "http://litellm.ml.svc.cluster.local:4000/v1"
-  # LiteLLM master key from secret (required for model access)
-  - name: OPENAI_API_KEY
+  # Ollama Pro API key for the direct cloud connection above
+  - name: OLLAMA_API_KEY
     valueFrom:
       secretKeyRef:
         name: open-webui-secrets
-        key: OPENAI_API_KEY
-  # Default model - cloud-minimax (Ollama Pro cloud)
+        key: OLLAMA_API_KEY
+  # Enable OpenAI API for LiteLLM integration (Story 17.2)
+  - name: ENABLE_OPENAI_API
+    value: "true"
+  # NOTE: OPENAI_API_BASE_URL and OPENAI_API_KEY are deliberately NOT set here.
+  # They come from openaiBaseApiUrl / openaiApiKeyExistingSecret above.
+  # Default model - cloud-smart (kimi-k3) via LiteLLM
+  # NOTE: DEFAULT_MODELS is a PersistentConfig var — on an existing install the DB
+  # value wins and this env var is IGNORED. Change it in Admin Panel -> Settings
+  # -> General as well. This line only takes effect on a fresh install. (ADR-013)
   - name: DEFAULT_MODELS
-    value: "cloud-minimax"
+    value: "cloud-smart"
 
 # Node selector - allow scheduling on any worker
 nodeSelector: {}
