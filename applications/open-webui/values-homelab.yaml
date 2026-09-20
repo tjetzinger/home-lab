@@ -41,9 +41,15 @@ openaiApiKeyExistingSecretKey: "OPENAI_API_KEY"
 pipelines:
   enabled: false
 
-# Disable websocket Redis (single user, not needed)
+# Websockets ON, but without Redis. Single replica, so the in-memory session
+# manager is enough — `manager: ""` leaves WEBSOCKET_MANAGER unset.
+#
+# Not optional for tool use: Open-WebUI only offers a model its builtin tools when
+# the request carries a websocket session_id (utils/middleware.py:2769). With
+# websockets off, native function calling can never fire in the browser.
 websocket:
-  enabled: false
+  enabled: true
+  manager: ""
   redis:
     enabled: false
 
@@ -120,6 +126,23 @@ extraEnvVars:
   # -> General as well. This line only takes effect on a fresh install. (ADR-013)
   - name: DEFAULT_MODELS
     value: "cloud-smart"
+  # JWT signing key. Without this the container generates one at every boot into
+  # /app/backend/.webui_secret_key — which is NOT on the data PVC, so every restart
+  # invalidates every login session. Not a PersistentConfig var; the env var is
+  # authoritative. Rotating it logs everyone out.
+  - name: WEBUI_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: open-webui-secrets
+        key: WEBUI_SECRET_KEY
+  # Hardening. Defaults are CORS_ALLOW_ORIGIN='*' and non-secure, lax cookies;
+  # this instance is HTTPS-only behind Tailscale, so tighten all three.
+  - name: CORS_ALLOW_ORIGIN
+    value: "https://chat.home.jetzinger.com"
+  - name: WEBUI_SESSION_COOKIE_SECURE
+    value: "true"
+  - name: WEBUI_SESSION_COOKIE_SAME_SITE
+    value: "strict"
 
 # Node selector - allow scheduling on any worker
 nodeSelector: {}
