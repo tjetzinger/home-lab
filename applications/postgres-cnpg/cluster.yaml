@@ -1,0 +1,91 @@
+---
+# PostgreSQL cluster managed by CloudNativePG
+# ADR-014: PostgreSQL off Bitnami
+#
+# Replaces the Bitnami postgresql chart in namespace `data`. See
+# applications/postgres-cnpg/values-homelab.yaml for why.
+#
+# Bootstrap uses CNPG's declarative `monolith` import: the operator runs
+# pg_dumpall -r (roles, with their password hashes) plus a pg_dump per named
+# database against the live Bitnami instance. Nothing is copied by hand, and the
+# three empty Epic-5 test databases (app_test_db, backup_test, test_persistence)
+# are simply left off the list.
+#
+# The import runs ONCE, at bootstrap. To redo it, delete the Cluster and its PVC.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-cnpg
+  namespace: data
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-cnpg
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  instances: 1
+
+  # Pinned. The whole point of this migration is that the data tier is never
+  # again on a floating tag. Bump deliberately, same major as the data on disk.
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6
+  imagePullPolicy: IfNotPresent
+
+  # LiteLLM connects as `postgres` (verified from its DATABASE_URL), so superuser
+  # access cannot be disabled. Reusing the existing secret keeps every consumer's
+  # password unchanged — only the host in their connection string moves.
+  enableSuperuserAccess: true
+  superuserSecret:
+    name: postgres-cnpg-superuser
+
+  storage:
+    size: 8Gi
+    storageClass: nfs-client
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  postgresql:
+    parameters:
+      # Conservative, matching the 1Gi limit above.
+      shared_buffers: 128MB
+      max_connections: "100"
+
+  monitoring:
+    enablePodMonitor: true
+
+  bootstrap:
+    initdb:
+      import:
+        type: monolith
+        databases:
+          - litellm
+          - paperless
+          - gitea
+          - n8n
+          - legacy_use
+        roles:
+          - "*"
+        source:
+          externalCluster: bitnami-postgres
+
+  externalClusters:
+    - name: bitnami-postgres
+      connectionParameters:
+        host: postgres-postgresql.data.svc.cluster.local
+        user: postgres
+        dbname: postgres
+        sslmode: prefer
+      password:
+        name: postgres-cnpg-import-source
+        key: password
+
+  affinity:
+    # k3s-gpu-worker is NotReady; k3s-nas-worker is the Synology VM.
+    nodeSelector:
+      kubernetes.io/hostname: k3s-worker-01

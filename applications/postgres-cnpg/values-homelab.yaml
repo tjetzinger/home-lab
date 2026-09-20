@@ -1,0 +1,39 @@
+# CloudNativePG operator — home-lab overrides
+# ADR-014: PostgreSQL off Bitnami
+#
+# WHY THIS EXISTS: bitnami/postgresql lost all versioned tags in Bitnami's
+# August 2025 catalogue change — docker.io/bitnami now publishes only `latest`,
+# and versioned tags moved to the unmaintained docker.io/bitnamilegacy archive.
+# The data tier could no longer be pinned. CNPG ships its own maintained,
+# versioned images, so the problem does not recur.
+#
+# The operator only. The database itself is applications/postgres-cnpg/cluster.yaml.
+
+# Pin the operator image; never track a floating tag on the data tier.
+image:
+  repository: ghcr.io/cloudnative-pg/cloudnative-pg
+  tag: "1.30.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Prometheus is already running; expose operator metrics to it.
+monitoring:
+  podMonitorEnabled: true
+  grafanaDashboard:
+    create: false
+
+# Schedule on a CPU worker. k3s-gpu-worker is NotReady; k3s-nas-worker is the NAS.
+nodeSelector: {}
+
+# The chart has no commonLabels; podLabels is the only label hook it exposes.
+podLabels:
+  app.kubernetes.io/part-of: home-lab
