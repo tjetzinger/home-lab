@@ -39,7 +39,10 @@ env:
 
   # PostgreSQL database configuration (Story 10.2)
   PAPERLESS_DBENGINE: postgresql
-  PAPERLESS_DBHOST: postgres-postgresql.data.svc.cluster.local  # Cluster PostgreSQL from Epic 5
+  # CloudNativePG (ADR-014). Was postgres-postgresql.data.svc.cluster.local (Bitnami,
+  # Epic 5) until 2026-09-20 — Bitnami removed all versioned tags from Docker Hub.
+  # `-rw` is the primary; CNPG also exposes -ro and -r services.
+  PAPERLESS_DBHOST: postgres-cnpg-rw.data.svc.cluster.local
   PAPERLESS_DBNAME: paperless
   PAPERLESS_DBUSER: paperless_user
   PAPERLESS_DBPORT: "5432"
