@@ -139,29 +139,75 @@ on an existing install the database value wins and the env vars are ignored. Cha
 live via `POST /api/v1/retrieval/config/update` or Admin → Settings → Web Search. This is
 the same trap documented under Model curation below.
 
-### Default-on per user
+### Default-on: use the admin default, not the user record
 
-Engine config alone does not switch search on for a chat. Each user carries their own
-`ui.webSearch` setting, applied via `POST /api/v1/users/user/settings/update`:
+Engine config alone does not switch search on for a chat. The composer gate in the frontend is:
 
-```bash
-# 'always' | 'on' | 'off'
-curl -s -X POST https://chat.home.jetzinger.com/api/v1/users/user/settings/update \
-  -H "Authorization: Bearer $OPENWEBUI_API_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{"ui":{"webSearch":"always"}}'
+```
+permissions.features.web_search && (<per-chat toggle> || settings.webSearch === "always")
 ```
 
-**Read the value back from the database, not from the API response.** The update endpoint
-echoes the value it was sent whether or not it persisted — a first attempt on 2026-09-20
-returned `always` and then read back as `None`.
+**Do not set `ui.webSearch` on the user record.** `POST /api/v1/users/user/settings/update`
+works and the value lands in the database, but it does not survive: the frontend rewrites the
+whole `ui` object from its own state on every change and drops keys it never loaded. Observed
+on 2026-09-20 — set to `always`, confirmed in the DB, found back at `None` after a browser
+session.
+
+The durable equivalent is the admin-level default, `DEFAULT_INTERFACE_SETTINGS`:
 
 ```bash
-kubectl --context default exec -n apps statefulset/open-webui -- \
-  python3 -c "import sqlite3,json; \
-    r=sqlite3.connect('/app/backend/data/webui.db').execute( \
-      'select settings from user').fetchone(); \
-    print(json.loads(r[0])['ui'].get('webSearch'))"
+# read-modify-write — this endpoint rewrites EVERY admin field it receives, so a
+# blind POST resets ENABLE_SIGNUP, DEFAULT_USER_ROLE and the rest
+CUR=$(curl -s .../api/v1/auths/admin/config -H "Authorization: Bearer $OPENWEBUI_API_KEY")
+jq -c '.DEFAULT_INTERFACE_SETTINGS = {"webSearch":"always"}' <<<"$CUR" \
+  | curl -s -X POST .../api/v1/auths/admin/config -H "Authorization: Bearer $OPENWEBUI_API_KEY" \
+      -H 'Content-Type: application/json' -d @-
+```
+
+Two backend paths make this stick:
+
+- `routers/users.py:482` merges the default into the user's settings on every read of
+  `GET /api/v1/users/user/settings`.
+- `routers/users.py:71` (`strip_default_interface_settings`) removes any per-user value equal
+  to the default on write — so there is nothing left for the browser to clobber.
+
+Verify with both forms of that endpoint. `raw=true` shows what is stored, the plain call shows
+what the frontend receives:
+
+```bash
+# expect: merged "always", raw absent
+curl -s .../api/v1/users/user/settings          -H "Authorization: Bearer $KEY" | jq .ui.webSearch
+curl -s '.../api/v1/users/user/settings?raw=true' -H "Authorization: Bearer $KEY" | jq .ui.webSearch
+```
+
+**The browser still needs its own copy.** The server side being correct does not flip the
+toggle in an already-loaded tab — the frontend seeds its settings store from browser storage.
+Set web search to "always" once in Open-WebUI's interface settings so both agree.
+
+**`GET /api/config` is not usable for verifying any of this from a script.** Its whole
+authenticated block is gated on `if user is not None` (`main.py:2340`), and an API-key call
+does not populate `user` there. `enable_web_search` and `default_interface_settings` both read
+as absent even when correctly set. Use the endpoints above instead.
+
+### Query generation: one Exa call per question
+
+The stock template tells the model to *"prioritize generating 1-3 broad and relevant search
+queries"*, so one question cost three Exa calls. `QUERY_GENERATION_PROMPT_TEMPLATE` in
+`values-homelab.yaml` caps it at one.
+
+The rewriting itself is worth keeping — `{{CURRENT_DATE}}` resolves "heute" into the real date,
+which is what makes questions about today answerable at all. Setting
+`ENABLE_SEARCH_QUERY_GENERATION=false` is cheaper still but searches the raw message verbatim
+and loses that.
+
+Live changes go through `POST /api/v1/tasks/config/update`, also read-modify-write.
+
+Confirm which engine actually ran from the logs, not from config:
+
+```bash
+kubectl --context default logs -n apps open-webui-0 -c open-webui --since=10m | grep 'Searching with'
+# open_webui.retrieval.web.exa:search_exa - Searching with Exa for query: ...
+# open_webui.retrieval.web.exa:search_exa - Found 5 results
 ```
 
 ### Why `function_calling: legacy` is set on every model
@@ -195,6 +241,17 @@ use_builtin_tools = is_note_chat or (
 `main.py:1267` defaults the value to `'native'` when neither the request nor the stored model record
 sets it, so doing nothing means search never reliably runs.
 
+**Websockets are a hard dependency for the native path.** `ENABLE_WEBSOCKET_SUPPORT` was once off
+here, on the reasoning that a single user does not need it. But `session_id` only exists on a
+websocket-backed request, so with it off the native path could never fire in the browser either —
+`legacy` was not merely the better option, it was the only working one. Websockets are on now
+(`websocket.manager: ""`, in-memory, no Redis), so native is at least possible.
+
+Note `socket/main.py:94` makes the transport strictly either/or:
+`transports=(['websocket'] if ENABLE_WEBSOCKET_SUPPORT else ['polling'])`. Flipping this setting
+therefore breaks every already-loaded browser tab until it is reloaded — the old page keeps probing
+the transport that is now rejected, and the log fills with `400`s on `/ws/socket.io/`.
+
 **The trade-off:** `legacy` routes *all* tool use through prompt-based calling
 (`chat_completion_tools_handler`) instead of the provider's native tool API. Web search becomes
 guaranteed; native tool calling is given up. Revert by setting `model_params` to `{}` in
@@ -218,6 +275,36 @@ Asserting against either endpoint reports a false failure on a correct config.
 
 To confirm search actually ran, check the response for citation sources: `sources` non-empty via the
 API, or a sources block under the answer in the browser. Config values only prove it *can* run.
+
+## Security settings
+
+Scoped to what matters for a single-admin instance reachable only over Tailscale. The upstream
+[hardening guide](https://docs.openwebui.com/getting-started/advanced-topics/hardening/) treats
+network placement as the primary control, and a VPN is the strongest option it lists.
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| `WEBUI_SECRET_KEY` | from `open-webui-secrets` | See below — the default is not persistent here |
+| `CORS_ALLOW_ORIGIN` | the one host | Default is `*` |
+| `WEBUI_SESSION_COOKIE_SECURE` | `true` | Instance is HTTPS-only |
+| `WEBUI_SESSION_COOKIE_SAME_SITE` | `strict` | Default is `lax` |
+
+**`WEBUI_SECRET_KEY` must be set explicitly on this deployment.** Unset, `start.sh` generates one
+into `.webui_secret_key` relative to its working directory — `/app/backend`, which is the container
+layer. The only PVC mount is `/app/backend/data`, so the key was regenerated at every pod start and
+every restart invalidated all login sessions. API keys were unaffected; they live in the database.
+
+Rotating the key logs everyone out. To change it without that, carry the current value across first:
+
+```bash
+CUR=$(kubectl --context default exec -n apps open-webui-0 -c open-webui -- \
+        cat /app/backend/.webui_secret_key | tr -d '\n')
+# then kubectl patch it into open-webui-secrets, never kubectl apply
+```
+
+Deliberately skipped: `JWT_EXPIRES_IN` (stays at the `4w` default) and Redis-backed token
+revocation. Without Redis, signing out cannot invalidate a token — which is irrelevant at one
+admin user, and Redis is not worth running for it.
 
 ## Model curation
 
