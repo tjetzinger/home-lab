@@ -49,7 +49,15 @@ spec:
                     operator: DoesNotExist
       containers:
         - name: litellm
-          image: ghcr.io/berriai/litellm:main-latest
+          # Pinned 2026-09-21 (Phase 3). Was `main-latest`, which is a moving tag — with
+          # imagePullPolicy: IfNotPresent the pod had been running 1.81.9 (cached on
+          # k3s-master since ~Feb) while upstream had moved to v1.101.0. Roughly 20 minor
+          # versions of drift, invisible, and a reschedule onto a node without that cache
+          # would have applied all of it at once. Paperless-GPT depends on this proxy.
+          #
+          # v1.81.9-stable is the same version already running, so this pin is a no-op.
+          # The upgrade to a current release is a separate, tested step (Phase 4).
+          image: ghcr.io/berriai/litellm:v1.81.9-stable
           imagePullPolicy: IfNotPresent
           args:
             - --config

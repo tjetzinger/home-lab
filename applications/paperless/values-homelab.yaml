@@ -27,7 +27,9 @@
 image:
   repository: ghcr.io/paperless-ngx/paperless-ngx
   pullPolicy: IfNotPresent
-  tag: "latest"  # Use latest stable Paperless-ngx version
+  # Pinned 2026-09-21 (Phase 3). Was `latest`; the chart declares app 2.14.7 but the
+  # running image was 2.20.6 — the tag had moved six minor versions under the chart.
+  tag: "2.20.6"
 
 # Environment variables for Paperless-ngx configuration
 # Reference: https://docs.paperless-ngx.com/configuration/

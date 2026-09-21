@@ -28,7 +28,8 @@ replicaCount: 1  # Single instance (CPU-only MVP)
 image:
   repository: ollama/ollama
   pullPolicy: IfNotPresent
-  tag: "latest"  # Use latest stable Ollama version
+  # Pinned 2026-09-21 (Phase 3). 0.13.5 is the version that was running.
+  tag: "0.13.5"
 
 # Ollama-specific configuration
 ollama:

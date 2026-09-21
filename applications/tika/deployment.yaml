@@ -33,7 +33,11 @@ spec:
     spec:
       containers:
         - name: tika
-          image: apache/tika:latest
+          # Pinned 2026-09-21 (Phase 3). Was `latest` WITH imagePullPolicy: Always, so the
+          # image changed on every restart. The running digest already differed from what
+          # `latest` pointed to, meaning the next restart would have jumped versions silently.
+          # 3.2.3.0 is the exact image running; note it is the standard server, not `-full`.
+          image: apache/tika:3.2.3.0
           ports:
             - containerPort: 9998
               name: http

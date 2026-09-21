@@ -69,7 +69,8 @@ spec:
                       - k3s-worker-01
       containers:
         - name: docling
-          image: quay.io/docling-project/docling-serve-cpu:latest
+          # Pinned 2026-09-21 (Phase 3). docling-serve 1.12.0 is what was running.
+          image: quay.io/docling-project/docling-serve-cpu:v1.12.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
