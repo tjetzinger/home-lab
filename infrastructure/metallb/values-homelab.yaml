@@ -16,8 +16,25 @@ controller:
       cpu: 25m
       memory: 50Mi
 
+# BGP backend: both off. This cluster is L2-only — one IPAddressPool
+# (192.168.2.100-149) and one L2Advertisement, no BGPPeer and no BGPAdvertisement.
+#
+# 0.16.0 flipped the chart defaults: speaker.frr.enabled true -> false and
+# frrk8s.enabled false -> true, making frr-k8s the default BGP backend. Taking those
+# defaults would deploy a whole frr-k8s DaemonSet, webhook and 4 extra CRDs to serve
+# BGP that is not configured here. Both false selects the native backend, which
+# upstream keeps "for deployments that require a smaller footprint".
+#
+# Effect: the speaker pod drops from 4 containers (speaker, frr, reloader,
+# frr-metrics) to 1. FRR mode is deprecated upstream and scheduled for removal.
+frrk8s:
+  enabled: false
+
 # Speaker configuration (DaemonSet on all nodes)
 speaker:
+  frr:
+    enabled: false
+
   # Resource limits for speaker pods
   resources:
     limits:
