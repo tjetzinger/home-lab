@@ -8,6 +8,44 @@
 # - NFR16: All services expose Prometheus metrics on /metrics endpoint
 #
 # Components: Prometheus, Grafana, Alertmanager, node-exporter, kube-state-metrics
+#
+# CHART VERSION: 91.4.1  (prometheus-operator v0.94.0, Grafana 13.2.2, Prometheus 3.14.0)
+# Upgraded from 80.14.4 on 2026-09-21. Nothing in this repo previously recorded which
+# chart version was deployed - it lived only in Helm release history, the same
+# reproducibility gap the floating image tags had.
+#
+#   helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     --version 91.4.1 -f monitoring/prometheus/values-homelab.yaml -n monitoring
+#
+# ---------------------------------------------------------------------------------
+# CRDs ARE NOT UPGRADED BY HELM. Apply them BEFORE every chart upgrade.
+# ---------------------------------------------------------------------------------
+# The CRDs ship in a subchart's crds/ directory, which Helm installs once and never
+# updates - `helm template` renders zero CustomResourceDefinition objects. Upgrading
+# the chart without them leaves the new operator running against the old schema.
+# The CRD sets are cumulative, so the target version's files cover every version
+# skipped in between.
+#
+#   BASE=https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.94.0/example/prometheus-operator-crd
+#   for c in alertmanagerconfigs alertmanagers podmonitors probes prometheusagents \
+#            prometheuses prometheusrules scrapeconfigs servicemonitors thanosrulers; do
+#     kubectl --context default apply --server-side --force-conflicts \
+#       -f $BASE/monitoring.coreos.com_$c.yaml
+#   done
+#
+# --server-side is required: these CRDs exceed the annotation size limit that
+# client-side apply imposes. `crds.upgradeJob.enabled` is a chart-native alternative
+# available since 68.4.0, deliberately not used here so the step stays visible.
+#
+# Breaking changes crossed in 80 -> 91, none of which needed a values change here:
+#  - 89->90 removed <component>.serviceMonitor.bearerTokenFile, insecureSkipVerify,
+#    caSecret/certSecret/keySecret and kubeApiServer.tlsConfig.caSecret. None were set;
+#    kubeEtcd, kubeControllerManager and kubeScheduler are disabled below, and kubelet
+#    and kubeApiServer use chart defaults. ignoreNamespaceSelectors is unset, so the
+#    chart-created service-account token Secret lands in the right namespace.
+#  - 90->91 tightened the operator ClusterRole (no wildcard verbs).
+#  - 84->85 switched Prometheus and node-exporter to distroless images by default.
+#  - 83->84 and 88->89 took Grafana to 13.x.
 
 # Global labels applied to all resources
 commonLabels:
