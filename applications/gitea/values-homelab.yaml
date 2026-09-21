@@ -76,6 +76,15 @@ gitea:
     existingSecret: gitea-admin-secret
     passwordMode: keepUpdated
 
+  # Database password, injected as an env var rather than written into app.ini by the
+  # chart. GITEA__<section>__<KEY> is Gitea's own config-from-environment convention.
+  additionalConfigFromEnvs:
+    - name: GITEA__database__PASSWD
+      valueFrom:
+        secretKeyRef:
+          name: gitea-db-secret
+          key: password
+
   config:
     server:
       DOMAIN: git.home.jetzinger.com
@@ -91,7 +100,14 @@ gitea:
       HOST: postgres-cnpg-rw.data.svc.cluster.local:5432
       NAME: gitea
       USER: gitea
-      PASSWD: gitea-homelab-2026
+      # PASSWD deliberately absent. It is injected as GITEA__database__PASSWD from
+      # secret `gitea-db-secret` in namespace `dev` — see additionalConfigFromEnvs
+      # below, and applications/gitea/db-secret.yaml for the placeholder template.
+      #
+      # It was inline here as a plaintext `PASSWD:` value and had been committed to a
+      # public repo. Rotated 2026-09-21; the old value stays reachable in git history
+      # and on GitHub by SHA, which is why rotation was required, not just removal.
+      # Same treatment as the admin password earlier the same day.
 
     repository:
       DEFAULT_BRANCH: main
