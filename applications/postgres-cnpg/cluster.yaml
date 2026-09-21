@@ -24,6 +24,43 @@ metadata:
     app.kubernetes.io/part-of: home-lab
     app.kubernetes.io/managed-by: kubectl
 spec:
+  # SINGLE INSTANCE - this is the known weak point, not an oversight.
+  #
+  # With one instance, draining either CPU worker is an outage: the PDB
+  # (minAvailable 1) refuses the eviction, and Gitea, n8n, LiteLLM and Paperless all
+  # go down with the database. That is exactly what happened during the k3s v1.34.11
+  # upgrade on 2026-09-21 - 4m45s down, and n8n needed a further 121s and 9 retries
+  # to reconnect afterwards.
+  #
+  # PLANNED FIX (researched 2026-09-21, not yet applied):
+  #
+  #   instances: 2
+  #   affinity:
+  #     enablePodAntiAffinity: true
+  #     podAntiAffinityType: required   # currently "preferred"
+  #
+  # `required` is the part that matters. With "preferred" both instances could be
+  # scheduled onto the same node and nothing would be gained; with two eligible nodes
+  # and two instances, "required" puts exactly one on each.
+  #
+  # Assessed as low risk: the whole database is 159 MB, so the replica bootstraps by
+  # streaming pg_basebackup from the primary in seconds. It needs one more 8Gi
+  # nfs-client PVC, requests 100m CPU / 256Mi, and there are currently 0 replication
+  # slots to disturb. primaryUpdateStrategy is already "unsupervised", so CNPG handles
+  # switchover itself. Adding the replica needs no downtime - the primary keeps
+  # serving while it catches up.
+  #
+  # Capacity note: k3s-worker-02 sits at 95% CPU requests and 83% memory requests
+  # (k3s-worker-01 at 33% / 18%). The replica fits, but worker-02 has little headroom
+  # for anything larger.
+  #
+  # What this does NOT provide: replication is not a backup - it copies mistakes
+  # instantly, so the nightly pg_dump stays the thing that survives a bad DELETE. And
+  # there is still no WAL archive to object storage (archive_mode is on but there is
+  # no `backup:` block), so point-in-time recovery is not available. Separate work.
+  #
+  # Verify after raising this: `pg_stat_replication` on the primary shows a streaming
+  # standby, and the PDB reports disruptionsAllowed: 1.
   instances: 1
 
   # Pinned. The whole point of this migration is that the data tier is never
@@ -102,8 +139,8 @@ spec:
     # This affinity now keeps the database off the control plane while letting it move
     # between the two CPU workers, so either can be drained for maintenance.
     #
-    # NOTE: with instances: 1 any move is still downtime. A second instance is the
-    # real fix for draining without an outage.
+    # NOTE: with instances: 1 any move is still downtime. See the comment on
+    # `instances` above for the planned two-instance fix.
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
