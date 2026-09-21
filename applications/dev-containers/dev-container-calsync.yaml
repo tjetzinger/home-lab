@@ -98,10 +98,25 @@ spec:
             - name: http
               containerPort: 3000
               protocol: TCP
+          # Reduced 2026-09-21 from cpu 500m / memory 1Gi.
+          #
+          # These containers run ONLY sshd when idle - confirmed with `ps`, which
+          # showed nothing but sshd in all three. Between them they were reserving
+          # 1.5 CPU and 3Gi, about 40% of k3s-worker-02's entire CPU reservation,
+          # to do nothing. The node read 95% CPU requested while using 4%.
+          #
+          # Requests are a scheduling reservation and a share guarantee, not a cap.
+          # The limits below are unchanged, so an interactive build inside one of
+          # these still bursts to the full ceiling; it just no longer holds the
+          # capacity while sitting at an idle shell.
+          #
+          # Side effect: memory request no longer equals the limit, so these move
+          # from Guaranteed to Burstable QoS and are evicted before production pods
+          # under memory pressure. That is the correct order for a dev container.
           resources:
             requests:
-              cpu: "500m"
-              memory: "1Gi"
+              cpu: "50m"
+              memory: "256Mi"
             limits:
               memory: "6Gi"
           volumeMounts:
