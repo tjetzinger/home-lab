@@ -55,9 +55,21 @@ spec:
   # for anything larger.
   #
   # What this does NOT provide: replication is not a backup - it copies mistakes
-  # instantly, so the nightly pg_dump stays the thing that survives a bad DELETE. And
-  # there is still no WAL archive to object storage (archive_mode is on but there is
-  # no `backup:` block), so point-in-time recovery is not available. Separate work.
+  # instantly, so the nightly pg_dump stays the thing that survives a bad DELETE.
+  #
+  # NOR is there any WAL archive. pg_stat_archiver reports archived_count climbing with
+  # failed_count 0, and that is MISLEADING: CNPG sets archive_mode=on and points
+  # archive_command at its own wal-archive helper, but with no `backup:` block there is
+  # no destination, so the command succeeds and the segment goes nowhere. Verified - no
+  # wal-archive directory, nothing on the postgres-backup PVC, nothing in the logs.
+  # It cannot be switched off either: archive_mode and archive_command are CNPG fixed
+  # parameters, injected by the operator and rejected by its admission webhook
+  # (cloudnative-pg#4053 proposed allowing it in 2024 and was never merged).
+  # Read those counters as "archiving is configured", never as "PITR is available".
+  #
+  # Recovery granularity is therefore ONE DAY - the 02:00 pg_dump.
+  # See docs/runbooks/postgres-backup.md for why neither barmanObjectStore nor
+  # volumeSnapshot can be enabled as this cluster stands, and what would fix it.
   #
   # Verify after raising this: `pg_stat_replication` on the primary shows a streaming
   # standby, and the PDB reports disruptionsAllowed: 1.

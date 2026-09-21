@@ -76,6 +76,75 @@ This runbook documents the automated backup system for PostgreSQL using pg_dumpa
 
 ---
 
+## What This Backup Does NOT Cover
+
+Two gaps, both verified 2026-09-21. Neither is a fault to fix in a hurry, but both
+will mislead you if you meet them during an incident.
+
+### The WAL archiver reports success while storing nothing
+
+`pg_stat_archiver` on this cluster looks healthy:
+
+```
+archived_count     | 276
+failed_count       | 0
+last_archived_wal  | 000000010000000100000014
+```
+
+**This is not evidence of point-in-time recovery.** CloudNativePG sets
+`archive_mode = on` and points `archive_command` at its own `wal-archive` helper, but
+the Cluster has no `backup:` block, so there is no destination. The command returns
+success and the segment goes nowhere - checked: no `wal-archive` directory, nothing on
+the `postgres-backup` PVC, nothing in the logs.
+
+**It cannot be turned off.** `archive_mode`, `archive_command` and
+`archive_cleanup_command` are CNPG *fixed parameters*: the operator injects them and an
+admission webhook rejects any attempt to set them. A pull request to allow disabling it
+(cloudnative-pg#4053, 2024) was superseded and never merged. The operator keeps
+archiving on because it underpins backups and replica bootstrap.
+
+So the counters will keep climbing. **Read them as "archiving is configured", never as
+"you can restore to a point in time".**
+
+Enabling real archiving needs a `backup:` block, and CNPG 1.30 accepts only two
+methods. Neither works here as the cluster stands:
+
+| Method | Blocker |
+|---|---|
+| `barmanObjectStore` | needs an S3-compatible endpoint; none exists in the cluster |
+| `volumeSnapshot` | needs the VolumeSnapshot CRDs and a CSI driver that supports them; `nfs-subdir-external-provisioner` does not, and only k3s's unrelated `etcdsnapshotfiles` CRD is installed |
+
+**Recovery granularity today is therefore one day.** The nightly `pg_dump` at 02:00 is
+the restore point; a mistake at 16:00 costs 14 hours.
+
+### Everything lives on one Synology
+
+This is the larger exposure, and PITR would not fix it.
+
+| What | Where |
+|---|---|
+| Database PVC (`postgres-cnpg-1`) | `nfs-client` on 192.168.2.2 |
+| Dump PVC (`postgres-backup`) | `nfs-client` on 192.168.2.2 |
+| k3s etcd snapshots (`/mnt/k3s-snapshots`) | the same NAS |
+
+**A NAS failure takes the database, every dump and the cluster snapshots together.**
+
+This is also why running MinIO in-cluster to satisfy `barmanObjectStore` would be
+poor value: its bucket would land on the same NFS, so the PITR archive would die with
+the database it protects. It would defend against a bad `DELETE` and against nothing
+else.
+
+The option that actually closes this is `barmanObjectStore` against **external** object
+storage - Backblaze B2 or Cloudflare R2 - which buys offsite copies and PITR in one
+step. At 159 MB plus WAL the cost is negligible. Not done; it is a decision about where
+data lives, not a config change.
+
+**Until then, copy a dump off this NAS periodically.** One `kubectl cp` of the newest
+`postgres-backup-*.sql.gz` to a machine that is not the Synology removes the
+single-point-of-failure for the cost of a few seconds.
+
+---
+
 ## Verify CronJob Configuration
 
 ### Check CronJob Status
