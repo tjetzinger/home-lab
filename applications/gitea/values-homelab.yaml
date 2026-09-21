@@ -18,8 +18,21 @@ podLabels:
   app.kubernetes.io/part-of: home-lab
 
 # Image configuration
+#
+# Tag pinned explicitly 2026-09-21 (Phase 4). The chart's appVersion trails the
+# application: chart 12.7.0 ships 1.27.0 while upstream is at 1.27.3. Leaving the tag
+# unset means the running version is decided by whichever chart happens to be
+# installed. Bump this line to upgrade, not the chart.
+#
+# 1.24.6 -> 1.27.3 crosses three minor versions and migrates the schema on first
+# start, which a tag rollback does not undo. A full dump was taken immediately before.
+# Every BREAKING entry in 1.25/1.26/1.27 lands in Actions or API surfaces unused here:
+# no [actions] section, 0 action_runners, and Gitea is not scraped by Prometheus so
+# the 1.25 `gitea_users` metric label change is irrelevant. 1.26 changes
+# PUBLIC_URL_DETECTION to "auto", which is harmless because ROOT_URL is set below.
 image:
   rootless: true
+  tag: "1.27.3"
 
 # Deployment configuration
 replicaCount: 1
