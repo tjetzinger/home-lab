@@ -27,11 +27,22 @@ spec:
       interval: 30s  # Evaluate every 30 seconds to meet NFR5 (P1 alerts within 1 minute)
       rules:
         # PostgreSQL Unhealthy Alert (P1)
+        #
+        # Rewritten 2026-09-21 for CloudNativePG (ADR-014). The previous expression
+        # watched kube_statefulset_status_replicas_ready{statefulset="postgres-postgresql"},
+        # which CNPG never produces — it manages Pods from a Cluster CR, not a
+        # StatefulSet. Its absent() clause fired the moment the Bitnami release was
+        # uninstalled and would have stayed firing forever.
+        #
+        # cnpg_collector_up comes from the CNPG instance's own metrics exporter,
+        # scraped via the PodMonitor enabled in applications/postgres-cnpg/cluster.yaml.
+        # The absent() half is deliberate: it catches the cluster disappearing
+        # entirely, not just reporting unhealthy.
         - alert: PostgreSQLUnhealthy
           expr: |
-            kube_statefulset_status_replicas_ready{statefulset="postgres-postgresql", namespace="data"} == 0
+            cnpg_collector_up{namespace="data", cluster="postgres-cnpg"} == 0
             or
-            absent(kube_statefulset_status_replicas_ready{statefulset="postgres-postgresql", namespace="data"})
+            absent(cnpg_collector_up{namespace="data", cluster="postgres-cnpg"})
           for: 0s  # Fire immediately - no pending period for P1
           labels:
             severity: critical
@@ -40,10 +51,10 @@ spec:
             priority: P1
           annotations:
             summary: "PostgreSQL database unavailable"
-            description: "PostgreSQL StatefulSet in namespace 'data' has no ready replicas. Database is unavailable."
-            runbook_url: "https://github.com/yourusername/home-lab/blob/main/docs/runbooks/postgresql-recovery.md"
-            impact: "All applications depending on PostgreSQL database will fail"
-            action: "Check PostgreSQL pod status, logs, and PVC availability. Verify NFS connectivity."
+            description: "CloudNativePG cluster 'postgres-cnpg' in namespace 'data' is not reporting healthy. Database is unavailable."
+            runbook_url: "https://github.com/tjetzinger/home-lab/blob/master/docs/runbooks/postgres-restore.md"
+            impact: "Paperless-ngx, Gitea, n8n, LiteLLM and Legacy-Use all lose their database"
+            action: "kubectl get cluster postgres-cnpg -n data; check the postgres-cnpg-1 pod, its PVC, and NFS connectivity."
 
         # NFS Provisioner Unreachable Alert (P1)
         - alert: NFSProvisionerUnreachable

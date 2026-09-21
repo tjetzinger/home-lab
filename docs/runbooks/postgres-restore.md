@@ -1,5 +1,13 @@
 # PostgreSQL Restore Procedures
 
+> **Updated 2026-09-21 for CloudNativePG.** The database moved off the Bitnami chart to
+> CloudNativePG 1.30 (PostgreSQL 18.6) — see [ADR-014](../adrs/ADR-014-postgres-off-bitnami.md).
+> Identifiers that changed: service `postgres-postgresql` → `postgres-cnpg-rw`, pod
+> `postgres-postgresql-0` → `postgres-cnpg-1` (container `postgres`), secret
+> `postgres-postgresql`/`postgres-password` → `postgres-cnpg-superuser`/`password`, CronJob
+> `postgres-backup` → `postgres-cnpg-backup`, image → `ghcr.io/cloudnative-pg/postgresql:18.6`.
+
+
 **Purpose:** Restore PostgreSQL databases from backup in home-lab cluster
 
 **Story:** 5.4 - Validate PostgreSQL Restore Procedure
@@ -31,7 +39,7 @@ This runbook documents the procedures for restoring PostgreSQL databases from pg
 Before performing a restore, ensure:
 
 - ✅ kubectl access to cluster with data namespace permissions
-- ✅ PostgreSQL pod is running: `postgres-postgresql-0` in data namespace
+- ✅ PostgreSQL pod is running: `postgres-cnpg-1` in data namespace
 - ✅ Backup files exist in postgres-backup PVC
 - ✅ PostgreSQL admin password available from secret
 - ✅ Applications using PostgreSQL are stopped (to prevent data conflicts)
@@ -96,10 +104,10 @@ Transfer the backup file into the PostgreSQL pod for restoration:
 
 ```bash
 # Copy backup file into PostgreSQL pod
-kubectl cp ./$BACKUP_FILE data/postgres-postgresql-0:/tmp/$BACKUP_FILE
+kubectl cp ./$BACKUP_FILE data/postgres-cnpg-1:/tmp/$BACKUP_FILE
 
 # Verify file exists in pod
-kubectl exec -n data postgres-postgresql-0 -- ls -lh /tmp/$BACKUP_FILE
+kubectl exec -n data postgres-cnpg-1 -- ls -lh /tmp/$BACKUP_FILE
 
 # Expected output: -rw-r--r-- 1 1001 1001 2.2K Jan  6 16:54 /tmp/postgres-backup-2026-01-06-165445.sql.gz
 ```
@@ -109,9 +117,9 @@ If you prefer to restore directly from backup PVC without local copy:
 
 ```bash
 # Create restore pod with both backup PVC and postgres access
-kubectl run postgres-restore --image=registry-1.docker.io/bitnami/postgresql:latest \
+kubectl run postgres-restore --image=ghcr.io/cloudnative-pg/postgresql:18.6 \
   --restart=Never -n data \
-  --overrides='{"spec":{"containers":[{"name":"restore","image":"registry-1.docker.io/bitnami/postgresql:latest","command":["sleep","600"],"volumeMounts":[{"name":"backup","mountPath":"/backup"}],"env":[{"name":"PGPASSWORD","valueFrom":{"secretKeyRef":{"name":"postgres-postgresql","key":"postgres-password"}}},{"name":"PGHOST","value":"postgres-postgresql.data.svc.cluster.local"}]}],"volumes":[{"name":"backup","persistentVolumeClaim":{"claimName":"postgres-backup"}}]}}'
+  --overrides='{"spec":{"containers":[{"name":"restore","image":"ghcr.io/cloudnative-pg/postgresql:18.6","command":["sleep","600"],"volumeMounts":[{"name":"backup","mountPath":"/backup"}],"env":[{"name":"PGPASSWORD","valueFrom":{"secretKeyRef":{"name":"postgres-cnpg-superuser","key":"password"}}},{"name":"PGHOST","value":"postgres-cnpg-rw.data.svc.cluster.local"}]}],"volumes":[{"name":"backup","persistentVolumeClaim":{"claimName":"postgres-backup"}}]}}'
 
 # Wait for pod
 kubectl wait --for=condition=ready pod/postgres-restore -n data --timeout=60s
@@ -127,10 +135,10 @@ If restoring a pg_dumpall backup that includes databases that already exist, you
 
 ```bash
 # Get PostgreSQL password
-export POSTGRES_PASSWORD=$(kubectl get secret postgres-postgresql -n data -o jsonpath="{.data.postgres-password}" | base64 -d)
+export POSTGRES_PASSWORD=$(kubectl get secret postgres-cnpg-superuser -n data -o jsonpath="{.data.password}" | base64 -d)
 
 # Connect to PostgreSQL
-kubectl exec -it postgres-postgresql-0 -n data -- env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres
+kubectl exec -it postgres-cnpg-1 -n data -- env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres
 
 # List existing databases
 \l
@@ -162,7 +170,7 @@ Restore the database from the backup file:
 
 ```bash
 # Extract gzipped backup and restore in one command
-kubectl exec -n data postgres-postgresql-0 -- \
+kubectl exec -n data postgres-cnpg-1 -- \
   env PGPASSWORD=$POSTGRES_PASSWORD \
   bash -c "zcat /tmp/$BACKUP_FILE | psql -U postgres"
 
@@ -174,13 +182,13 @@ kubectl exec -n data postgres-postgresql-0 -- \
 
 ```bash
 # Extract backup file
-kubectl exec -n data postgres-postgresql-0 -- \
+kubectl exec -n data postgres-cnpg-1 -- \
   gunzip /tmp/$BACKUP_FILE
 
 # Restore from extracted SQL file
 export SQL_FILE="${BACKUP_FILE%.gz}"  # Remove .gz extension
 
-kubectl exec -n data postgres-postgresql-0 -- \
+kubectl exec -n data postgres-cnpg-1 -- \
   env PGPASSWORD=$POSTGRES_PASSWORD \
   psql -U postgres < /tmp/$SQL_FILE
 ```
@@ -197,12 +205,12 @@ kubectl exec -n data postgres-restore -- \
 
 ```bash
 # Restore with verbose output
-kubectl exec -n data postgres-postgresql-0 -- \
+kubectl exec -n data postgres-cnpg-1 -- \
   env PGPASSWORD=$POSTGRES_PASSWORD \
   bash -c "zcat /tmp/$BACKUP_FILE | psql -U postgres -v ON_ERROR_STOP=1"
 
 # Restore specific database only (if backup contains single database)
-kubectl exec -n data postgres-postgresql-0 -- \
+kubectl exec -n data postgres-cnpg-1 -- \
   env PGPASSWORD=$POSTGRES_PASSWORD \
   bash -c "zcat /tmp/$BACKUP_FILE | psql -U postgres -d target_database"
 ```
@@ -213,7 +221,7 @@ After restore completes, verify the data was restored correctly:
 
 ```bash
 # Connect to PostgreSQL
-kubectl exec -it postgres-postgresql-0 -n data -- \
+kubectl exec -it postgres-cnpg-1 -n data -- \
   env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres
 
 # List all databases
@@ -254,7 +262,7 @@ ORDER BY t.id;
 
 ```bash
 # Run verification queries in batch
-kubectl exec -n data postgres-postgresql-0 -- \
+kubectl exec -n data postgres-cnpg-1 -- \
   env PGPASSWORD=$POSTGRES_PASSWORD \
   psql -U postgres -d backup_test -c "SELECT COUNT(*) FROM users;" \
   -c "SELECT COUNT(*) FROM transactions;" \
@@ -267,7 +275,7 @@ Remove temporary files and pods after successful restore:
 
 ```bash
 # Delete backup file from PostgreSQL pod
-kubectl exec -n data postgres-postgresql-0 -- rm -f /tmp/$BACKUP_FILE /tmp/$SQL_FILE
+kubectl exec -n data postgres-cnpg-1 -- rm -f /tmp/$BACKUP_FILE /tmp/$SQL_FILE
 
 # Delete temporary pods (if created)
 kubectl delete pod backup-extract -n data --ignore-not-found
@@ -390,7 +398,7 @@ ERROR:  database "backup_test" already exists
 **Resolution:**
 ```bash
 # Option 1: Drop existing database before restore (see Step 4)
-kubectl exec -it postgres-postgresql-0 -n data -- \
+kubectl exec -it postgres-cnpg-1 -n data -- \
   env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -c "DROP DATABASE backup_test;"
 
 # Option 2: Edit SQL dump to remove CREATE DATABASE (not recommended)
@@ -408,7 +416,7 @@ ERROR:  role "myapp_user" does not exist
 **Resolution:**
 ```bash
 # Option 1: Create missing role before restore
-kubectl exec -it postgres-postgresql-0 -n data -- \
+kubectl exec -it postgres-cnpg-1 -n data -- \
   env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres \
   -c "CREATE ROLE myapp_user WITH LOGIN PASSWORD 'password';"
 
@@ -416,7 +424,7 @@ kubectl exec -it postgres-postgresql-0 -n data -- \
 # (This is the default for our backup system)
 
 # Verify roles exist
-kubectl exec -it postgres-postgresql-0 -n data -- \
+kubectl exec -it postgres-cnpg-1 -n data -- \
   env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -c "\du"
 ```
 
@@ -429,15 +437,15 @@ kubectl exec -it postgres-postgresql-0 -n data -- \
 **Diagnosis:**
 ```bash
 # Check PostgreSQL pod resources
-kubectl top pod postgres-postgresql-0 -n data
+kubectl top pod postgres-cnpg-1 -n data
 
 # Check for long-running queries
-kubectl exec -it postgres-postgresql-0 -n data -- \
+kubectl exec -it postgres-cnpg-1 -n data -- \
   env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres \
   -c "SELECT pid, usename, state, query FROM pg_stat_activity WHERE state = 'active';"
 
 # Check for locks
-kubectl exec -it postgres-postgresql-0 -n data -- \
+kubectl exec -it postgres-cnpg-1 -n data -- \
   env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres \
   -c "SELECT * FROM pg_locks WHERE NOT granted;"
 ```
@@ -506,17 +514,20 @@ cannot create file /tmp/postgres-backup-...sql.gz: Permission denied
 ```
 
 **Resolution:**
+
+`/tmp` is read-only in the CloudNativePG image. Verified writable paths (2026-09-21):
+`/var/lib/postgresql/data` and `/controller`.
+
 ```bash
-# Use /bitnami/postgresql/tmp instead (Bitnami image writable directory)
-kubectl cp ./$BACKUP_FILE data/postgres-postgresql-0:/bitnami/postgresql/tmp/$BACKUP_FILE
+kubectl cp ./$BACKUP_FILE data/postgres-cnpg-1:/var/lib/postgresql/data/$BACKUP_FILE -c postgres
 
-# Or use home directory
-kubectl cp ./$BACKUP_FILE data/postgres-postgresql-0:~/$BACKUP_FILE
-
-# Verify writable location
-kubectl exec -n data postgres-postgresql-0 -- touch /bitnami/postgresql/tmp/test && \
-kubectl exec -n data postgres-postgresql-0 -- rm /bitnami/postgresql/tmp/test
+# Verify writable location before copying a large file
+kubectl exec -n data postgres-cnpg-1 -c postgres -- \
+  sh -c 'touch /var/lib/postgresql/data/.wtest && rm -f /var/lib/postgresql/data/.wtest && echo writable'
 ```
+
+Note `/var/lib/postgresql/data` is the PVC that holds the database itself — delete the copied
+archive as soon as the restore finishes, or it counts against the 8Gi volume.
 
 ---
 
@@ -528,12 +539,12 @@ If backups are created with `pg_dump -Fc` (custom format):
 
 ```bash
 # Restore with parallel jobs (faster for large databases)
-kubectl exec -n data postgres-postgresql-0 -- \
+kubectl exec -n data postgres-cnpg-1 -- \
   env PGPASSWORD=$POSTGRES_PASSWORD \
   pg_restore -U postgres -d postgres --jobs=4 /tmp/backup.dump
 
 # Restore specific tables only
-kubectl exec -n data postgres-postgresql-0 -- \
+kubectl exec -n data postgres-cnpg-1 -- \
   env PGPASSWORD=$POSTGRES_PASSWORD \
   pg_restore -U postgres -d backup_test --table=users /tmp/backup.dump
 ```

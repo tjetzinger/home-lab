@@ -1,5 +1,13 @@
 # PostgreSQL Backup & Recovery
 
+> **Updated 2026-09-21 for CloudNativePG.** The database moved off the Bitnami chart to
+> CloudNativePG 1.30 (PostgreSQL 18.6) — see [ADR-014](../adrs/ADR-014-postgres-off-bitnami.md).
+> Identifiers that changed: service `postgres-postgresql` → `postgres-cnpg-rw`, pod
+> `postgres-postgresql-0` → `postgres-cnpg-1` (container `postgres`), secret
+> `postgres-postgresql`/`postgres-password` → `postgres-cnpg-superuser`/`password`, CronJob
+> `postgres-backup` → `postgres-cnpg-backup`, image → `ghcr.io/cloudnative-pg/postgresql:18.6`.
+
+
 **Purpose:** Backup and recovery procedures for PostgreSQL database in home-lab cluster
 
 **Story:** 5.3 - Setup PostgreSQL Backup with pg_dump
@@ -45,7 +53,7 @@ This runbook documents the automated backup system for PostgreSQL using pg_dumpa
 **CronJob:** `postgres-backup`
 **Namespace:** `data`
 **Schedule:** `0 2 * * *` (daily at 2 AM UTC)
-**Image:** `registry-1.docker.io/bitnami/postgresql:latest`
+**Image:** `ghcr.io/cloudnative-pg/postgresql:18.6`
 
 **Manifest Location:** `/home/tt/Workspace/home-lab/applications/postgres/backup-cronjob.yaml`
 
@@ -106,7 +114,7 @@ kubectl describe pvc postgres-backup -n data
 
 ```bash
 # Create manual backup job from CronJob
-kubectl create job --from=cronjob/postgres-backup manual-backup-$(date +%Y%m%d%H%M%S) -n data
+kubectl create job --from=cronjob/postgres-cnpg-backup manual-backup-$(date +%Y%m%d%H%M%S) -n data
 
 # Verify job created
 kubectl get jobs -n data
@@ -271,7 +279,7 @@ kubectl logs -n data <failed-pod>
 
 **Common Issues:**
 1. **PostgreSQL connection failure**: Verify PostgreSQL is running and accessible
-2. **Permission denied**: Check secret `postgres-postgresql` exists and has correct password
+2. **Permission denied**: Check secret `postgres-cnpg-superuser` exists and has correct password
 3. **PVC not bound**: Verify `postgres-backup` PVC is bound
 4. **Image pull error**: Verify image tag is correct (`:latest` matches PostgreSQL image)
 
@@ -281,7 +289,7 @@ kubectl logs -n data <failed-pod>
 kubectl get pods -n data -l app.kubernetes.io/name=postgresql
 
 # Verify secret exists
-kubectl get secret postgres-postgresql -n data
+kubectl get secret postgres-cnpg-superuser -n data
 
 # Verify PVC is bound
 kubectl get pvc postgres-backup -n data
@@ -361,7 +369,7 @@ kubectl patch cronjob postgres-backup -n data -p '{"spec":{"suspend":false}}'
 kubectl get cronjob postgres-backup -n data -o jsonpath='{.spec.schedule}'
 
 # Manually trigger job to test
-kubectl create job --from=cronjob/postgres-backup test-backup-$(date +%Y%m%d%H%M%S) -n data
+kubectl create job --from=cronjob/postgres-cnpg-backup test-backup-$(date +%Y%m%d%H%M%S) -n data
 ```
 
 ---
