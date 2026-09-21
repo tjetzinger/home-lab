@@ -142,6 +142,74 @@ kubectl get pvc --all-namespaces
 kubectl get sc nfs-client -o yaml
 ```
 
+### 4b. Check What Will Refuse to Drain — DO THIS FIRST
+
+Two things silently break a worker upgrade. Both were hit on 2026-09-21 and cost 4m45s
+of database downtime.
+
+**Find every PodDisruptionBudget that allows zero disruptions:**
+
+```bash
+kubectl --context default get pdb -A \
+  -o custom-columns='NS:.metadata.namespace,NAME:.metadata.name,ALLOWED:.status.disruptionsAllowed,HEALTHY:.status.currentHealthy,DESIRED:.status.desiredHealthy'
+```
+
+`ALLOWED=0` means `kubectl drain` will block on that pod until its timeout and then
+fail. It is not a hang to wait out - the PDB is correctly refusing, and nothing you do
+to the drain will change it.
+
+**Then check whether the blocked pod can actually go anywhere else:**
+
+```bash
+kubectl --context default get cluster postgres-cnpg -n data -o jsonpath='{.spec.affinity}'
+kubectl --context default get nodes \
+  -o custom-columns='NAME:.metadata.name,SCHED:.spec.unschedulable,TAINTS:.spec.taints[*].key'
+```
+
+A `nodeSelector` or required `nodeAffinity` naming one host means deleting the pod does
+NOT move it - it goes `Pending` with *"n node(s) didn't match Pod's node
+affinity/selector"* and stays down until the original node is uncordoned. Verify by
+elimination that at least one other node is schedulable, untainted for that pod, and
+permitted by its affinity, **before** deleting anything.
+
+The current state after the 2026-09-21 fix: CNPG runs with `instances: 1` and a
+`nodeAffinity` permitting `k3s-worker-01` or `k3s-worker-02`. It can move, but a move is
+still an outage - Gitea, n8n, LiteLLM and Paperless all depend on it, and n8n needed a
+further 121 seconds and 9 retries to reconnect afterwards. A second CNPG instance is the
+only way to drain either worker without downtime.
+
+**Sequence the upgrade around it.** Do the nodes that do NOT host the database first,
+then move the database onto an already-upgraded node, then drain its old host last.
+
+### 4c. Node Arguments That the Installer Will Silently Drop
+
+The install script rewrites the systemd unit from the arguments you pass it. Arguments
+that live only in the unit are lost; anything in `/etc/rancher/k3s/config.yaml`
+survives.
+
+```bash
+# on each node, BEFORE upgrading - record what must be re-passed
+sudo systemctl cat k3s k3s-agent 2>/dev/null | sed -n '/ExecStart=/,/^$/p' | grep -oE "'[^']+'"
+sudo cat /etc/rancher/k3s/config.yaml 2>/dev/null
+```
+
+As of 2026-09-21:
+
+| Node | Must be re-passed |
+|---|---|
+| k3s-master | nothing - all settings live in `config.yaml` |
+| k3s-worker-01 | nothing |
+| k3s-worker-02 | nothing |
+| **k3s-nas-worker** | `--flannel-iface=tailscale0`, `--node-label=node.kubernetes.io/role=nas-worker`, `--node-label=workload-type=lightweight` |
+
+Dropping `--flannel-iface=tailscale0` on `k3s-nas-worker` would move that node off
+Tailscale onto the LAN, undoing a deliberate decision to keep its cluster traffic
+encrypted. Re-pass all three and confirm afterwards that its `InternalIP` is still
+`100.76.153.66`.
+
+Also preserve `K3S_URL` and `K3S_TOKEN`; read them from
+`/etc/systemd/system/k3s-agent.service.env` rather than retyping them.
+
 ### 5. Notify Users (if applicable)
 
 If other users access the cluster:
@@ -489,7 +557,7 @@ ssh root@192.168.2.20
 systemctl stop k3s
 
 # Find your pre-upgrade snapshot
-ls -lh /var/lib/rancher/k3s/server/db/snapshots/ | grep pre-upgrade
+ls -lh /mnt/k3s-snapshots/ | grep pre-upgrade   # etcd-snapshot-dir in config.yaml, NOT the k3s default
 
 # Restore snapshot (WARNING: This will reset cluster to snapshot time)
 k3s server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/k3s/server/db/snapshots/pre-upgrade-YYYYMMDD-HHMMSS
