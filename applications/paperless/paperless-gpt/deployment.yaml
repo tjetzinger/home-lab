@@ -48,7 +48,14 @@ spec:
     spec:
       containers:
         - name: paperless-gpt
-          image: icereed/paperless-gpt:v0.24.0
+          # v0.24.0 -> v0.28.0 on 2026-09-21 (Phase 4).
+          #
+          # v0.26.0 made the container rootless: the entrypoint creates a user from
+          # PUID/PGID (default 10001:10001), chowns /app and drops privileges. The
+          # prompts PVC is NFS (Synology) and its files are owned by 1024:100 mode
+          # 0644, so the default 10001 could read but never rewrite a prompt template.
+          # PUID/PGID are set to 1024/100 in the configmap to match the NFS owner.
+          image: icereed/paperless-gpt:v0.28.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

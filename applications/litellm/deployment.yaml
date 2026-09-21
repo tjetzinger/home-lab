@@ -55,9 +55,15 @@ spec:
           # versions of drift, invisible, and a reschedule onto a node without that cache
           # would have applied all of it at once. Paperless-GPT depends on this proxy.
           #
-          # v1.81.9-stable is the same version already running, so this pin is a no-op.
-          # The upgrade to a current release is a separate, tested step (Phase 4).
-          image: ghcr.io/berriai/litellm:v1.81.9-stable
+          # Upgraded v1.81.9-stable -> v1.101.0 on 2026-09-21 (Phase 4), ~20 minor
+          # versions. This proxy owns a Postgres database (DATABASE_URL -> the CNPG
+          # `litellm` db), so startup runs Prisma migrations that a tag rollback does
+          # NOT undo. A full dump was taken immediately before the upgrade.
+          #
+          # Breaking changes in the range: v1.84.0 made the config UI controls
+          # admin-only, and reverted the v1.83.10 caller-tag strip. Neither applies
+          # here — this proxy has no tag-based routing or spend attribution.
+          image: ghcr.io/berriai/litellm:v1.101.0
           imagePullPolicy: IfNotPresent
           args:
             - --config

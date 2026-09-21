@@ -12,9 +12,32 @@
 # Replica count - single instance for home lab
 replicaCount: 1
 
-# Image configuration (uses chart defaults from docker.stirlingpdf.com)
+# Deployment strategy - MUST be Recreate.
+#
+# The chart defaults to RollingUpdate, which starts the new pod before terminating
+# the old one. Both then open the same H2 database on the RWO /configs claim and the
+# new pod dies with:
+#   Database may be already in use: "/configs/stirling-pdf-DB-2.3.232.mv.db".
+#   Possible solutions: close all other connection(s); use the server mode [90020-240]
+#
+# This only appeared once persistence was added on 2026-09-21 - with everything in the
+# container's writable layer each pod had its own private copy and nothing collided.
+# Identical root cause to the Gitea fix in applications/gitea/values-homelab.yaml.
+# Keep Recreate for as long as /configs is a shared RWO claim.
+strategy:
+  type: Recreate
+  rollingUpdate: null
+
+# Image configuration (registry/repository come from chart defaults)
+#
+# Tag pinned explicitly 2026-09-21 (Phase 4). The chart's appVersion trails the
+# application badly: chart 3.1.0 ships appVersion 2.5.1 while upstream is at
+# 2.14.3. Leaving `tag` empty means the running version is decided by whichever
+# chart version happens to be installed, which is the same class of drift Phase 3
+# removed everywhere else. Bump this line to upgrade, not the chart.
 image:
   pullPolicy: IfNotPresent
+  tag: "2.14.3"
 
 # Environment variables for Stirling-PDF configuration
 envs:
@@ -33,16 +56,54 @@ envs:
   # Disable Google visibility for privacy
   - name: SYSTEM_GOOGLEVISIBILITY
     value: "false"
+  # Do NOT set PUID/PGID here. Tried on 2026-09-21 to silence the entrypoint's
+  # "Could not grant stirlingpdfuser write access to /configs" warning, and it broke
+  # the app outright:
+  #   java.nio.file.AccessDeniedException: ./configs/settings.yml
+  # The container runs as root with the chart's fsGroup 1000, and the files already on
+  # the claims are owned 1000. Dropping to 1024 loses write access to them. The warning
+  # is cosmetic - the nfs-subdir provisioner creates the directories world-writable.
 
 # Service configuration
 service:
   type: ClusterIP
   externalPort: 8080
 
-# Persistence disabled - stateless operation (FR84)
-# PDF processing is ephemeral, no need to persist temporary files
+# Persistence: see applications/stirling-pdf/pvc.yaml for the full story.
+#
+# Leave the chart's own persistence DISABLED. With `enabled: true` the chart
+# provisions a PVC and declares the volume but still renders an empty
+# `volumeMounts` block, so the claim is never actually mounted. Verified against
+# chart 3.1.0 with `helm template --set persistence.enabled=true`.
 persistence:
   enabled: false
+
+# Real persistence, mounted through the chart's extraVolumes hook.
+#
+# /configs  - settings.yml, custom_settings.yml and the H2 database. This is what
+#             actually benefits today; it used to be rebuilt on every pod restart.
+# /storage  - where server-side uploads WOULD land (/app/storage symlinks here).
+#             Empty for now: `storage.enabled` is false in settings.yml, so Stirling
+#             2.x keeps documents in the browser's IndexedDB and never sends them to
+#             the server. Claimed in advance so enabling it later needs no migration.
+#
+# Mounting empty claims over these paths is safe: everything the app needs in
+# /configs is generated at startup, not baked into the image. Confirmed that
+# /configs/cache and /configs/heap_dumps ship empty, and settings.yml, the H2 db
+# and the JWT keys under /configs/backup are all written on first boot.
+deployment:
+  extraVolumes:
+    - name: stirling-storage
+      persistentVolumeClaim:
+        claimName: stirling-pdf-storage
+    - name: stirling-configs
+      persistentVolumeClaim:
+        claimName: stirling-pdf-configs
+  extraVolumeMounts:
+    - name: stirling-storage
+      mountPath: /storage
+    - name: stirling-configs
+      mountPath: /configs
 
 # Resource limits for single-user home lab
 resources:

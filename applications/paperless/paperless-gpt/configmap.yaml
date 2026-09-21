@@ -70,5 +70,11 @@ data:
   AUTO_GENERATE_CREATED_DATE: "true"
   AUTO_GENERATE_DOCUMENT_TYPE: "true"
 
+  # Container identity (v0.26.0+ rootless entrypoint)
+  # Must match the owner of the NFS prompts volume (1024:100), otherwise the
+  # dropped-privilege process cannot rewrite the .tmpl files it mounts.
+  PUID: "1024"
+  PGID: "100"
+
   # System
   LOG_LEVEL: "info"

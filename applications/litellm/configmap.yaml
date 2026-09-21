@@ -231,6 +231,9 @@ data:
 
     # General settings
     general_settings:
+      # The comment below is kept for history but is misleading: a master key IS in
+      # effect. It arrives as the LITELLM_MASTER_KEY env var from secret
+      # `litellm-secrets`, which LiteLLM reads whether or not master_key is set here.
       # No master key for internal cluster use (Tailscale provides security)
       # master_key: os.environ/LITELLM_MASTER_KEY
 
@@ -241,6 +244,24 @@ data:
       request_timeout: 30
       # Prometheus metrics callback (FR118) - exposes /metrics endpoint
       callbacks: ["prometheus"]
+
+      # v1.101.0 started enforcing key auth on /metrics whenever a master key exists,
+      # and one always does here — LITELLM_MASTER_KEY comes from secret `litellm-secrets`.
+      # The ServiceMonitor `litellm` in namespace `monitoring` scrapes /metrics/ with no
+      # credentials, so the upgrade on 2026-09-21 turned every scrape into a 401 and
+      # `up{job="litellm"}` went 1 -> 0 at 13:48. That silently blinds the three ADR-013
+      # fallback alert rules in monitoring/prometheus/custom-rules.yaml.
+      #
+      # This belongs under litellm_settings, NOT general_settings — see
+      # litellm/proxy/middleware/prometheus_auth_middleware.py. Putting it in
+      # general_settings is accepted silently and does nothing.
+      #
+      # false restores the pre-upgrade behaviour: /metrics is open inside the cluster.
+      # It is not published through any IngressRoute and the cluster is Tailscale-only.
+      # The alternative — a bearer token on the ServiceMonitor — needs the master key
+      # copied into the `monitoring` namespace, because a ServiceMonitor cannot read a
+      # Secret from another namespace.
+      require_auth_for_metrics_endpoint: false
       # Fallback chains: Cloud (Ollama Pro) → vLLM (GPU) → Ollama (CPU) (FR217, NFR123)
       # openai-gpt4o removed from auto-fallback — explicit selection only (FR218)
       fallbacks:

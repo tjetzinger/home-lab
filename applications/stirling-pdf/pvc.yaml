@@ -1,0 +1,67 @@
+# Stirling-PDF persistent storage
+#
+# What these claims DO cover: /configs (settings.yml, custom_settings.yml and the H2
+# database) and /storage. Before 2026-09-21 the container had NO volumeMounts at all -
+# `persistence.enabled: false` renders a `storage-volume` emptyDir that nothing mounts -
+# so all of it lived in the container's writable layer and was rebuilt on every restart.
+# The pod ran 255 days without one, which hid the problem.
+#
+# What they DO NOT cover: your documents. Stirling 2.x keeps uploaded files in the
+# BROWSER, in IndexedDB `stirling-pdf-files` (version 9 as of app 2.14.3), per browser
+# and per origin. Nothing reaches the server - verified by uploading two files and
+# finding zero bytes under /storage and no growth in the H2 database. This is also why
+# the file list differs between a desktop and a phone: they are separate stores.
+#
+# Server-side storage exists but is off by default: `storage.enabled: true` in
+# settings.yml, which REQUIRES security.enableLogin and is marked [ALPHA]. Only
+# `provider: local` is free; `database` and `s3` need a Pro or Enterprise licence.
+# Until that is enabled, /storage stays empty and these claims protect settings only.
+#
+# The chart's own `persistence.enabled: true` does NOT work: it provisions a PVC and
+# declares the volume, then still renders an empty `volumeMounts` block. Verified with
+# `helm template --set persistence.enabled=true` on chart 3.1.0. These claims are
+# mounted through `deployment.extraVolumes` / `extraVolumeMounts` in values-homelab.yaml
+# instead. Leave `persistence.enabled: false`.
+#
+# Two claims rather than one: /storage for file bytes if server storage is ever enabled,
+# /configs for settings plus the H2 database that would index them.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stirling-pdf-storage
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: stirling-pdf
+    app.kubernetes.io/instance: stirling-pdf-storage
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stirling-pdf-configs
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: stirling-pdf
+    app.kubernetes.io/instance: stirling-pdf-configs
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 1Gi
