@@ -15,7 +15,19 @@ fullnameOverride: n8n-app
 image:
   repository: n8nio/n8n
   pullPolicy: IfNotPresent
-  tag: ""  # Uses chart app version
+  # Pinned 2026-09-21 (Phase 4). Was empty, which let whichever chart happened to be
+  # installed decide the running version - the drift Phase 3 removed elsewhere.
+  #
+  # 2.3.5 -> 2.39.8, 36 minor versions. n8n's own BREAKING-CHANGES.md lists nothing
+  # newer than 2.0.0, and that entry only affects the `n8nio/runners` task-runner
+  # image, which is not used here. The real risk is the schema migration, which runs
+  # on first start and is not undone by changing this tag back; a full dump was taken
+  # immediately before (postgres-backup-2026-09-21-132528.sql.gz).
+  #
+  # 2.39.8 is the chart's own appVersion. `stable` moved to 2.39.9 earlier today -
+  # deliberately not taken, to avoid pairing a hours-old release with a 36-version
+  # migration. The `beta` channel is 2.40.x; do not follow it.
+  tag: "2.39.8"
 
 # Deployment strategy
 strategy:
@@ -53,7 +65,17 @@ service:
 # Timezone configuration
 timezone: "America/New_York"
 
-# Security encryption key stored in secrets/n8n-secrets.yaml (gitignored)
+# Security encryption key stored in secrets/n8n-secrets.yaml (gitignored) as the
+# `encryptionKey` value. That file is a Helm values overlay, not a K8s Secret manifest;
+# the chart turns it into secret `n8n-app-encryption-key-secret-v2` in namespace `apps`.
+#
+# This is the single most important value in this deployment: lose it and all stored
+# credentials become permanently undecryptable. Verify the backup still matches the
+# running pod BEFORE any upgrade:
+#   diff <(yq .encryptionKey secrets/n8n-secrets.yaml) \
+#        <(kubectl --context default exec -n apps deploy/n8n-app -- printenv N8N_ENCRYPTION_KEY)
+# Confirmed matching through the 2.3.5 -> 2.39.8 upgrade on 2026-09-21.
+#
 # Deployment: ./scripts/deploy-n8n.sh (auto-merges secrets)
 
 # External PostgreSQL — connection configured via extraEnvVars below.
