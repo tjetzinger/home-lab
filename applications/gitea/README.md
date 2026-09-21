@@ -104,7 +104,7 @@ kubectl port-forward svc/gitea-http -n dev 3000:3000
 ### Default Admin Credentials
 
 **Username:** admin
-**Password:** gitea-admin-2026
+**Password:** in secret `gitea-admin-secret` (namespace `dev`, key `password`). Rotated 2026-09-21 — see `docs/runbooks/secret-rotation.md`.
 
 ---
 

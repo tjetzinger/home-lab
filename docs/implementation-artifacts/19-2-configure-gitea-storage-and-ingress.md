@@ -102,7 +102,7 @@ So that **my code is safely stored and accessible from anywhere**.
 - HTTP Service: `gitea-http.dev.svc.cluster.local:3000`
 - SSH Service: `gitea-ssh.dev.svc.cluster.local:22`
 - Persistence already enabled with NFS storage class
-- Admin credentials: admin / gitea-admin-2026
+- Admin credentials: admin / (password rotated 2026-09-21 — now in secret `gitea-admin-secret`, namespace `dev`)
 
 **IngressRoute Pattern (from similar deployments):**
 

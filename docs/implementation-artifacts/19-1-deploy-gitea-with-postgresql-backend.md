@@ -195,7 +195,7 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 4. **Configuration Details**:
    - HTTP Service: `gitea-http.dev.svc.cluster.local:3000`
    - SSH Service: `gitea-ssh.dev.svc.cluster.local:22`
-   - Admin credentials: admin / gitea-admin-2026
+   - Admin credentials: admin / (password rotated 2026-09-21 — now in secret `gitea-admin-secret`, namespace `dev`)
    - Registration disabled (single-user mode)
    - Memory-based caching (lightweight setup)
 

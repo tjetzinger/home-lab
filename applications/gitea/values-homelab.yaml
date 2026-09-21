@@ -33,12 +33,35 @@ service:
     type: ClusterIP  # Routed via Traefik IngressRouteTCP (FR137)
     port: 2222       # Non-privileged port for SSH
 
+# Deployment strategy — MUST be Recreate.
+#
+# The chart defaults to RollingUpdate with maxSurge 100%/maxUnavailable 0, which starts
+# the new pod before terminating the old one. Gitea's data lives on a single RWO PVC
+# (gitea-shared-storage) and it takes a LevelDB lock on /data/queues/common, so the new
+# pod dies with:
+#   Failed to create queue "notification-service": unable to lock level db at
+#   /data/queues/common: resource temporarily unavailable
+#
+# Every upgrade hit this; it only appeared to work when the deployment happened to be
+# scaled to 0 beforehand. Found 2026-09-21 during the admin password rotation.
+strategy:
+  type: Recreate
+  rollingUpdate: null
+
 # Gitea configuration
 gitea:
   admin:
-    # Admin user created on first startup
-    username: admin
-    password: gitea-admin-2026
+    # Credentials come from secret `gitea-admin-secret` in namespace `dev`, NOT from
+    # this file. The password was previously inline here as plaintext and had been
+    # committed to a public repo since 54ad709 (2026-01-15). Rotated 2026-09-21; see
+    # docs/runbooks/secret-rotation.md. The old value is still reachable in git history
+    # and on GitHub by SHA, which is why rotation — not just removal — was required.
+    #
+    # Apply the real value with `kubectl patch`, never `kubectl apply` on a placeholder:
+    #   kubectl patch secret gitea-admin-secret -n dev --type=merge \
+    #     -p '{"stringData":{"password":"<value>"}}'
+    existingSecret: gitea-admin-secret
+    passwordMode: keepUpdated
 
   config:
     server:
