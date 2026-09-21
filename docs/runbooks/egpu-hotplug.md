@@ -212,6 +212,74 @@ curl -s -X POST https://vllm.home.jetzinger.com/v1/completions \
 
 ---
 
+## While the GPU Node Is Down: Two Cluster-Wide Side Effects
+
+Both of these are normal consequences of an unreachable node, not faults. They apply
+whenever `k3s-gpu-worker` is stopped - including deliberate `gpu-mode gaming` shutdowns
+and any period the NUC is powered off. Documented 2026-09-21.
+
+### 1. DaemonSet rollouts silently stop completing
+
+This is the one that bites, because it fails **quietly**.
+
+DaemonSets here use `maxUnavailable: 1`. An unreachable node's pod can never become
+available, so it consumes that entire budget and **no other pod in the DaemonSet is
+ever replaced**. A `helm upgrade` reports `STATUS: deployed`, the ConfigMap or Secret
+updates, the `checksum/config` annotation changes - and every pod keeps running the
+old configuration. `kubectl rollout status` eventually times out, which is the only
+signal.
+
+Hit on 2026-09-21 while adding a promtail pipeline stage: the config was correct in
+the cluster and not one agent had loaded it.
+
+Affected DaemonSets: `promtail`, `prometheus-node-exporter`, `metallb-speaker`, the
+`gpu-operator` set, and `svclb-*`.
+
+Workaround - delete the pods on the healthy nodes by hand:
+
+```bash
+kubectl --context default get pods -n <ns> -l <selector> \
+  -o custom-columns='NAME:.metadata.name,NODE:.spec.nodeName' --no-headers \
+  | grep -v k3s-gpu-worker | awk '{print $1}' \
+  | xargs -r kubectl --context default delete pod -n <ns>
+```
+
+Then confirm the new pods actually carry the change, rather than trusting the Helm
+status:
+
+```bash
+kubectl --context default get pods -n <ns> -l <selector> \
+  -o custom-columns='NAME:.metadata.name,START:.status.startTime' --no-headers
+```
+
+A start time older than the upgrade means that pod never picked it up.
+
+### 2. Roughly 37 alerts fire, all from this one cause
+
+`KubeNodeNotReady`, `KubeNodeUnreachable`, `KubeletInstanceUnreachable`, `KubeProxyDown`
+(the only `critical`), every `gpu-operator` pod as `KubePodNotReady`, both `vllm-server`
+pods, three `TargetDown`, the Pending `svclb` pods, `VLLMGPUUnavailable`, and around
+fifteen `KubeDaemonSetMisScheduled` / `KubeDaemonSetRolloutStuck` - the last group being
+the DaemonSet effect above, reported once per namespace.
+
+Prometheus also reports 5 targets down: kubelet (x3), `nvidia-dcgm-exporter` and
+`promtail`, all on that node.
+
+None of this indicates a second problem. The risk is that a genuine alert elsewhere is
+invisible in the noise, so check by exclusion:
+
+```bash
+# anything NOT attributable to the GPU node
+kubectl --context default get pods -A --no-headers \
+  | awk '$4!="Running" && $4!="Completed"' \
+  | grep -vE 'gpu-operator|svclb|vllm'
+```
+
+Alertmanager silences expire, so a long silence is preferable to editing the alert
+rules - editing them would also hide the node when it IS supposed to be up.
+
+---
+
 ## Expected Behavior During Each Phase
 
 | Phase | vLLM Status | GPU Status | Inference Fallback |
