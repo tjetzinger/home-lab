@@ -1,0 +1,36 @@
+# ntfy persistent storage
+#
+# Created 2026-09-21. /var/lib/ntfy was an `emptyDir`, so user.db - the auth database
+# holding the `admin` user and every ACL - lived only in the pod. It survived because
+# the pod had not restarted since 2026-02-19, not because it was durable.
+#
+# That mattered more here than it looks. NTFY_AUTH_DEFAULT_ACCESS is `deny`, so an
+# empty user.db means nobody can publish: Alertmanager's webhook starts getting 401s
+# and critical alerts stop reaching the phone SILENTLY. The failure announces itself
+# by the absence of notifications, which is the worst way to find out.
+#
+# Same class of problem as applications/stirling-pdf/pvc.yaml - state in an emptyDir
+# that looks durable because nothing has restarted the pod. Pinned image tags and a
+# healthy pod both hide it.
+#
+# Holds user.db (users and ACLs) and cache.db (message history). 1Gi is generous;
+# together they were under 200KB.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy-data
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: ntfy
+    app.kubernetes.io/instance: ntfy
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 1Gi

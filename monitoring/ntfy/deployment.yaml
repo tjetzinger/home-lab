@@ -20,6 +20,14 @@ metadata:
     app.kubernetes.io/managed-by: kubectl
 spec:
   replicas: 1
+
+  # MUST be Recreate. The data volume is now an RWO PVC holding two SQLite files
+  # (user.db, cache.db). RollingUpdate would start the new pod before terminating the
+  # old one, leaving two ntfy processes on the same database. Same reason as
+  # applications/gitea/values-homelab.yaml and applications/stirling-pdf.
+  strategy:
+    type: Recreate
+
   selector:
     matchLabels:
       app.kubernetes.io/name: ntfy
@@ -34,7 +42,20 @@ spec:
     spec:
       containers:
         - name: ntfy
-          image: binwiederhier/ntfy:v2.11.0
+          # v2.11.0 -> v2.28.0 on 2026-09-21, 17 minor versions. Nothing caught this
+          # earlier because the tag is pinned and the pod was healthy - a pinned tag
+          # only stops drift, it does not tell you the pin is stale.
+          #
+          # Reasons: v2.24.0 fixes case-insensitive ACL matching on SQLite, where a
+          # rule for `secret` also matched a request for `SECRET` - relevant here
+          # because this server runs NTFY_AUTH_DEFAULT_ACCESS=deny with per-topic ACLs.
+          # v2.14.0 reworked message templating (pre-defined and custom templates),
+          # which is the feature needed to stop Alertmanager webhooks arriving as raw
+          # JSON on the phone.
+          #
+          # v2.18.0 adds an optional PostgreSQL backend; SQLite remains the default and
+          # no migration is forced. The SQLite schema migrates automatically on start.
+          image: binwiederhier/ntfy:v2.28.0
           args:
             - serve
           env:
@@ -80,4 +101,9 @@ spec:
               mountPath: /var/lib/ntfy
       volumes:
         - name: ntfy-data
-          emptyDir: {}
+          # Was `emptyDir: {}` until 2026-09-21. See monitoring/ntfy/pvc.yaml -
+          # user.db holds the admin account and ACLs, and with
+          # NTFY_AUTH_DEFAULT_ACCESS=deny an empty one silently stops every alert
+          # reaching the phone.
+          persistentVolumeClaim:
+            claimName: ntfy-data

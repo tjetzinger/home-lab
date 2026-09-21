@@ -199,7 +199,23 @@ alertmanager:
       # Internal cluster delivery: Alertmanager → ntfy.monitoring.svc.cluster.local
       - name: 'mobile-notifications'
         webhook_configs:
-          - url: http://ntfy.monitoring.svc.cluster.local/homelab-alerts
+          # Templated so the phone shows a readable alert instead of raw JSON.
+          #
+          # Alertmanager's webhook_configs posts its OWN fixed JSON schema and cannot be
+          # templated - unlike the slack or discord receivers, the body is not
+          # configurable. ntfy previously rendered that body verbatim, which is why
+          # notifications arrived as a wall of JSON. ntfy's own message templating fixes
+          # it at the receiving end.
+          #
+          # Syntax is GO TEMPLATES - {{.field}}. NOT ${field} or $(field): both are
+          # accepted with HTTP 200 and passed through literally, which looks like the
+          # feature is missing. Verified by experiment on 2026-09-21 against v2.28.0.
+          #
+          # Renders as:  title  "[firing] KubeProxyDown"
+          #              body   "KubeProxy has disappeared from Prometheus target discovery."
+          #
+          # Percent-encoded: %7B%7B = {{ , %7D%7D = }} , %5B/%5D = [ ] , %20 = space.
+          - url: http://ntfy.monitoring.svc.cluster.local/homelab-alerts?template=yes&title=%5B%7B%7B.status%7D%7D%5D%20%7B%7B.commonLabels.alertname%7D%7D&message=%7B%7B.commonAnnotations.description%7D%7D
             send_resolved: true
             http_config:
               follow_redirects: true
