@@ -86,6 +86,30 @@ spec:
         key: password
 
   affinity:
-    # k3s-gpu-worker is NotReady; k3s-nas-worker is the Synology VM.
-    nodeSelector:
-      kubernetes.io/hostname: k3s-worker-01
+    # Was `nodeSelector: kubernetes.io/hostname: k3s-worker-01` until 2026-09-21.
+    # That pin was wrong: its own comment justified excluding two nodes, then pinned
+    # to one, ignoring that k3s-master and k3s-worker-02 were both valid. It was also
+    # redundant - taints already keep this pod off both excluded nodes. k3s-gpu-worker
+    # carries gpu=true:NoSchedule and k3s-nas-worker carries
+    # workload-type=lightweight:NoSchedule, and this pod tolerates neither (only
+    # not-ready and unreachable).
+    #
+    # The pin cost a 4m45s outage during the k3s upgrade: the PDB (minAvailable 1 on a
+    # single instance) refused the eviction, and once the pod was deleted it could not
+    # reschedule anywhere - "2 node(s) didn't match Pod's node affinity/selector" - so
+    # it stayed Pending until k3s-worker-01 was uncordoned.
+    #
+    # This affinity now keeps the database off the control plane while letting it move
+    # between the two CPU workers, so either can be drained for maintenance.
+    #
+    # NOTE: with instances: 1 any move is still downtime. A second instance is the
+    # real fix for draining without an outage.
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                  - k3s-worker-01
+                  - k3s-worker-02
