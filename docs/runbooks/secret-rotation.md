@@ -180,7 +180,101 @@ is why Part 1 comes first and is not optional.
 
 ---
 
+## Part 3 — Sweep for credentials you don't know about
+
+Both real leaks in this repo were found by accident, not by looking. Run this deliberately.
+
+**Filename-based rules are not enough.** `.gitignore` correctly covers `secret.yaml` and
+`*-secrets.yaml`, and no secret file has ever been tracked. Both leaks landed in files those rules
+were never going to catch: one in `docs/analysis/` (a key pasted into a brainstorming note), one in
+a Helm values file. Scan content, across all history.
+
+### 1. Keyword assignments, every commit, every path
+
+```bash
+git rev-list --all | while read c; do
+  git grep -hIE "(password|passwd|api[_-]?key|token|secret|master[_-]?key)[\"']?\s*[:=]\s*[\"']?[A-Za-z0-9_@!.+/=-]{10,}" "$c" 2>/dev/null
+done | grep -viE "secretKeyRef|existingSecret|secretName|valueFrom|secretRef|_FILE|\\$\\{|\\{\\{|os\.environ|sk-none|not-needed|placeholder|<|passwordMode|CHANGEME|your-|xxx|process\.env|REDACTED|example|fake|localhost" \
+ | sed -E 's/^[[:space:]]*//' | sort -u
+```
+
+Expect mostly noise. What matters is telling three things apart:
+
+| Looks like a credential | Actually is | Example |
+|---|---|---|
+| `password: POSTGRES_PASSWORD` | a secret **key name** in a `secretRefKey` mapping | Supabase values |
+| `api_key: sk-none` | a required-but-unused placeholder | LiteLLM vLLM entries |
+| `password: gitea-admin-2026` | **a real credential** | the 2026-09-21 incident |
+
+### 2. Credentials embedded in URLs
+
+The keyword pattern misses `postgresql://user:pass@host`.
+
+```bash
+git rev-list --all | while read c; do
+  git grep -hIE "[a-z+]+://[A-Za-z0-9_.-]+:[^@/[:space:]]{6,}@" "$c" 2>/dev/null
+done | sed -E 's|://([A-Za-z0-9_.-]+):[^@]*@|://\1:<PW>@|g' | sort -u
+```
+
+Mask the password in the output — you are auditing, not collecting.
+
+### 3. High-entropy blobs with no keyword at all
+
+```bash
+git rev-list --all | while read c; do
+  git grep -hIoE "eyJ[A-Za-z0-9_-]{20,}|[A-Za-z0-9+/]{40,}={0,2}|\b[0-9a-f]{40,}\b" "$c" 2>/dev/null
+done | sort -u | grep -vE "^[0-9a-f]{40}$|^[0-9a-f]{64}$"
+```
+
+Exclude bare 40- and 64-character hex: those are git SHAs and image digests, and they will drown
+the signal otherwise.
+
+### 4. Confirm no secret file is tracked
+
+```bash
+for f in secrets/*.yaml applications/*/secret.yaml applications/*/*/secret.yaml; do
+  [ -f "$f" ] || continue
+  git check-ignore -q "$f" || echo "TRACKED: $f"
+done
+```
+
+### A useful negative result
+
+This sweep also **verifies a past scrub**. The 2026-09-21 run confirmed the LiteLLM master key no
+longer appears anywhere in 176 commits, independently proving the `git-filter-repo` rewrite from the
+day before had worked — something that had only been spot-checked at the time.
+
+### Watch for orphans
+
+Deleting an application leaves its secret file behind: `secret.yaml` is gitignored, so `git rm` on
+the directory does not touch it. After retiring OpenClaw, `applications/openclaw/secret.yaml`
+survived with a live-shaped gateway token for a service that no longer existed. Either archive it
+into `secrets/` with a banner explaining why it is kept, or delete it — do not leave it in place.
+
+---
+
 ## Incident log
+
+### 2026-09-21 — Gitea admin password
+
+| | |
+|---|---|
+| **Credential** | Gitea admin password (`gitea-admin-2026`) |
+| **Exposed in** | `applications/gitea/values-homelab.yaml:41`, plus 4 docs |
+| **Exposure window** | 2026-01-15 (`54ad709`) → 2026-09-21, ~8 months, public repo |
+| **Blast radius** | Gitea admin: all repos, and push access to its container registry |
+| **Found by** | using it to push a mirrored image — not by looking |
+| **Verified** | new password 200 on `/api/v1/user`, old password 401 |
+| **Still public** | Yes — old value reachable in history; rotation is the mitigation |
+
+Moved to secret `gitea-admin-secret` via the chart's `gitea.admin.existingSecret`.
+
+**Side effect worth knowing:** the upgrade that applied this crash-looped. The chart defaults to
+`RollingUpdate`, Gitea's data is on one RWO PVC, and the new pod cannot take the LevelDB lock on
+`/data/queues/common` while the old one holds it. Every Gitea upgrade had this latent bug; it only
+ever appeared to work when the deployment happened to be scaled to 0 first. Fixed with
+`strategy: Recreate`. A rotation touching a Helm release can surface unrelated deployment defects —
+budget for that.
 
 ### 2026-09-20 — LiteLLM master key
 
