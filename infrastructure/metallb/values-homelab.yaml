@@ -44,13 +44,32 @@ speaker:
       cpu: 25m
       memory: 50Mi
 
-  # Tolerate all taints to run on all nodes including master
+  # Tolerations decide how many nodes can answer ARP for the pool IPs.
+  #
+  # k3s-nas-worker carries workload-type=lightweight:NoSchedule. Because NoSchedule
+  # repels new pods but never evicts running ones, the speaker that started there
+  # before the taint existed kept running for 251 days and made coverage look wider
+  # than the tolerations allowed. The 0.16.1 rollout on 2026-09-21 replaced that pod
+  # and it could not come back, dropping the DaemonSet from 5 pods to 3. The upgrade
+  # exposed this; any node reboot would have done the same.
+  #
+  # workload-type is tolerated deliberately: the taint exists to keep application
+  # workloads off the Synology VM, not per-node infrastructure agents. node-exporter
+  # and promtail already tolerate it for the same reason. The speaker requests
+  # 25m CPU / 50Mi against a node sitting at 5% CPU and 4% memory.
+  #
+  # k3s-gpu-worker (gpu=true:NoSchedule) is deliberately NOT tolerated - it is
+  # NotReady and Phase 6 is deferred.
   tolerations:
     - key: "node-role.kubernetes.io/control-plane"
       operator: "Exists"
       effect: "NoSchedule"
     - key: "node-role.kubernetes.io/master"
       operator: "Exists"
+      effect: "NoSchedule"
+    - key: "workload-type"
+      operator: "Equal"
+      value: "lightweight"
       effect: "NoSchedule"
 
 # Prometheus metrics (for future observability integration)
