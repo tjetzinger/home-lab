@@ -91,28 +91,18 @@ podDnsConfig:
     - name: ndots
       value: "5"
 
-webhook:
-  podDnsPolicy: "None"
-  podDnsConfig:
-    nameservers:
-      - "10.43.0.10"
-    searches:
-      - "infra.svc.cluster.local"
-      - "svc.cluster.local"
-      - "cluster.local"
-    options:
-      - name: ndots
-        value: "5"
-
-cainjector:
-  podDnsPolicy: "None"
-  podDnsConfig:
-    nameservers:
-      - "10.43.0.10"
-    searches:
-      - "infra.svc.cluster.local"
-      - "svc.cluster.local"
-      - "cluster.local"
-    options:
-      - name: ndots
-        value: "5"
+# NOTE (2026-09-21): duplicate `webhook:` and `cainjector:` blocks used to follow here,
+# each setting podDnsPolicy/podDnsConfig. Three things were wrong with them:
+#
+#   1. The chart has no such per-component keys — not in v1.19.2, not in v1.21.2. Its
+#      JSON schema rejects them, so `helm upgrade -f this-file` failed against the
+#      INSTALLED version, never mind a newer one.
+#   2. Being duplicate YAML keys, they silently overrode the `webhook:` and
+#      `cainjector:` blocks above, discarding their replicaCount and resources.
+#   3. They were never needed. The top-level podDnsPolicy/podDnsConfig above applies
+#      to all three deployments — controller, webhook and cainjector. Verified by
+#      rendering v1.21.2 with only the top-level keys set.
+#
+# The live pods' dnsPolicy=None came from manual `kubectl patch`, not from this file:
+# the deployed release contains no podDns settings at all. Those patches are dropped
+# by any successful helm upgrade, so the top-level keys above are what persist the fix.

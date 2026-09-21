@@ -110,6 +110,31 @@ Now safe to physically disconnect the eGPU:
 
 ## Procedure 2: Reconnect eGPU (Resume ML Mode)
 
+> **Before running this after a long outage — read this first.**
+>
+> As of 2026-09-21 `k3s-gpu-worker` has been unreachable since **2026-02-18** (last kubelet
+> heartbeat), and is not pingable on its Tailscale address `100.80.98.64`. Its node object is
+> still registered and carries `node.kubernetes.io/unreachable` taints. Bringing it back is
+> therefore more than a cable reconnect:
+>
+> 1. **The node's last recorded GPU mode was `graphics`** (label `nvidia.com/gpu.mode=graphics`),
+>    i.e. gaming mode with the card released. Run `ssh k3s-gpu-worker "gpu-mode ml"` (or `r1`)
+>    before expecting vLLM to claim the GPU.
+> 2. **vLLM is pinned at `v0.8.5.post1`; upstream is `v0.29.0`.** The `vllm-server` pod has been
+>    `Pending` since February, so it will start fresh on whatever `applications/vllm/` specifies.
+>    Choose that version deliberately — do not let a seven-month-old image come back by default.
+> 3. **Seven pods are stuck pending this node's return:** 2 nvidia operator validators,
+>    `vllm-server` (one Terminating, one Pending) and 3 `svclb` DaemonSet pods. They should clear
+>    on their own once the node goes `Ready`; if they do not, delete them individually.
+> 4. **`vllm-qwen` is the 4th hop in the LiteLLM fallback chain** (ADR-013). While this node is
+>    down the chain effectively ends at `ollama-qwen` on CPU, so cloud is the only real inference
+>    path. Confirm `vllm-qwen` answers before relying on it again.
+>
+> If the node is **not** coming back, remove it instead — see `node-removal.md`. Leaving it
+> registered keeps `KubeDaemonSetRolloutStuck` firing 8 times and `KubeDaemonSetMisScheduled` 6
+> times, which masks genuine DaemonSet failures elsewhere in the cluster.
+
+
 ### Step 1: Reconnect Hardware
 
 1. Connect Thunderbolt cable to Intel NUC
