@@ -8,7 +8,26 @@
 # Simplified configuration for SingleBinary deployment mode
 
 # Deployment mode: monolithic (single binary, suitable for home lab)
-deploymentMode: SingleBinary
+# CHART: grafana-community/loki 18.13.4  (Loki 3.7.8)
+#
+# The chart source CHANGED on 2026-09-21. `grafana/loki` became Grafana Enterprise
+# Logs only at chart 7.0.0: as of 2026-03-16 the OSS chart moved to
+# grafana-community/helm-charts, forked at 6.55.0 and renumbered from 18.x. Staying on
+# grafana/loki would have meant either freezing at 6.55.0 or silently running the GEL
+# chart. Same shape as the Bitnami catalogue change that forced ADR-014.
+#
+#   helm upgrade loki grafana-community/loki --version 18.13.4 \
+#     -f monitoring/loki/values-homelab.yaml -n monitoring
+#
+# Verified identical before migrating: the StatefulSet selector matchLabels, the
+# volumeClaimTemplate name `storage` (so the existing storage-loki-0 PVC is reused and
+# no logs are lost) and the rendered resource set. Selectors are immutable, so a
+# mismatch would have failed the upgrade outright.
+#
+# `Monolithic` is the current name for what this chart used to call `SingleBinary`;
+# the old value still works but is deprecated. SimpleScalable is deprecated too and
+# is removed in Loki 4 - not used here.
+deploymentMode: Monolithic
 
 # Loki configuration
 loki:
