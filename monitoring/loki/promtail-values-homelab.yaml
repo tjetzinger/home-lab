@@ -20,6 +20,18 @@ tolerations:
 
 # Promtail configuration
 config:
+  # WARNING: the `scrape_configs:` block below is DEAD CONFIGURATION.
+  #
+  # This chart builds its promtail config from `config.snippets.*` and its own
+  # `config.file` template; it never reads a user-supplied `config.scrape_configs`.
+  # Confirmed 2026-09-21 by diffing this file against the deployed `promtail` Secret,
+  # which carries relabel rules (__meta_kubernetes_pod_controller_name, app, instance)
+  # that appear nowhere in this file. Promtail has been running on chart defaults
+  # since it was installed, and the labels happen to match, which is why nobody
+  # noticed. Real changes go in `config.snippets.*` - see pipelineStages below.
+  #
+  # Left in place rather than deleted so the discrepancy is recorded; deleting it
+  # changes nothing functionally.
   # Send logs to Loki
   clients:
     - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
@@ -71,6 +83,44 @@ config:
       pipeline_stages:
         # Parse container runtime format
         - cri: {}
+
+  # THIS is the hook the chart actually renders.
+  snippets:
+    pipelineStages:
+      # Chart default - parse the container runtime format.
+      - cri: {}
+
+      # Drop MetalLB's memberlist UDP-probe warning before it reaches Loki.
+      #
+      # Every speaker logs this about k3s-nas-worker, and that node logs it about the
+      # other three, roughly once a second each:
+      #   memberlist: Was able to connect to <node> over TCP but UDP probes failed,
+      #   network may be misconfigured
+      #
+      # Measured 2026-09-21: 171,465 lines in 24h = 31.6% of ALL Loki ingest.
+      #
+      # Why: k3s-nas-worker runs --flannel-iface=tailscale0 and registers its
+      # Tailscale address (100.76.153.66) as its node IP, so its speaker gossips over
+      # WireGuard while the other three use the LAN. Every failing probe involves that
+      # node; no LAN pair ever fails. This is DELIBERATE - the node is reached over
+      # Tailscale on purpose so its cluster traffic is encrypted rather than plaintext
+      # on the LAN. Do NOT "fix" it by moving the node to 192.168.2.23.
+      #
+      # Ruled out: host firewalls (all inactive, INPUT policy ACCEPT), MTU (tailscale0
+      # is 1280 but these packets measure 40-141 bytes), loss and latency (0% loss,
+      # 1.2ms avg over 200 probes).
+      #
+      # Safe to drop: memberlist falls back to TCP, so MetalLB stays correct - the cost
+      # is slower failure detection, not lost function. Scoped to this exact string in
+      # metallb-system, so any other MetalLB error still reaches Loki. Do NOT instead
+      # disable memberlist: with it off the speaker ignores node readiness and the
+      # out-of-service taint, and L2 failover breaks on node failure (metallb#3116).
+      - match:
+          selector: '{namespace="metallb-system"}'
+          stages:
+            - drop:
+                expression: '.*UDP probes failed.*'
+                drop_counter_reason: metallb_memberlist_udp_probe
 
 # Enable service monitor for Prometheus
 serviceMonitor:
