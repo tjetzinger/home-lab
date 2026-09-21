@@ -49,6 +49,7 @@ These ADRs document decisions for the OpenClaw personal AI assistant platform:
 | [ADR-013](ADR-013-cloud-model-tier-refresh.md) | Cloud Model Tier Refresh | Role-based `cloud-{role}` aliases across three different labs after Ollama retired the vendor-named models; Open-WebUI picker curated to 13 | Accepted |
 | [ADR-014](ADR-014-postgres-off-bitnami.md) | PostgreSQL off Bitnami to CloudNativePG | Bitnami removed all versioned tags from Docker Hub, leaving the data tier unpinnable on `:latest`; migrated 5 databases to CNPG 1.30 on PostgreSQL 18.6 | Accepted |
 | [ADR-015](ADR-015-retire-openclaw-and-supabase.md) | Retire OpenClaw and self-hosted Supabase | Both deployed, validated, then unused — OpenClaw dead 8 months while still backing up 3.8GB nightly; Supabase had 0 app tables and no traffic since Feb. Removes an EOL Kong and a PG 15→17 migration | Accepted |
+| [ADR-016](ADR-016-cluster-update-campaign.md) | Cluster-wide update campaign | Six-phase pass over every workload: data tier off Bitnami, two unused stacks removed, floating tags pinned, 5 apps and the observability stack upgraded, k3s 1.34.3 → 1.34.11. Records the recurring traps — chart ownership changes, stale pins, state in emptyDir | Accepted |
 
 ## ADR Lifecycle
 
