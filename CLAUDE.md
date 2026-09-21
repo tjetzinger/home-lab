@@ -31,15 +31,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `kube-system` - K3s core, Traefik
 - `infra` - MetalLB, cert-manager
 - `monitoring` - Prometheus, Grafana, Loki, Alertmanager
-- `data` - PostgreSQL
+- `data` - PostgreSQL (CloudNativePG, ADR-014)
+- `cnpg-system` - CloudNativePG operator
 - `ml` - vLLM, Ollama, LiteLLM (inference stack)
-- `apps` - n8n, Open-WebUI, OpenClaw (personal AI assistant)
+- `apps` - n8n, Open-WebUI
 - `docs` - Paperless-ngx, Paperless-GPT, Docling, Gotenberg, Tika, Stirling-PDF
 - `dev` - Nginx proxy, dev containers
 - `legacy-use` - Legacy-Use browser automation platform
 - `kubernetes-dashboard` - Cluster dashboard
 
-**Storage:** NFS via Synology DS920+ for shared workloads; `local-path` (Rancher) for node-local PVCs (e.g., openclaw)
+**Storage:** NFS via Synology DS920+ for shared workloads; `local-path` (Rancher) for node-local PVCs
 **Access:** Tailscale VPN only (no public API exposure)
 **Ingress:** `{service}.home.jetzinger.com` via Traefik + Let's Encrypt
 
@@ -95,10 +96,6 @@ kubectl logs -n ml deployment/litellm --tail=50
 
 # Check Paperless/docs stack
 kubectl get pods -n docs
-
-# Check OpenClaw (personal AI assistant)
-kubectl get pods -n apps -l app.kubernetes.io/name=openclaw
-kubectl logs -n apps deployment/openclaw --tail=50
 ```
 
 ## Runbooks
@@ -115,7 +112,7 @@ Operational runbooks are in `docs/runbooks/`:
 
 ```
 infrastructure/     # Core cluster (k3s/, nfs/, metallb/, cert-manager/, traefik/)
-applications/       # Workloads (vllm/, litellm/, ollama/, paperless/, open-webui/, gitea/, n8n/, postgres/, openclaw/, legacy-use/)
+applications/       # Workloads (vllm/, litellm/, ollama/, paperless/, open-webui/, gitea/, n8n/, postgres-cnpg/, legacy-use/, dev-containers/)
 monitoring/         # Observability (prometheus/, loki/)
 docs/              # ADRs (docs/adrs/), runbooks (docs/runbooks/), planning/implementation artifacts
 scripts/           # Automation (gpu-worker/gpu-mode, deploy scripts, health checks)

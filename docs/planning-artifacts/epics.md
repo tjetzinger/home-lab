@@ -6419,6 +6419,13 @@ So that **I receive timely, private, authenticated notifications for critical cl
 
 ## Epic 28: Self-Hosted Supabase Backend
 
+> **Superseded 2026-09-21 — see [ADR-015](../adrs/ADR-015-retire-openclaw-and-supabase.md).**
+> The stack was deployed and validated, then never used: 0 tables in the `public` schema, one
+> auth user and one storage object (`hello.txt`) from validation, and no gateway traffic after
+> 24 Feb 2026. Stories 28.4/28.5 wired calsync and pilates to it in config, but those containers
+> ran nothing but sshd for 208 days. Removed. Requirement IDs below are left unchanged.
+
+
 **Goal:** Deploy self-hosted Supabase to a new `backend` namespace on k3s-worker-01, replacing supabase.com for dev container backends. Full GoTrue auth with cluster-local Protonmail Bridge SMTP, Edge Functions (Deno), Storage API, and PostgREST — all accessible via per-service subdomains with wildcard TLS. Migrate calsync and pilates dev containers to the cluster-local instance.
 
 **Brainstorming Session:** `docs/analysis/brainstorming-session-2026-02-23.md`

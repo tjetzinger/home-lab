@@ -95,26 +95,6 @@ spec:
             impact: "AI inference latency increased. Using CPU-only Ollama with smaller models."
             action: "If gaming, this is expected. Otherwise run 'gpu-mode ml' on k3s-gpu-worker to restore GPU inference."
 
-        # OpenClaw Gateway Down Alert (P1)
-        # Story: 24.2 - Configure Blackbox Exporter & Alertmanager Rules
-        # FR185: Alertmanager fires alert when gateway unreachable
-        # NFR104: Alert fires after 3 consecutive probe failures (90s)
-        - alert: OpenClawGatewayDown
-          expr: |
-            probe_success{job="probe/monitoring/openclaw-gateway-probe"} == 0
-          for: 90s  # 3 consecutive probe failures at 30s interval
-          labels:
-            severity: critical
-            component: ai-gateway
-            service: openclaw
-            priority: P1
-          annotations:
-            summary: "OpenClaw gateway unreachable"
-            description: "OpenClaw gateway has been unreachable for over 90 seconds. Blackbox probe is failing."
-            runbook_url: "https://github.com/tjetzinger/home-lab/blob/main/docs/runbooks/openclaw-recovery.md"
-            impact: "Telegram/Discord channels, Control UI, and all AI assistant functionality unavailable."
-            action: "Check pod status: kubectl get pods -n apps -l app.kubernetes.io/name=openclaw. Check logs: kubectl logs -n apps deploy/openclaw -c openclaw --tail=50"
-
         # Node Memory Pressure Alert (P1)
         # Fires when any node's available memory drops below 10% for 5 minutes.
         # Root cause of cascading OOM kills (Alertmanager, NFS provisioner).
@@ -149,25 +129,6 @@ spec:
             description: "Node {{ $labels.instance }} has less than 15% memory available ({{ $value | humanize }}%) for over 10 minutes."
             impact: "Node approaching memory pressure. OOM kills may occur if memory usage continues to increase."
             action: "Review pod memory usage on this node: kubectl top pods --all-namespaces --field-selector spec.nodeName=<node>."
-
-        # OpenClaw CrashLoopBackOff Alert (P2)
-        # Story: 21.4 - Enable Telegram Channel with DM Security
-        # NFR: NFR102 - Alertmanager sends notification within 2 minutes of CrashLoopBackOff
-        # Note: Built-in KubePodCrashLooping fires after 15 min; this custom rule meets the 2-min requirement.
-        - alert: OpenclawCrashLooping
-          expr: |
-            kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", namespace="apps", pod=~"openclaw.*"} > 0
-          for: 2m
-          labels:
-            severity: warning
-            component: ai-gateway
-            service: openclaw
-            priority: P2
-          annotations:
-            summary: "OpenClaw pod is in CrashLoopBackOff"
-            description: "OpenClaw pod {{ $labels.pod }} in namespace 'apps' has been in CrashLoopBackOff for more than 2 minutes."
-            impact: "Telegram channel, Control UI, and LLM routing are unavailable."
-            action: "Check pod logs: kubectl logs -n apps {{ $labels.pod }} --previous. Check openclaw.json for invalid config keys."
 
         # LiteLLM Cloud Primary Failing Over Alert (P2)
         # ADR-013 - Cloud Model Tier Refresh

@@ -1,6 +1,12 @@
 # ADR-011: OpenClaw Personal AI Assistant
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-015](ADR-015-retire-openclaw-and-supabase.md) (2026-09-21)
+
+> **Superseded 2026-09-21:** OpenClaw was removed from the cluster. It last reported `Available`
+> on 2026-01-31 and sat at `0/0` for eight months while its backup CronJob still tarred 3.8 GB
+> nightly. Kept below as a point-in-time record — see ADR-015 for the removal.
+
+**Original status:** Accepted
 **Date:** 2026-02-03
 **Decision Makers:** Tom, Claude (AI Assistant)
 

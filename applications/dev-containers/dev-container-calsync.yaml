@@ -85,14 +85,12 @@ spec:
               chown -R dev:dev /home/dev/.ssh
               chmod 600 /home/dev/.ssh/authorized_keys
               exec /usr/sbin/sshd -D
-          env:
-            # Cluster-local Supabase — Story 28.4
-            - name: SUPABASE_URL
-              value: "http://supabase-supabase-kong.backend.svc.cluster.local:8000"
-            - name: SUPABASE_ANON_KEY
-              value: ""  # Set via: kubectl set env -n dev deployment/dev-container-calsync SUPABASE_ANON_KEY=<value>
-            - name: SUPABASE_SERVICE_ROLE_KEY
-              value: ""  # Set via: kubectl set env -n dev deployment/dev-container-calsync SUPABASE_SERVICE_ROLE_KEY=<value>
+          # Story 28.4 wired this container to the cluster-local Supabase at
+          # supabase-supabase-kong.backend.svc.cluster.local:8000. That stack was retired on
+          # 2026-09-21 (ADR-015) — deployed and validated in Feb, then zero traffic for seven
+          # months while this container ran nothing but sshd. The SUPABASE_URL / ANON_KEY /
+          # SERVICE_ROLE_KEY env vars are gone with it; do not re-add that service name.
+          # pilates4golf production uses the supabase.com project and is unaffected.
           ports:
             - name: ssh
               containerPort: 22

@@ -130,9 +130,9 @@ In-chat web search uses [Exa](https://exa.ai).
 | `WEB_SEARCH_RESULT_COUNT` | `5` |
 | `EXA_API_KEY` | from `open-webui-secrets` |
 
-The key is the same one `openclaw-secrets` holds, copied into Open-WebUI's own secret so
-this app does not depend on another app's secret. Apply it with `kubectl patch`, never
-`kubectl apply` the secret file.
+The key was originally copied from `openclaw-secrets` so this app would not depend on
+another app's secret. OpenClaw was retired on 2026-09-21 (ADR-015), so `open-webui-secrets`
+now holds the only copy. Apply it with `kubectl patch`, never `kubectl apply` the secret file.
 
 **These are PersistentConfig vars.** The Helm `extraEnvVars` seed a fresh install only —
 on an existing install the database value wins and the env vars are ignored. Change them
