@@ -354,7 +354,6 @@ home-lab/
 │   ├── gotenberg/           # Document conversion
 │   ├── tika/                # Content extraction
 │   ├── nginx/               # Development reverse proxy
-│   └── dev-containers/      # Remote development environments
 │
 ├── monitoring/              # Observability stack
 │   ├── prometheus/          # kube-prometheus-stack Helm values
@@ -428,11 +427,11 @@ This project was built incrementally across 24 epics, each delivering specific i
 | **4** | Observability Stack | Prometheus, Grafana, Loki, Alertmanager with mobile alerts |
 | **5** | PostgreSQL Database | Production PostgreSQL with backup/restore capability |
 | **6** | AI Inference Platform | Ollama LLM inference + n8n workflow automation |
-| **7** | Development Proxy | Nginx proxy for local development servers |
+| **7** | Development Proxy | Nginx proxy for local development servers *(retired 2026-09-22, ADR-017)* |
 | **8** | Cluster Operations | K3s upgrades, backup/restore, maintenance procedures |
 | **9** | Portfolio & Showcase | Public GitHub repo, ADRs, technical blog posts |
 | **10** | Document Management | Paperless-ngx with OCR, Tika, Gotenberg, Stirling-PDF |
-| **11** | Dev Containers | Remote development via VS Code + Claude Code |
+| **11** | Dev Containers | Remote development via VS Code + Claude Code *(retired 2026-09-22, ADR-017)* |
 | **12** | GPU/ML Platform | Intel NUC + RTX 3060 eGPU with vLLM/Qwen 2.5 |
 | **13** | Steam Gaming | Dual-use GPU: ML inference ↔ Steam gaming mode switching |
 | **14** | LiteLLM Proxy | Three-tier fallback: vLLM → Ollama → OpenAI + external providers |

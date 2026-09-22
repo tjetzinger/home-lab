@@ -36,7 +36,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `ml` - vLLM, Ollama, LiteLLM (inference stack)
 - `apps` - n8n, Open-WebUI
 - `docs` - Paperless-ngx, Paperless-GPT, Docling, Gotenberg, Tika, Stirling-PDF
-- `dev` - Nginx proxy, dev containers
+- `dev` - Gitea (self-hosted git)
 - `legacy-use` - Legacy-Use browser automation platform
 - `kubernetes-dashboard` - Cluster dashboard
 
@@ -112,7 +112,7 @@ Operational runbooks are in `docs/runbooks/`:
 
 ```
 infrastructure/     # Core cluster (k3s/, nfs/, metallb/, cert-manager/, traefik/)
-applications/       # Workloads (vllm/, litellm/, ollama/, paperless/, open-webui/, gitea/, n8n/, postgres-cnpg/, legacy-use/, dev-containers/)
+applications/       # Workloads (vllm/, litellm/, ollama/, paperless/, open-webui/, gitea/, n8n/, postgres-cnpg/, legacy-use/)
 monitoring/         # Observability (prometheus/, loki/)
 docs/              # ADRs (docs/adrs/), runbooks (docs/runbooks/), planning/implementation artifacts
 scripts/           # Automation (gpu-worker/gpu-mode, deploy scripts, health checks)

@@ -768,6 +768,8 @@ Tom can run LLM inference (Ollama) and workflow automation (n8n) on the cluster.
 **FRs covered:** FR12, FR13, FR36, FR37, FR40
 
 ### Epic 7: Development Proxy
+
+> **Superseded 2026-09-22 — see [ADR-017](../adrs/ADR-017-retire-dev-containers.md).** The proxy's last request returned 502 on 2026-02-25; its upstreams had stopped answering. Requirement IDs kept for traceability.
 Tom can access local development servers through cluster ingress.
 **FRs covered:** FR41, FR42, FR43
 
@@ -840,6 +842,8 @@ Tom has a polished public portfolio that demonstrates capability to hiring manag
 ---
 
 ### Epic 11: Dev Containers Platform [Phase 2]
+
+> **Superseded 2026-09-22 — see [ADR-017](../adrs/ADR-017-retire-dev-containers.md).** All three containers ran only sshd from February onward. Requirement IDs kept for traceability.
 
 **User Outcome:** Tom can develop remotely using isolated dev containers with VS Code and Claude Code, accessing full development tooling via SSH through the cluster's Nginx proxy with persistent workspace storage.
 
@@ -2516,6 +2520,8 @@ So that **I can manage workload capacity and troubleshoot issues**.
 
 ## Epic 7: Development Proxy
 
+> **Superseded 2026-09-22 — see [ADR-017](../adrs/ADR-017-retire-dev-containers.md).** The proxy's last request returned 502 on 2026-02-25; its upstreams had stopped answering. Requirement IDs kept for traceability.
+
 Tom can access local development servers through cluster ingress.
 
 ---
@@ -3557,6 +3563,8 @@ persistence:
 ---
 
 ### Epic 11: Dev Containers Platform
+
+> **Superseded 2026-09-22 — see [ADR-017](../adrs/ADR-017-retire-dev-containers.md).** All three containers ran only sshd from February onward. Requirement IDs kept for traceability.
 
 **User Outcome:** Tom can provision isolated development containers accessible via custom domains, supporting remote VS Code and Claude Code workflows.
 
