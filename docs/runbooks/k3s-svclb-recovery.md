@@ -9,12 +9,11 @@
 - ADR-008: Fix K3s Prometheus Alerts
 - ADR-009: K3s Service Load Balancer Monitoring
 
-> **HISTORICAL — k3s ServiceLB is being retired (2026-09-22, ADR-017).**
+> **HISTORICAL — k3s ServiceLB was disabled on 2026-09-22 (ADR-017).**
 >
 > This cluster uses **MetalLB**, not k3s ServiceLB. `disable: servicelb` is set in the master's
-> `/etc/rancher/k3s/config.yaml`; it takes effect on the next `systemctl restart k3s`, after which
-> the `svclb-*` DaemonSets this runbook describes disappear. Until then one `svclb-traefik`
-> DaemonSet remains, now healthy at 3/3 since the port-2222 collision was removed.
+> `/etc/rancher/k3s/config.yaml` and applied; the `svclb-*` DaemonSets this runbook describes no
+> longer exist.
 >
 > Why it went: ServiceLB binds service ports as **hostPorts**, and a hostPort is per-node with no
 > notion of which address traffic arrived on. When `traefik` (for `gitea-ssh`) and

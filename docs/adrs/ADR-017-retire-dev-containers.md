@@ -36,8 +36,8 @@ Remove all of it: the three dev containers and their 20Gi volumes, `nginx-proxy`
 test deployment beside it, and the four certificates and five IngressRoute pairs they needed.
 
 Also disable **k3s ServiceLB**, which the same investigation showed to be structurally unable to
-serve this cluster — see below. `disable: servicelb` is written to the master's `config.yaml`;
-it applies on the next k3s restart.
+serve this cluster — see below. `disable: servicelb` is set in the master's `config.yaml` and
+applied.
 
 ## Consequences
 
