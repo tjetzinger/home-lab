@@ -1,0 +1,52 @@
+# kube-proxy scrape endpoints for k3s
+#
+# k3s does NOT run kube-proxy as a DaemonSet - it is embedded in the k3s process. The
+# kube-prometheus-stack chart creates a headless Service selecting pods labelled
+# `k8s-app: kube-proxy`, which match nothing here, so the Service has no endpoints and
+# its ServiceMonitor scrapes nothing.
+#
+# The result was `up{job="kube-proxy"}` with zero series, which made the chart's
+# `absent(up{job="kube-proxy"})` rule fire KubeProxyDown permanently - 30 days of
+# continuous critical alerts to the phone, naming no node because absent() discards
+# every series label.
+#
+# Two things were needed. First, k3s binds kube-proxy metrics to 127.0.0.1:10249 by
+# default; `kube-proxy-arg: metrics-bind-address=0.0.0.0` is now set in
+# /etc/rancher/k3s/config.yaml on all four reachable nodes (it lives in config.yaml,
+# not the systemd unit, so it survives a k3s reinstall). Second, this EndpointSlice
+# supplies the addresses the empty selector cannot.
+#
+# MAINTENANCE: these node IPs are static and must be updated if a node is added,
+# removed or renumbered. k3s-gpu-worker (100.80.98.64) is deliberately absent - it is
+# controlled manually and usually stopped; listing it would recreate the very
+# false-positive alert this fixes.
+#
+# The `kubernetes.io/service-name` label is what binds this slice to the Service.
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: kube-prometheus-stack-kube-proxy
+  namespace: kube-system
+  labels:
+    kubernetes.io/service-name: kube-prometheus-stack-kube-proxy
+    app.kubernetes.io/name: kube-proxy
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+addressType: IPv4
+ports:
+  - name: http-metrics
+    port: 10249
+    protocol: TCP
+endpoints:
+  - addresses: ["192.168.2.20"]
+    nodeName: k3s-master
+    conditions: {ready: true}
+  - addresses: ["192.168.2.21"]
+    nodeName: k3s-worker-01
+    conditions: {ready: true}
+  - addresses: ["192.168.2.22"]
+    nodeName: k3s-worker-02
+    conditions: {ready: true}
+  - addresses: ["100.76.153.66"]
+    nodeName: k3s-nas-worker
+    conditions: {ready: true}

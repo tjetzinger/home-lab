@@ -55,6 +55,26 @@ commonLabels:
 # Prometheus configuration
 prometheus:
   prometheusSpec:
+    # Discover ServiceMonitor targets through EndpointSlice rather than the v1
+    # Endpoints API. Added 2026-09-22 for two reasons.
+    #
+    # 1. v1 Endpoints is deprecated in Kubernetes 1.33+ and every kubectl call against
+    #    it now prints a deprecation warning. This cluster runs 1.34.
+    #
+    # 2. It is what makes kube-proxy scraping possible at all here. k3s embeds
+    #    kube-proxy in the k3s process rather than running it as a DaemonSet, so the
+    #    chart's Service - which selects pods labelled `k8s-app: kube-proxy` - matches
+    #    nothing. Because that Service HAS a selector, the endpoints controller owns
+    #    its v1 Endpoints object and keeps it empty, so a hand-written one would just
+    #    be overwritten. A hand-written EndpointSlice is not managed that way and
+    #    survives - see kube-proxy-endpoints.yaml - but only the EndpointSlice role
+    #    reads it.
+    #
+    # Without this, `up{job="kube-proxy"}` had zero series and the chart's
+    # `absent(up{job="kube-proxy"})` rule fired KubeProxyDown permanently: 30 days of
+    # continuous critical alerts naming no node, because absent() discards all labels.
+    serviceDiscoveryRole: EndpointSlice
+
     # Retention configuration (NFR13: 7 days minimum)
     retention: 7d
     retentionSize: "15GB"
@@ -211,11 +231,26 @@ alertmanager:
           # accepted with HTTP 200 and passed through literally, which looks like the
           # feature is missing. Verified by experiment on 2026-09-21 against v2.28.0.
           #
-          # Renders as:  title  "[firing] KubeProxyDown"
-          #              body   "KubeProxy has disappeared from Prometheus target discovery."
+          # Extended 2026-09-22: the first version sent only alertname and description,
+          # so a notification could not say WHICH node or pod was affected. It now adds
+          # severity and ranges over .alerts, printing whichever identifying labels each
+          # alert actually carries:
           #
-          # Percent-encoded: %7B%7B = {{ , %7D%7D = }} , %5B/%5D = [ ] , %20 = space.
-          - url: http://ntfy.monitoring.svc.cluster.local/homelab-alerts?template=yes&title=%5B%7B%7B.status%7D%7D%5D%20%7B%7B.commonLabels.alertname%7D%7D&message=%7B%7B.commonAnnotations.description%7D%7D
+          #   [firing] KubePodNotReady        [firing] KubeNodeNotReady
+          #   Pod not ready for 15m.          Node is not ready.
+          #   severity: warning               severity: warning
+          #   • ns=ml pod=vllm-abc            • node=k3s-gpu-worker
+          #   • ns=gpu-operator pod=dcgm-xyz
+          #
+          # `{{with .labels.x}}` prints a field only when present, so each alert type
+          # shows what it has and nothing renders as "<no value>".
+          #
+          # KubeProxyDown is the exception and will still show a bare bullet: its rule is
+          # `absent(up{job="kube-proxy"})`, and absent() discards every series label by
+          # design, so there is no node to name. No template can fix that.
+          #
+          # Percent-encoded: %7B%7B = {{ , %7D%7D = }} , %0A = newline, %20 = space.
+          - url: http://ntfy.monitoring.svc.cluster.local/homelab-alerts?template=yes&title=%5B%7B%7B.status%7D%7D%5D%20%7B%7B.commonLabels.alertname%7D%7D&message=%7B%7B.commonAnnotations.description%7D%7D%0Aseverity%3A%20%7B%7B.commonLabels.severity%7D%7D%7B%7Brange%20.alerts%7D%7D%0A%E2%80%A2%7B%7Bwith%20.labels.node%7D%7D%20node%3D%7B%7B.%7D%7D%7B%7Bend%7D%7D%7B%7Bwith%20.labels.instance%7D%7D%20inst%3D%7B%7B.%7D%7D%7B%7Bend%7D%7D%7B%7Bwith%20.labels.namespace%7D%7D%20ns%3D%7B%7B.%7D%7D%7B%7Bend%7D%7D%7B%7Bwith%20.labels.pod%7D%7D%20pod%3D%7B%7B.%7D%7D%7B%7Bend%7D%7D%7B%7Bwith%20.labels.daemonset%7D%7D%20ds%3D%7B%7B.%7D%7D%7B%7Bend%7D%7D%7B%7Bwith%20.labels.deployment%7D%7D%20deploy%3D%7B%7B.%7D%7D%7B%7Bend%7D%7D%7B%7Bend%7D%7D
             send_resolved: true
             http_config:
               follow_redirects: true
