@@ -17,9 +17,22 @@
 # supplies the addresses the empty selector cannot.
 #
 # MAINTENANCE: these node IPs are static and must be updated if a node is added,
-# removed or renumbered. k3s-gpu-worker (100.80.98.64) is deliberately absent - it is
-# controlled manually and usually stopped; listing it would recreate the very
-# false-positive alert this fixes.
+# removed or renumbered.
+#
+# k3s-gpu-worker (100.80.98.64) IS included, by decision on 2026-09-22. It was left out
+# when this file was written, on the reasoning that a manually-stopped node would
+# recreate a false-positive alert. That reasoning was wrong in one respect: stopping it
+# now produces `TargetDown` - severity WARNING, for 10m - which stays in Alertmanager
+# and never reaches the phone, because the route only matches severity=critical. It
+# cannot resurrect KubeProxyDown, whose rule is `absent(up{job="kube-proxy"})` and
+# therefore needs EVERY kube-proxy target to vanish, not one.
+#
+# So the node is monitored while it runs, and stopping it costs one warning in the UI.
+#
+# NOTE: that node also needs `kube-proxy-arg: metrics-bind-address=0.0.0.0` in its own
+# /etc/rancher/k3s/config.yaml, exactly as the other four have. Without it the entry
+# below resolves to a closed port. See docs/runbooks/egpu-hotplug.md, "Bringing the
+# Node Back After a Long Absence".
 #
 # The `kubernetes.io/service-name` label is what binds this slice to the Service.
 apiVersion: discovery.k8s.io/v1
@@ -49,4 +62,7 @@ endpoints:
     conditions: {ready: true}
   - addresses: ["100.76.153.66"]
     nodeName: k3s-nas-worker
+    conditions: {ready: true}
+  - addresses: ["100.80.98.64"]
+    nodeName: k3s-gpu-worker
     conditions: {ready: true}

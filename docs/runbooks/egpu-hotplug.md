@@ -280,6 +280,92 @@ rules - editing them would also hide the node when it IS supposed to be up.
 
 ---
 
+## Bringing the Node Back After a Long Absence
+
+The Procedure 2 reconnect steps above cover a short maintenance window. When the node has been
+down for **weeks or months**, the cluster has moved on and three things need catching up. Written
+2026-09-22, when the node had been `NotReady` since 2026-02-18.
+
+### Step A: capture the k3s arguments BEFORE upgrading anything
+
+The k3s install script rewrites the systemd unit from the arguments you pass it. Anything that
+lives only in the unit — rather than in `/etc/rancher/k3s/config.yaml` — is silently dropped.
+
+```bash
+ssh k3s-gpu-worker "sudo systemctl cat k3s-agent | sed -n '/ExecStart=/,/^$/p' | grep -oE \"'[^']+'\"
+                    echo '--- config.yaml ---'; sudo cat /etc/rancher/k3s/config.yaml"
+```
+
+This node registers a **Tailscale address** (`100.80.98.64`) as its `InternalIP`, the same
+deliberate arrangement as `k3s-nas-worker`. Expect `flannel-iface: tailscale0`. Whatever the unit
+carries must be re-passed verbatim to the installer.
+
+### Step B: upgrade k3s to match the cluster
+
+No drain is needed — the node arrives empty, so upgrade before workloads land on it.
+
+```bash
+kubectl --context default get nodes -o custom-columns=NAME:.metadata.name,VERSION:.status.nodeInfo.kubeletVersion
+# then, re-passing the arguments from Step A:
+ssh k3s-gpu-worker "URL=\$(sudo grep K3S_URL /etc/systemd/system/k3s-agent.service.env | cut -d= -f2- | tr -d \\\"\\'); \
+  TOK=\$(sudo grep K3S_TOKEN /etc/systemd/system/k3s-agent.service.env | cut -d= -f2- | tr -d \\\"\\'); \
+  curl -sfL https://get.k3s.io | sudo INSTALL_K3S_VERSION=<cluster version> K3S_URL=\"\$URL\" K3S_TOKEN=\"\$TOK\" sh -s - <args>"
+```
+
+An agent may trail the server by a minor version, so this is not urgent — but leaving it behind
+means the next cluster-wide change hits the DaemonSet blocking problem described above.
+
+### Step C: expose kube-proxy metrics
+
+Added cluster-wide on 2026-09-22; a node returning from before that date will not have it. k3s binds
+kube-proxy metrics to `127.0.0.1:10249`, which no Prometheus pod can reach.
+
+Append to `/etc/rancher/k3s/config.yaml` (**not** the systemd unit, so it survives a reinstall) and
+restart `k3s-agent`:
+
+```yaml
+kube-proxy-arg:
+  - "metrics-bind-address=0.0.0.0"
+```
+
+Confirm with `sudo ss -lnt | grep 10249` — it must show `*:10249`, not `127.0.0.1:10249`. Then
+ensure the node's IP is present in `monitoring/prometheus/kube-proxy-endpoints.yaml` and apply it.
+
+### What heals on its own
+
+- The ~37 alerts drain, and the nine stale pods shown against the node are last-known API state,
+  not live processes — the kubelet cleans them up.
+- The seven `gpu-operator` DaemonSets go `DESIRED 0 → 1`. They sit at 0 while the node is away
+  because their `nodeSelector` matches no *Ready* node; the labels persist on the node object.
+- Blocked DaemonSet rollouts finish, and the new pods collect whatever config they missed.
+- The NVIDIA driver is safe: `gpu-operator` runs `driver.enabled: false` and
+  `toolkit.enabled: false`, so the host-installed driver and toolkit are left alone.
+
+### Expected noise, not a fault
+
+Promtail's positions file is on hostPath `/run/promtail`, and `/run` is tmpfs — cleared on boot. It
+re-reads the node's log files from the start, and those entries are older than Loki's one-week
+rejection window, so expect a **burst of HTTP 400 "entry too far behind" errors** in promtail's
+logs. Harmless.
+
+### Verify
+
+```bash
+kubectl --context default get node k3s-gpu-worker -o jsonpath='{.status.addresses[0].address}'
+# expect 100.80.98.64 - the Tailscale IP must be preserved
+
+kubectl --context default get node k3s-gpu-worker -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'
+# expect 1 - if absent, the problem is the host driver, not Kubernetes
+
+kubectl --context default get ds -A     # every DaemonSet should now read DESIRED == UPTODATE
+```
+
+Then confirm the GPU inference path end to end **through LiteLLM**, not vLLM directly — that is the
+path Paperless-GPT and Open-WebUI use. A response whose `model` field reads `ollama/...` means the
+request fell back to CPU and the GPU path is still down.
+
+---
+
 ## Expected Behavior During Each Phase
 
 | Phase | vLLM Status | GPU Status | Inference Fallback |
