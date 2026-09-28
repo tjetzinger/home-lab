@@ -147,4 +147,10 @@ active 47 s after the reboot. So the boot race did not recur, and the guard's re
   second advertiser of that subnet ever appears.
 - **Any new node that sits on an advertised subnet and uses `--accept-routes` needs this rule.**
   The symptom to recognise: SYN in on `eth0`, SYN-ACK out on `tailscale0`.
+- **A repeat now pages the phone.** `ControlPlaneNodeUnreachable` (critical, 5 min) in
+  `monitoring/prometheus/custom-rules.yaml` fires when the control-plane node's node-exporter cannot
+  be scraped. It finds the node by role, not by IP. It covers a master that is alive but unreachable -
+  this incident. It **cannot** report a dead master: Alertmanager, CoreDNS and Traefik (the phone's
+  path to ntfy) all run there, and with the only API server gone nothing reschedules. That needs a
+  dead-man switch outside the cluster, fed by the always-firing `Watchdog` alert. Not built.
 - **Rollback:** `systemctl disable --now tailscale-lan-rule` - `ExecStop` removes the rule.

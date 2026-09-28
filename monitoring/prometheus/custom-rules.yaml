@@ -8,6 +8,7 @@
 # Custom alert rules for home-lab specific services:
 # - PostgreSQL database availability (P1)
 # - NFS storage provisioner availability (P1)
+# - Control-plane node unreachable (P1) - ADR-019
 # - OpenClaw gateway down (P1) - Story 24.2, FR185
 # - OpenClaw CrashLoopBackOff (P2) - Story 21.4, NFR102
 ---
@@ -74,6 +75,40 @@ spec:
             runbook_url: "https://github.com/yourusername/home-lab/blob/main/docs/runbooks/nfs-recovery.md"
             impact: "New PVC requests will fail. Stateful workloads cannot scale or restart successfully."
             action: "Check NFS provisioner pod status, logs, and Synology NFS export accessibility. Verify network connectivity to Synology."
+
+        # Control-Plane Node Unreachable Alert (P1)
+        # ADR-019 - added 2026-09-28
+        #
+        # From 09-24 to 09-28 the master answered no inbound LAN connection (Tailscale
+        # routed its replies into the tunnel). All five master scrape targets were down
+        # for four days, but TargetDown is only `warning`, so nothing reached the phone.
+        #
+        # The control-plane node is found by role, not by IP: node-exporter's `instance`
+        # is joined to kube_node_info's internal_ip, then to kube_node_role. The value is
+        # always 0 when it fires; the alert only needs the series to exist.
+        #
+        # LIMIT: this catches a master that is ALIVE but unreachable - the incident above.
+        # It cannot report a DEAD master: Alertmanager, CoreDNS and Traefik (the phone's
+        # path to ntfy) all run there, and with the only API server gone nothing is
+        # rescheduled. That needs a dead-man switch outside the cluster.
+        - alert: ControlPlaneNodeUnreachable
+          expr: |
+            (up{job="node-exporter"} == 0)
+              * on(instance) group_left(node)
+                label_replace(kube_node_info, "instance", "$1:9100", "internal_ip", "(.*)")
+              * on(node) group_left()
+                kube_node_role{role="control-plane"}
+          for: 5m
+          labels:
+            severity: critical
+            component: infrastructure
+            service: control-plane
+            priority: P1
+          annotations:
+            summary: "Control-plane node {{ $labels.node }} unreachable"
+            description: "Prometheus cannot scrape node-exporter on control-plane node {{ $labels.node }} ({{ $labels.instance }}) for 5 minutes."
+            impact: "Kubelet, kube-proxy and node metrics for the control plane are blind. If the node itself is down, the API server is down too."
+            action: "ssh root@192.168.2.20 (ssh k3s-master goes via Tailscale). Check `ip route get 192.168.2.22` says dev eth0, `ip -4 addr show tailscale0`, and `systemctl status k3s tailscaled`. See docs/adrs/ADR-019-tailscale-lan-policy-rule.md."
 
         # vLLM GPU Inference Unavailable Alert (P2 - Informational)
         # Story: 13.3 - Integrate n8n Fallback Routing
