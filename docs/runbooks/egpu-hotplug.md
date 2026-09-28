@@ -117,9 +117,12 @@ Now safe to physically disconnect the eGPU:
 > still registered and carries `node.kubernetes.io/unreachable` taints. Bringing it back is
 > therefore more than a cable reconnect:
 >
-> 1. **The node's last recorded GPU mode was `graphics`** (label `nvidia.com/gpu.mode=graphics`),
->    i.e. gaming mode with the card released. Run `ssh k3s-gpu-worker "gpu-mode ml"` (or `r1`)
->    before expecting vLLM to claim the GPU.
+> 1. ~~**The node's last recorded GPU mode was `graphics`**, i.e. gaming mode.~~ **Corrected
+>    2026-09-28:** the label `nvidia.com/gpu.mode=graphics` is set by GPU feature discovery (via
+>    the NFD worker's `NodeFeature`) and describes the card's *display mode* - a GeForce reads
+>    `graphics` permanently, in ML mode too. It says nothing about `gpu-mode`. The real state is
+>    `ssh k3s-gpu-worker "gpu-mode status"`; run `gpu-mode ml` (or `r1`) only if that shows
+>    vLLM scaled to 0.
 > 2. **vLLM is pinned at `v0.8.5.post1`; upstream is `v0.29.0`.** The `vllm-server` pod has been
 >    `Pending` since February, so it will start fresh on whatever `applications/vllm/` specifies.
 >    Choose that version deliberately — do not let a seven-month-old image come back by default.
@@ -374,6 +377,34 @@ kubectl --context default get ds -A     # every DaemonSet should now read DESIRE
 Then confirm the GPU inference path end to end **through LiteLLM**, not vLLM directly — that is the
 path Paperless-GPT and Open-WebUI use. A response whose `model` field reads `ollama/...` means the
 request fell back to CPU and the GPU path is still down.
+
+---
+
+## Plain Reboot of the GPU Worker (tested 2026-09-28)
+
+First reboot after purging the 535/580 driver leftovers. It needs no manual step:
+
+| Time (UTC) | Event |
+|---|---|
+| 14:38:53 | `sudo systemctl reboot` |
+| 14:40:36 | host up; `nvidia-smi` shows driver 570.211.01 |
+| 14:41:08 | node `Ready`, `nvidia.com/gpu: 1` allocatable |
+| 14:42:09 | vLLM ready - about **3 minutes** without GPU inference in total |
+
+What to expect:
+
+- **vLLM comes back by itself** because its Deployment keeps `replicas: 1`. A new pod starts and
+  loads the model.
+- **The old pod is left as `UnexpectedAdmissionError`.** After the reboot the kubelet (most likely) re-admits it
+  before the device plugin has re-registered the GPU, and rejects it. It is a dead record; delete it:
+  `kubectl --context default -n ml delete pod <name>`.
+- **`VLLMGPUUnavailable` fires** (warning) and `KubePodNotReady` goes pending while the model loads.
+  Both clear once vLLM is ready.
+- **`gpu-mode-default.service` does NOT run.** It is ordered `After=graphical.target`, and
+  `graphical.target` never finishes starting: its job waits on `x11vnc-user-tt.service`, which stays
+  in "start running". So if the node was in `gaming` mode (vLLM at 0 replicas) before a reboot,
+  it stays there - run `gpu-mode ml` by hand. Check with
+  `ssh k3s-gpu-worker 'systemctl list-jobs'`.
 
 ---
 
