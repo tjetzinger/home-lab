@@ -27,6 +27,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `k3s-gpu-worker` - Intel NUC + RTX 3060 eGPU (12GB VRAM), GPU inference
 - `k3s-nas-worker` - Synology DS920+ VM
 
+**Agent desktop VMs** (Proxmox `pve`, not k3s — ADR-018, `infrastructure/agent-vms/`):
+- `agent-cowork` (VMID 104) - Ubuntu 24.04 desktop, Claude Desktop / Cowork (nested KVM)
+- `agent-codex` (VMID 105) - Ubuntu 24.04 desktop, ChatGPT desktop app / Codex + Codex CLI
+
 **Namespaces:**
 - `kube-system` - K3s core, Traefik
 - `infra` - MetalLB, cert-manager
@@ -107,6 +111,7 @@ Operational runbooks are in `docs/runbooks/`:
 - `cluster-backup.md` / `cluster-restore.md` — Full cluster state backup/restore
 - `k3s-svclb-recovery.md` — Recover from svclb issues after node changes
 - `secret-rotation.md` — Rotate a shared credential and scrub it from git history
+- `agent-desktop-vms.md` — Cowork/Codex VMs: access, Cowork sandbox gate, updates, rebuild
 
 ## Repository Structure
 
