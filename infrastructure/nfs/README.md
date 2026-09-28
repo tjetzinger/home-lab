@@ -81,6 +81,21 @@ kubectl --context default logs nfs-whoami     # want uid=0; uid=1024 means root 
 kubectl --context default delete pod nfs-whoami
 ```
 
+#### The `scans` export (Paperless intake)
+
+`/volume1/scans` is a second export, mounted directly by the `paperless-consume-scans` PV
+(`applications/paperless/consume-scans-pv.yaml`) as Paperless-ngx's consume folder. Scans arrive
+in the share through Synology Drive, not NFS; Paperless is the only NFS client.
+
+Since 2026-09-28 it has the same rule as `k8s-data`: `192.168.2.20/30`, **No mapping** (was the whole
+`192.168.2.0/24`). `no_root_squash` is required here too - Paperless runs as root and must delete
+each file after importing it. Verified the same day: a test PDF written from the Paperless pod
+landed as `0:0`, was imported within 6 seconds and removed from the share.
+
+Retired: Story 10.7 mounted the old in-cluster consume PVC on the workstation at `/mnt/paperless`.
+Paperless stopped reading that folder on 2026-02-16 (`ab2ba3c`) and the `/30` rule now refuses the
+mount - remove any such `/etc/fstab` line.
+
 ### Cluster Node Requirements
 
 All K3s nodes must have NFS utilities installed:
