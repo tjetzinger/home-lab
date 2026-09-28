@@ -18,6 +18,10 @@ set -euo pipefail
 NFS_SERVER="${NFS_SERVER:-192.168.2.2}"
 NFS_EXPORT="${NFS_EXPORT:-/volume1/k8s-data}"
 KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
+# Pin the cluster: the current context may be another cluster (flowkraft-hetzner),
+# and a read-only check against it reports the wrong cluster's storage as healthy.
+KUBE_CONTEXT="${KUBE_CONTEXT:-default}"
+kubectl() { command kubectl --context "$KUBE_CONTEXT" "$@"; }
 
 # Colors for output
 RED='\033[0;31m'
