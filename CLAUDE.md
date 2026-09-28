@@ -28,8 +28,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `k3s-nas-worker` - Synology DS920+ VM
 
 **Agent desktop VMs** (Proxmox `pve`, not k3s — ADR-018, `infrastructure/agent-vms/`):
-- `agent-cowork` (VMID 104) - Ubuntu 24.04 desktop, Claude Desktop / Cowork (nested KVM)
-- `agent-codex` (VMID 105) - Ubuntu 24.04 desktop, ChatGPT desktop app / Codex + Codex CLI
+- `agent-cowork` (VMID 104) - Ubuntu 26.04 desktop, Claude Desktop / Cowork (nested KVM)
+- `agent-codex` (VMID 105) - Ubuntu 26.04 desktop, ChatGPT desktop app / Codex + Codex CLI
 
 **Namespaces:**
 - `kube-system` - K3s core, Traefik

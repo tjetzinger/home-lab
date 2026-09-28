@@ -14,11 +14,5 @@ grep -q 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE /root/claude-key.txt
 echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/claude-desktop-archive-keyring.asc] https://downloads.claude.ai/claude-desktop/apt/stable stable main" > /etc/apt/sources.list.d/claude-desktop.list
 apt-get update
 apt-get -y install claude-desktop
-mkdir -p /etc/gdm3
-cat > /etc/gdm3/custom.conf <<'CONF'
-[daemon]
-AutomaticLoginEnable=true
-AutomaticLogin=tt
-CONF
 systemctl set-default graphical.target
 echo PROVISION_DONE
