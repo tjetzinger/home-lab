@@ -142,8 +142,11 @@ The pre-flight checks that would have caught it are now in
 
 ## Known gaps, deliberately left
 
-- **PostgreSQL runs a single instance.** Draining either CPU worker is still an outage. The
-  two-instance plan is written into `applications/postgres-cnpg/cluster.yaml`, unapplied.
+- ~~**PostgreSQL runs a single instance.**~~ **Closed 2026-09-28** — now a primary plus a
+  streaming replica, one per CPU worker, with `required` anti-affinity and
+  `primaryUpdateMethod: switchover`. A drain now costs one switchover: measured at **8 seconds**
+  of failed writes with zero rows lost, against 4m45s before. See
+  `applications/postgres-cnpg/cluster.yaml`.
 - **No point-in-time recovery.** `pg_stat_archiver` reports success while storing nothing, and
   `archive_mode` cannot be disabled — it is a CNPG fixed parameter. See
   [postgres-backup.md](../runbooks/postgres-backup.md).

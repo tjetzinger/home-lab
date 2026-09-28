@@ -172,14 +172,23 @@ affinity/selector"* and stays down until the original node is uncordoned. Verify
 elimination that at least one other node is schedulable, untainted for that pod, and
 permitted by its affinity, **before** deleting anything.
 
-The current state after the 2026-09-21 fix: CNPG runs with `instances: 1` and a
-`nodeAffinity` permitting `k3s-worker-01` or `k3s-worker-02`. It can move, but a move is
-still an outage - Gitea, n8n, LiteLLM and Paperless all depend on it, and n8n needed a
-further 121 seconds and 9 retries to reconnect afterwards. A second CNPG instance is the
-only way to drain either worker without downtime.
+**Current state (since 2026-09-28):** CNPG runs **two instances** — a primary and a streaming
+replica, one on each of `k3s-worker-01` and `k3s-worker-02`, held apart by `required`
+anti-affinity. The `postgres-cnpg-primary` PDB still reports `disruptionsAllowed: 0`, and that
+is correct: it is what makes CNPG **switch over before** evicting the primary. With a single
+replica there is no replica PDB.
 
-**Sequence the upgrade around it.** Do the nodes that do NOT host the database first,
-then move the database onto an already-upgraded node, then drain its old host last.
+So a drain of either CPU worker now just works. Draining the primary's node costs one
+switchover — measured at **8 seconds** of failed writes, zero rows lost. Draining the replica's
+node costs nothing; the displaced replica stays `Pending` until that node is uncordoned, by
+design.
+
+Before this, with one instance, the same drain refused outright and a forced move took
+4m45s plus 121 seconds for n8n to reconnect. If the cluster is ever scaled back to one
+instance, that behaviour returns.
+
+**Sequencing no longer matters for the database.** It still helps to drain the primary's
+node last, so only one switchover happens per upgrade.
 
 ### 4c. Node Arguments That the Installer Will Silently Drop
 

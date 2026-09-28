@@ -24,35 +24,30 @@ metadata:
     app.kubernetes.io/part-of: home-lab
     app.kubernetes.io/managed-by: kubectl
 spec:
-  # SINGLE INSTANCE - this is the known weak point, not an oversight.
+  # TWO INSTANCES - primary plus one streaming replica, one per CPU worker.
   #
-  # With one instance, draining either CPU worker is an outage: the PDB
-  # (minAvailable 1) refuses the eviction, and Gitea, n8n, LiteLLM and Paperless all
-  # go down with the database. That is exactly what happened during the k3s v1.34.11
-  # upgrade on 2026-09-21 - 4m45s down, and n8n needed a further 121s and 9 retries
-  # to reconnect afterwards.
+  # Raised from 1 on 2026-09-28. With a single instance, draining either CPU worker
+  # was an outage: the primary's PodDisruptionBudget (minAvailable 1) refused the
+  # eviction, and Gitea, n8n, LiteLLM and Paperless went down with the database. That
+  # cost 4m45s during the k3s v1.34.11 upgrade on 2026-09-21, plus a further 121s and 9
+  # retries for n8n to reconnect.
   #
-  # PLANNED FIX (researched 2026-09-21, not yet applied):
+  # With a replica, CNPG handles a drain itself (per its "Kubernetes upgrade and
+  # maintenance" docs): "If a node is to be drained and contains a cluster's primary
+  # instance, a switchover happens ahead of the drain." Downtime shrinks to one
+  # switchover - NOT to zero.
   #
-  #   instances: 2
-  #   affinity:
-  #     enablePodAntiAffinity: true
-  #     podAntiAffinityType: required   # currently "preferred"
+  # MEASURED during the rollout of this change, with a probe inserting a row every
+  # second through postgres-cnpg-rw:
+  #   - writes failed for 8 seconds (last row 09:06:15, next 09:06:24)
+  #   - zero rows lost - the new primary held every row written to the old one
+  #   - n8n reconnected after 4 attempts in 7s (was 9 attempts / 121s)
+  #   - LiteLLM logged 43 errors, all inside that one minute, then recovered
   #
-  # `required` is the part that matters. With "preferred" both instances could be
-  # scheduled onto the same node and nothing would be gained; with two eligible nodes
-  # and two instances, "required" puts exactly one on each.
-  #
-  # Assessed as low risk: the whole database is 159 MB, so the replica bootstraps by
-  # streaming pg_basebackup from the primary in seconds. It needs one more 8Gi
-  # nfs-client PVC, requests 100m CPU / 256Mi, and there are currently 0 replication
-  # slots to disturb. primaryUpdateStrategy is already "unsupervised", so CNPG handles
-  # switchover itself. Adding the replica needs no downtime - the primary keeps
-  # serving while it catches up.
-  #
-  # Capacity note: k3s-worker-02 sits at 95% CPU requests and 83% memory requests
-  # (k3s-worker-01 at 33% / 18%). The replica fits, but worker-02 has little headroom
-  # for anything larger.
+  # Only ONE PodDisruptionBudget exists, `postgres-cnpg-primary`, and it stays at
+  # disruptionsAllowed: 0 BY DESIGN - that is what forces the switchover before
+  # eviction. With a single replica CNPG creates no replica PDB (it could only block
+  # everything or nothing). Do not read "0" as a problem.
   #
   # What this does NOT provide: replication is not a backup - it copies mistakes
   # instantly, so the nightly pg_dump stays the thing that survives a bad DELETE.
@@ -70,10 +65,14 @@ spec:
   # Recovery granularity is therefore ONE DAY - the 02:00 pg_dump.
   # See docs/runbooks/postgres-backup.md for why neither barmanObjectStore nor
   # volumeSnapshot can be enabled as this cluster stands, and what would fix it.
-  #
-  # Verify after raising this: `pg_stat_replication` on the primary shows a streaming
-  # standby, and the PDB reports disruptionsAllowed: 1.
-  instances: 1
+  instances: 2
+
+  # How CNPG updates the primary during a rolling update (a spec change, a Postgres
+  # minor-version bump). The default `restart` restarts the primary IN PLACE - an
+  # outage. `switchover` updates the replica first, then promotes it, so the primary
+  # is only ever replaced by a switchover. Without this, raising the anti-affinity
+  # below would itself have restarted the primary.
+  primaryUpdateMethod: switchover
 
   # Pinned. The whole point of this migration is that the data tier is never
   # again on a floating tag. Bump deliberately, same major as the data on disk.
@@ -151,8 +150,15 @@ spec:
     # This affinity now keeps the database off the control plane while letting it move
     # between the two CPU workers, so either can be drained for maintenance.
     #
-    # NOTE: with instances: 1 any move is still downtime. See the comment on
-    # `instances` above for the planned two-instance fix.
+    # Anti-affinity MUST be `required`, not the default `preferred`. With only two
+    # eligible nodes, "preferred" lets a rescheduled instance land beside the other
+    # one - after a drain of k3s-worker-01 the replica would move onto k3s-worker-02
+    # and stay there. The next drain of k3s-worker-02 would then need to switch over to
+    # a replica on the very node being drained. "required" instead leaves the displaced
+    # instance Pending until its node returns, which is the correct behaviour.
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
