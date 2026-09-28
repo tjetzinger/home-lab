@@ -1,0 +1,56 @@
+# NVIDIA GPU Operator - home-lab values
+# Chart: nvidia/gpu-operator v25.10.1 (repo https://helm.ngc.nvidia.com/nvidia)
+#
+#   helm upgrade --install gpu-operator nvidia/gpu-operator --version v25.10.1 \
+#     -n gpu-operator -f infrastructure/gpu-operator/values-homelab.yaml
+#
+# Until 2026-09-28 these values lived only in the Helm release (installed with --set in
+# Story 12.3). This file reproduces them, plus the two changes marked below.
+
+# The driver and the container toolkit are installed on the host (k3s-gpu-worker),
+# not by the operator - manual control over the driver version.
+driver:
+  enabled: false
+toolkit:
+  enabled: false
+
+devicePlugin:
+  enabled: true
+gfd:
+  enabled: true
+
+daemonsets:
+  tolerations:
+    - key: gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+validator:
+  cuda:
+    # Skip the CUDA vectorAdd test pod. The validator image ships CUDA forward-compat
+    # libraries newer than the host driver (570, CUDA 12.8). Forward compatibility only
+    # works on datacenter GPUs, so on the RTX 3060 the test always fails with
+    # "forward compatibility was attempted on non supported HW" (CUDA error 804).
+    # It failed like this from install day (2026-01-12) and kept the validator
+    # un-Ready and alerting for 8 months, while vLLM used the GPU fine.
+    # Driver and toolkit validation still run. Remove this if the host driver moves
+    # to a branch at least as new as the image's CUDA (580+ for CUDA 13).
+    env:
+      - name: WITH_WORKLOAD
+        value: "false"
+
+node-feature-discovery:
+  worker:
+    tolerations:
+      - key: gpu
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      # k3s-nas-worker was tainted after the NFD worker already ran there, so its pod
+      # counted as mis-scheduled (KubeDaemonSetMisScheduled / RolloutStuck). NFD is a
+      # small labelling DaemonSet, so it fits the "lightweight" taint's intent.
+      - key: workload-type
+        operator: Equal
+        value: lightweight
+        effect: NoSchedule
