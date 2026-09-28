@@ -29,10 +29,54 @@ This directory contains the configuration for the NFS dynamic storage provisione
    - Edit `k8s-data` → NFS Permissions → Create rule:
      - Hostname/IP: `192.168.2.20/30` (k3s nodes .20-.23 only)
      - Privilege: Read/Write
-     - Squash: Map all users to admin
+     - Squash: **No mapping** (see "Why No mapping" below)
      - Enable asynchronous: Yes
      - Allow connections from non-privileged ports: Yes
      - Allow users to access mounted subfolders: Yes
+
+#### Why "No mapping" (2026-09-28)
+
+**Status 2026-09-28:** "No mapping" is the required setting, but the verify check below still
+returned `uid=1024` after the first attempt to change it. Until it returns `uid=0`, PVC deletion
+leaves data behind - use the manual cleanup under Troubleshooting.
+
+This README used to prescribe "Map all users to admin". The NAS did not actually do that: files
+kept their owners (valkey wrote as UID 1001; CNPG's `pgdata` is UID 26, mode 0700), and only **root** was
+mapped to UID 1024 - which is "Map root to admin".
+
+That broke volume deletion. The provisioner runs as root, arrives at the NAS as 1024, and cannot
+remove files an app wrote as another user with owner-only permissions. With
+`reclaimPolicy: Delete` and `archiveOnDelete: false`, a deleted PVC should remove its folder;
+instead the provisioner logged `unlinkat ...: permission denied` 15 times and gave up
+(`failures 15 >= threshold 15`). The PV stayed `Released` and the data stayed on the NAS. Four
+such volumes (Gitea valkey x3, moltbot) had sat there since January.
+
+"No mapping" lets root on the nodes act as root on this share, so deletes work. The trade-off:
+any host the rule allows gets full root on `k8s-data`. That is why the rule is limited to
+`192.168.2.20/30`. NFS clients seen by the NAS on 2026-09-28: `.20`, `.21`, `.22` (NFSv4.1).
+
+Do **not** use "Map all users to ...": it would rewrite every app's file ownership and break
+anything that checks it - PostgreSQL refuses to start unless it owns its data directory.
+
+**Verify the setting** - root must arrive as root:
+
+```bash
+cat <<'EOF' | kubectl --context default apply -f -
+apiVersion: v1
+kind: Pod
+metadata: {name: nfs-whoami, namespace: default}
+spec:
+  restartPolicy: Never
+  containers:
+  - name: c
+    image: busybox:1.36
+    command: ["sh","-c","f=/nfs/.squash-test-$$; touch $f && stat -c 'uid=%u gid=%g' $f; rm -f $f"]
+    volumeMounts: [{name: nfs, mountPath: /nfs}]
+  volumes: [{name: nfs, nfs: {server: 192.168.2.2, path: /volume1/k8s-data}}]
+EOF
+kubectl --context default logs nfs-whoami     # want uid=0; uid=1024 means root is still squashed
+kubectl --context default delete pod nfs-whoami
+```
 
 ### Cluster Node Requirements
 
@@ -214,8 +258,31 @@ apt-get install -y nfs-common
 
 **Check:**
 1. NFS permissions allow the node IPs
-2. Squash setting is correct (Map all users to admin)
+2. Squash setting is "No mapping" (see Prerequisites)
 3. Folder permissions on Synology
+
+### PV stuck in `Released` after deleting a PVC
+
+**Symptom:** `kubectl --context default get pv` shows `Released` long after the PVC was deleted,
+and the folder is still under `/volume1/k8s-data/`.
+
+**Cause:** the provisioner could not delete the folder - almost always root squashing (see
+"Why No mapping"). Confirm in its log:
+
+```bash
+kubectl --context default -n infra logs deploy/nfs-provisioner-nfs-subdir-external-provisioner \
+  | grep -E 'VolumeFailedDelete|permission denied'
+```
+
+**Fix:** correct the squash setting, then restart the provisioner so it retries. If the setting
+cannot be changed, clean up by hand - first check the folder really belongs to a retired app:
+
+```bash
+kubectl --context default delete pv <pv-name>
+ssh -t nas 'cd /volume1/k8s-data && sudo rm -rf -- <namespace>-<pvc-name>-<pv-name>'
+```
+
+Deleting the PV object alone does **not** remove the data.
 
 ## Uninstallation
 
