@@ -108,7 +108,7 @@ Only `severity: critical` alerts page the phone. Everything else goes to the `nu
 | `egpu-hotplug.md` | Current - driver 570 (updated 2026-09-28) |
 | `secret-rotation.md` | Current |
 | `postgres-backup.md`, `postgres-restore.md` | Current - CloudNativePG |
-| `postgres-setup.md`, `postgres-connectivity.md` | **Out of date** - still describe the Bitnami deployment |
+| `postgres-setup.md`, `postgres-connectivity.md` | Current - CloudNativePG operations, and connecting a new app (rewritten 2026-09-28) |
 | `nfs-restore.md` | Current |
 | `alertmanager-setup.md`, `loki-setup.md` | Setup records for the monitoring stack |
 | `agent-desktop-vms.md` | Current - Cowork/Codex VMs |

@@ -1,512 +1,182 @@
-# PostgreSQL Database Setup
+# PostgreSQL Setup and Operations (CloudNativePG)
 
-**Purpose:** Deploy and manage PostgreSQL database service in home-lab cluster
-
-**Story:** 5.1 - Deploy PostgreSQL via Bitnami Helm Chart
-**Date Created:** 2026-01-06
-**Last Updated:** 2026-01-06
-
----
-
-## Overview
-
-This runbook documents the deployment and configuration of PostgreSQL using the Bitnami Helm chart for the home-lab Kubernetes cluster.
-
-**Components:**
-- **PostgreSQL**: Production-ready relational database (PostgreSQL 18.1)
-- **Metrics Exporter**: PostgreSQL exporter for Prometheus integration
-- **StatefulSet**: Ensures stable network identity and persistent storage (configured in Story 5.2)
-
-**Key Features:**
-- StatefulSet deployment for data persistence
-- Prometheus metrics integration
-- Internal cluster access via ClusterIP service
-- Production-ready defaults from Bitnami chart
+**Purpose:** Run, inspect and rebuild the cluster's PostgreSQL
+**Decisions:** [ADR-014](../adrs/ADR-014-postgres-off-bitnami.md) (CloudNativePG), two instances since 2026-09-28
+**Rewritten:** 2026-09-28 for CloudNativePG. The Bitnami version of this runbook (Story 5.1) is in
+git history; its `postgres-postgresql` service and StatefulSet no longer exist.
 
 ---
 
-## Prerequisites
+## At a glance
 
-- `data` namespace exists with labels
-- NFS storage provisioner available (nfs-client StorageClass)
-- Monitoring stack deployed (kube-prometheus-stack)
-- Helm installed
-- kubectl access to cluster
+| | |
+|---|---|
+| Operator | CloudNativePG 1.30.0 - Helm release `cnpg`, chart `cnpg/cloudnative-pg` 0.29.0, namespace `cnpg-system` |
+| Cluster | `postgres-cnpg`, namespace `data`, **2 instances** (primary + streaming replica) |
+| PostgreSQL | 18.6, image `ghcr.io/cloudnative-pg/postgresql:18.6` (pinned) |
+| Storage | 8Gi per instance on `nfs-client` |
+| Placement | one instance each on `k3s-worker-01` and `k3s-worker-02` (anti-affinity `required`) |
+| Manifests | `applications/postgres-cnpg/` - `cluster.yaml`, `values-homelab.yaml` (operator), `backup-cronjob.yaml` |
 
----
+### Services
 
-## Deployment
+| Service | Points at | Use |
+|---|---|---|
+| `postgres-cnpg-rw.data.svc.cluster.local:5432` | the primary | **everything** - all consumers use this |
+| `postgres-cnpg-ro.data.svc.cluster.local:5432` | the replica | read-only queries (nothing uses it today) |
+| `postgres-cnpg-r.data.svc.cluster.local:5432` | any instance | rarely useful |
 
-### Step 1: Add Bitnami Helm Repository
+`-rw` follows the primary through a switchover, so consumers never need to know which pod is primary.
 
-```bash
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo update
-```
+### Databases and roles (checked 2026-09-28)
 
-### Step 2: Deploy PostgreSQL
+| Database | Owner | Used by (login role) |
+|---|---|---|
+| `litellm` | `postgres` | LiteLLM (`postgres` - superuser) |
+| `paperless` | `postgres` | Paperless-ngx (`paperless_user`) |
+| `gitea` | `postgres` | Gitea (`gitea`) |
+| `n8n` | `postgres` | n8n (`n8n`) |
+| `legacy_use` | `legacy_use` | Legacy-Use (`legacy_use`) |
 
-```bash
-# Deploy PostgreSQL via Helm
-helm upgrade --install postgres bitnami/postgresql \
-  -f /home/tt/Workspace/home-lab/applications/postgres/values-homelab.yaml \
-  -n data
-
-# Verify deployment
-kubectl get pods -n data
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql -n data --timeout=120s
-```
-
-### Step 3: Verify Deployment
-
-```bash
-# Check StatefulSet
-kubectl get statefulset -n data
-kubectl get pods -n data
-
-# Check services
-kubectl get svc -n data
-
-# Check logs
-kubectl logs -n data postgres-postgresql-0 --tail=20
-```
+Role `app_user` is a leftover from the Epic 5 connectivity test. It owns nothing listed above.
 
 ---
 
-## Connection Methods
+## Connect
 
-### Method 1: kubectl exec (Interactive)
-
-```bash
-# Get PostgreSQL password
-export POSTGRES_PASSWORD=$(kubectl get secret --namespace data postgres-postgresql -o jsonpath="{.data.postgres-password}" | base64 -d)
-
-# Connect to PostgreSQL CLI
-kubectl exec -it postgres-postgresql-0 -n data -- env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres
-
-# Or use the Bitnami-provided command
-kubectl run postgres-postgresql-client --rm --tty -i --restart='Never' \
-  --namespace data \
-  --image registry-1.docker.io/bitnami/postgresql:latest \
-  --env="PGPASSWORD=$POSTGRES_PASSWORD" \
-  --command -- psql --host postgres-postgresql -U postgres -d postgres -p 5432
-```
-
-### Method 2: Internal DNS (From within cluster)
-
-**Service DNS:** `postgres-postgresql.data.svc.cluster.local`
-**Port:** 5432
+**Always find the primary by label.** The primary moves on every switchover and node drain, so
+never hard-code `postgres-cnpg-1`.
 
 ```bash
-# From another pod in the cluster
-psql -h postgres-postgresql.data.svc.cluster.local -U postgres -d postgres -p 5432
+PRIMARY=$(kubectl --context default -n data get pod \
+  -l cnpg.io/cluster=postgres-cnpg,cnpg.io/instanceRole=primary -o name)
+
+# psql as the superuser over the local socket (peer auth - no password needed)
+kubectl --context default -n data exec -it $PRIMARY -c postgres -- psql -U postgres
+
+# one-off query
+kubectl --context default -n data exec $PRIMARY -c postgres -- psql -U postgres -c '\l+'
 ```
 
-### Method 3: Port Forwarding (From localhost)
+From your workstation, port-forward the **service**, not a pod, so you always land on the primary:
 
 ```bash
-# Forward port to localhost
-kubectl port-forward --namespace data svc/postgres-postgresql 5432:5432 &
-
-# Connect from localhost
-export POSTGRES_PASSWORD=$(kubectl get secret --namespace data postgres-postgresql -o jsonpath="{.data.postgres-password}" | base64 -d)
-PGPASSWORD="$POSTGRES_PASSWORD" psql --host 127.0.0.1 -U postgres -d postgres -p 5432
+kubectl --context default -n data port-forward svc/postgres-cnpg-rw 5432:5432
+# password: secret postgres-cnpg-superuser, key "password"
+psql -h localhost -U postgres
 ```
+
+The `kubectl cnpg` plugin is **not** installed on the workstation. Everything here uses plain
+`kubectl`.
 
 ---
 
-## Basic PostgreSQL Commands
-
-### Database Operations
-
-```sql
--- List databases
-\l
-
--- Create database
-CREATE DATABASE myapp;
-
--- Drop database
-DROP DATABASE myapp;
-
--- Connect to database
-\c myapp
-```
-
-### User/Role Operations
-
-```sql
--- List roles
-\du
-
--- Create user
-CREATE USER appuser WITH PASSWORD 'password123';
-
--- Grant privileges
-GRANT ALL PRIVILEGES ON DATABASE myapp TO appuser;
-
--- Create user with specific privileges
-CREATE USER readonly WITH PASSWORD 'readonly123';
-GRANT CONNECT ON DATABASE myapp TO readonly;
-GRANT USAGE ON SCHEMA public TO readonly;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly;
-```
-
-### Table Operations
-
-```sql
--- List tables (in current database)
-\dt
-
--- Describe table
-\d tablename
-
--- Show table size
-SELECT pg_size_pretty(pg_total_relation_size('tablename'));
-```
-
-### Query Information
-
-```sql
--- Show running queries
-SELECT pid, usename, application_name, state, query
-FROM pg_stat_activity
-WHERE state = 'active';
-
--- Show database connections
-SELECT datname, count(*)
-FROM pg_stat_activity
-GROUP BY datname;
-
--- Show database sizes
-SELECT datname, pg_size_pretty(pg_database_size(datname)) AS size
-FROM pg_database
-ORDER BY pg_database_size(datname) DESC;
-```
-
----
-
-## Retrieving Credentials
-
-### Get PostgreSQL Password from Secret
+## Health check
 
 ```bash
-# Get password
-kubectl get secret postgres-postgresql -n data -o jsonpath="{.data.postgres-password}" | base64 -d
-echo
+kubectl --context default -n data get cluster postgres-cnpg
+# expect: STATUS "Cluster in healthy state", READY 2
 
-# Get password and set as environment variable
-export POSTGRES_PASSWORD=$(kubectl get secret postgres-postgresql -n data -o jsonpath="{.data.postgres-password}" | base64 -d)
+kubectl --context default -n data get pods -l cnpg.io/cluster=postgres-cnpg \
+  -L cnpg.io/instanceRole -o wide
+# expect: one primary, one replica, on different workers
+
+# replication lag, from the primary
+kubectl --context default -n data exec $PRIMARY -c postgres -- psql -U postgres -c \
+  "select application_name, state, sync_state, replay_lag from pg_stat_replication;"
+# expect: one row, state "streaming"
 ```
 
-### Secret Contents
-
-The `postgres-postgresql` secret contains:
-- `postgres-password`: PostgreSQL superuser password
+**One PodDisruptionBudget exists, `postgres-cnpg-primary`, and it shows `ALLOWED DISRUPTIONS 0`.
+That is by design** - it forces CNPG to switch over before the primary's node drains. With a single
+replica, CNPG creates no replica PDB.
 
 ---
 
 ## Monitoring
 
-### Prometheus Integration
-
-PostgreSQL metrics are automatically scraped by Prometheus via ServiceMonitor.
-
-**Metrics Service:** `postgres-postgresql-metrics:9187`
-**ServiceMonitor:** `postgres-postgresql` (data namespace)
-
-### Key Metrics
-
-```promql
-# Database connections
-pg_stat_database_numbackends
-
-# Query execution time
-pg_stat_activity_max_tx_duration
-
-# Database size
-pg_database_size_bytes
-
-# Transactions per second
-rate(pg_stat_database_xact_commit[5m])
-
-# Lock statistics
-pg_locks_count
-```
-
-### View Metrics in Prometheus
-
-1. Access Prometheus: https://prometheus.home.jetzinger.com
-2. Go to **Status > Targets**
-3. Search for **postgres-postgresql** to verify scraping status
-4. Run queries using metrics above
+- Metrics come from each instance's built-in exporter, scraped by `PodMonitor/postgres-cnpg`
+  (namespace `data`).
+- `cnpg_collector_up` is the health signal. The critical alert `PostgreSQLUnhealthy`
+  (`monitoring/prometheus/custom-rules.yaml`) fires when it reads 0 **or** disappears.
+- Useful queries: `cnpg_backends_total` (connections), `cnpg_pg_database_size_bytes`,
+  `cnpg_pg_replication_lag`.
 
 ---
 
-## Verification
+## Maintenance
 
-### Verify StatefulSet
+### Node drain
 
-```bash
-# Check StatefulSet status
-kubectl get statefulset -n data postgres-postgresql
+Draining the node that holds the primary triggers a **switchover** first: the replica is promoted,
+and writes stop for a few seconds. Measured on 2026-09-28: **8 seconds** with no rows lost; n8n
+reconnected in 7 seconds. The displaced instance stays `Pending` until its node returns - that is
+the `required` anti-affinity working, not a fault.
 
-# Expected output:
-# NAME                  READY   AGE
-# postgres-postgresql   1/1     Xm
-```
+### Configuration change
 
-### Verify Pod
+Edit `applications/postgres-cnpg/cluster.yaml`, then:
 
 ```bash
-# Check pod status
-kubectl get pods -n data -l app.kubernetes.io/name=postgresql
-
-# Expected output:
-# NAME                    READY   STATUS    RESTARTS   AGE
-# postgres-postgresql-0   2/2     Running   0          Xm
-
-# Check containers
-kubectl get pod postgres-postgresql-0 -n data -o jsonpath='{.spec.containers[*].name}'
-# Expected: postgresql metrics
+kubectl --context default apply -f applications/postgres-cnpg/cluster.yaml
 ```
 
-### Verify Service
+`primaryUpdateMethod: switchover` makes CNPG update the replica first and then switch over, so the
+primary is never restarted in place. Expect the same few seconds of write outage.
+
+### Minor PostgreSQL upgrade
+
+Change `imageName` in `cluster.yaml` to the new pinned tag (same major version only) and apply.
+A **major** upgrade (19.x) is a different procedure - do not just change the tag.
+
+---
+
+## Rebuild from scratch
+
+Only for a lost cluster. For data recovery, use [postgres-restore.md](postgres-restore.md).
 
 ```bash
-# Check services
-kubectl get svc -n data
+# 1. Operator
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm --kube-context default upgrade --install cnpg cnpg/cloudnative-pg --version 0.29.0 \
+  -n cnpg-system --create-namespace -f applications/postgres-cnpg/values-homelab.yaml
 
-# Expected services:
-# - postgres-postgresql (ClusterIP, port 5432)
-# - postgres-postgresql-hl (Headless, port 5432)
-# - postgres-postgresql-metrics (ClusterIP, port 9187)
+# 2. Superuser secret - create ONCE, with the real password (never apply a placeholder over it)
+kubectl --context default -n data create secret generic postgres-cnpg-superuser \
+  --type=kubernetes.io/basic-auth --from-literal=username=postgres --from-literal=password='<password>'
 ```
 
-### Verify Connectivity
-
-```bash
-# Test PostgreSQL connection
-kubectl exec postgres-postgresql-0 -n data -- \
-  env PGPASSWORD=${POSTGRES_PASSWORD} \
-  psql -U postgres -c "SELECT version();"
-
-# Expected: PostgreSQL 18.1 version info
-```
+3. `cluster.yaml` bootstraps by **importing from the retired Bitnami service**
+   (`bootstrap.initdb.import`, source `postgres-postgresql.data`). That source no longer exists, so a
+   fresh apply as-is will fail. For a rebuild, replace the `bootstrap` block with a plain
+   `initdb`, apply, then load the latest nightly dump as described in
+   [postgres-restore.md](postgres-restore.md).
+4. Recreate the backup job: `kubectl --context default apply -f applications/postgres-cnpg/backup-cronjob.yaml`.
 
 ---
 
 ## Troubleshooting
 
-### Pod Not Starting
+| Symptom | Check |
+|---|---|
+| Consumers get "connection refused" | `kubectl -n data get endpointslices -l kubernetes.io/service-name=postgres-cnpg-rw` - an empty slice means no primary. Then check the cluster status and pod events |
+| Cluster not "healthy" | `kubectl -n data describe cluster postgres-cnpg` (the Status and Events sections) and `kubectl -n cnpg-system logs deploy/cnpg-cloudnative-pg --tail=100` |
+| Instance `Pending` | Expected while its node is drained or down (anti-affinity). Otherwise check PVC binding and NFS |
+| `password authentication failed` | The role's password in PostgreSQL does not match the consumer's secret. Reset with `ALTER ROLE ... PASSWORD`, then patch the consumer's secret |
+| Replica not streaming | `pg_stat_replication` on the primary, then the replica pod's logs |
 
-**Symptoms:**
-- Pod in CrashLoopBackOff or Error state
-
-**Diagnosis:**
-```bash
-kubectl describe pod postgres-postgresql-0 -n data
-kubectl logs -n data postgres-postgresql-0
-```
-
-**Common Issues:**
-1. Insufficient resources on nodes
-2. PVC not bound (Story 5.2 when persistence enabled)
-3. Configuration error in values-homelab.yaml
-
-**Resolution:**
-- Check node resources: `kubectl top nodes`
-- Verify PVC status: `kubectl get pvc -n data`
-- Review Helm values for errors
-
-### Connection Refused
-
-**Symptoms:**
-- Cannot connect to PostgreSQL from within cluster
-
-**Diagnosis:**
-```bash
-# Verify pod is running
-kubectl get pods -n data -l app.kubernetes.io/name=postgresql
-
-# Check pod logs for errors
-kubectl logs -n data postgres-postgresql-0 --tail=50
-
-# Verify service endpoints
-kubectl get endpoints postgres-postgresql -n data
-```
-
-**Resolution:**
-- Ensure pod is in Running state (2/2 containers ready)
-- Verify service has endpoints matching pod IP
-- Check firewall/network policies if enabled
-
-### Password Authentication Failed
-
-**Symptoms:**
-- `psql: error: FATAL: password authentication failed for user "postgres"`
-
-**Diagnosis:**
-```bash
-# Verify password in secret matches values-homelab.yaml
-kubectl get secret postgres-postgresql -n data -o jsonpath="{.data.postgres-password}" | base64 -d
-```
-
-**Resolution:**
-- Ensure PGPASSWORD environment variable is set correctly
-- Password from secret should match auth.postgresPassword in values-homelab.yaml
-- If persistence is enabled (Story 5.2), old PVC may have different password
-
-### Metrics Not Appearing in Prometheus
-
-**Symptoms:**
-- PostgreSQL metrics missing from Prometheus
-
-**Diagnosis:**
-```bash
-# Verify ServiceMonitor exists
-kubectl get servicemonitor -n data postgres-postgresql
-
-# Check metrics service
-kubectl get svc postgres-postgresql-metrics -n data
-
-# Verify metrics exporter is running
-kubectl get pod postgres-postgresql-0 -n data -o jsonpath='{.spec.containers[*].name}'
-```
-
-**Resolution:**
-- Ensure ServiceMonitor has correct label: `release: kube-prometheus-stack`
-- Verify metrics service endpoints: `kubectl get endpoints postgres-postgresql-metrics -n data`
-- Check Prometheus logs for scraping errors
+Backup-specific issues: [postgres-backup.md](postgres-backup.md).
 
 ---
 
-## Configuration Reference
+## Related
 
-### Current Setup
+- [postgres-connectivity.md](postgres-connectivity.md) - connecting a new application
+- [postgres-backup.md](postgres-backup.md) / [postgres-restore.md](postgres-restore.md)
+- [`applications/postgres-cnpg/README.md`](../../applications/postgres-cnpg/README.md) - migration from Bitnami
+- [ADR-014](../adrs/ADR-014-postgres-off-bitnami.md)
 
-| Setting | Value |
-|---------|-------|
-| PostgreSQL Version | 18.1 |
-| Bitnami Chart Version | 18.2.0 |
-| Namespace | data |
-| Service Type | ClusterIP (internal only) |
-| Port | 5432 |
-| Persistence | NFS-backed PVC (Story 5.2) |
-| PVC Name | data-postgres-postgresql-0 |
-| Storage Class | nfs-client |
-| Storage Size | 8Gi |
-| Access Mode | ReadWriteOnce (RWO) |
-| NFS Server | 192.168.2.2 (Synology DS920+) |
-| Reclaim Policy | Delete |
-| Metrics | Enabled (Prometheus integration) |
-| Read Replicas | Disabled |
+## Change log
 
-### Resource Allocation
-
-| Component | CPU Request | CPU Limit | Memory Request | Memory Limit |
-|-----------|-------------|-----------|----------------|--------------|
-| PostgreSQL | 100m | 500m | 256Mi | 1Gi |
-| Metrics Exporter | 50m | 100m | 64Mi | 128Mi |
-
-### Service Endpoints
-
-- **PostgreSQL Service:** `postgres-postgresql.data.svc.cluster.local:5432`
-- **Headless Service:** `postgres-postgresql-hl.data.svc.cluster.local:5432`
-- **Metrics Service:** `postgres-postgresql-metrics.data.svc.cluster.local:9187`
-
----
-
-## NFS Persistence Details (Story 5.2)
-
-### PVC Configuration
-
-**PersistentVolumeClaim:**
-- **Name:** `data-postgres-postgresql-0`
-- **Namespace:** `data`
-- **StorageClass:** `nfs-client`
-- **Capacity:** 8Gi
-- **Access Mode:** ReadWriteOnce (RWO)
-- **Status:** Bound
-- **Reclaim Policy:** Delete
-
-**NFS Backend:**
-- **Server:** 192.168.2.2 (Synology DS920+)
-- **Path:** `/volume1/k8s-data/data-data-postgres-postgresql-0-pvc-<uid>/`
-- **Provisioner:** nfs-subdir-external-provisioner
-
-### Verify Persistence
-
-```bash
-# Check PVC status
-kubectl get pvc -n data
-kubectl describe pvc data-postgres-postgresql-0 -n data
-
-# Check PV details
-kubectl get pv
-kubectl describe pv <pv-name>
-
-# Verify PostgreSQL data on NFS
-kubectl exec postgres-postgresql-0 -n data -- ls -la /bitnami/postgresql/data
-kubectl exec postgres-postgresql-0 -n data -- du -sh /bitnami/postgresql/data
-```
-
-### Test Data Persistence
-
-**Pod Deletion Test:**
-```bash
-# Create test data
-kubectl exec postgres-postgresql-0 -n data -- env PGPASSWORD=${POSTGRES_PASSWORD} psql -U postgres -c "CREATE DATABASE test_db;"
-
-# Delete pod
-kubectl delete pod postgres-postgresql-0 -n data
-
-# Wait for recreation
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql -n data --timeout=120s
-
-# Verify data persists
-kubectl exec postgres-postgresql-0 -n data -- env PGPASSWORD=${POSTGRES_PASSWORD} psql -U postgres -c "\l" | grep test_db
-```
-
-**Node Failure Test:**
-```bash
-# Identify current node
-kubectl get pods -n data -o wide
-
-# Drain node (replace <node-name> with actual node)
-kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data
-
-# Verify pod moves to different node
-kubectl get pods -n data -o wide
-
-# Verify data still accessible
-kubectl exec postgres-postgresql-0 -n data -- env PGPASSWORD=${POSTGRES_PASSWORD} psql -U postgres -c "\l"
-
-# Uncordon node
-kubectl uncordon <node-name>
-```
-
----
-
-## Related Documentation
-
-- [PostgreSQL Deployment README](../../applications/postgres/README.md)
-- [PostgreSQL Backup & Recovery Runbook](postgres-backup.md)
-- [PostgreSQL Restore Procedures Runbook](postgres-restore.md)
-- [PostgreSQL Application Connectivity Runbook](postgres-connectivity.md)
-- [Story 5.2 - Configure NFS Persistence](../implementation-artifacts/5-2-configure-nfs-persistence-for-postgresql.md)
-- [Story 5.3 - Setup PostgreSQL Backup](../implementation-artifacts/5-3-setup-postgresql-backup-with-pg-dump.md)
-- [Story 5.4 - Validate PostgreSQL Restore](../implementation-artifacts/5-4-validate-postgresql-restore-procedure.md)
-- [Story 5.5 - Test Application Connectivity](../implementation-artifacts/5-5-test-application-connectivity-to-postgresql.md)
-- [Bitnami PostgreSQL Chart](https://github.com/bitnami/charts/tree/main/bitnami/postgresql)
-- [PostgreSQL Official Docs](https://www.postgresql.org/docs/18/)
-
----
-
-## Change Log
-
-- 2026-01-06: Initial runbook creation - PostgreSQL 18.1 deployed with emptyDir storage (Story 5.1)
-- 2026-01-06: Updated for NFS persistence (Story 5.2) - Added PVC configuration, NFS backend details, persistence validation procedures
-- 2026-01-06: Added backup system reference (Story 5.3) - Link to postgres-backup.md runbook for automated backup procedures
-- 2026-01-06: Added restore procedures reference (Story 5.4) - Link to postgres-restore.md runbook for disaster recovery procedures
-- 2026-01-06: Added connectivity reference (Story 5.5) - Link to postgres-connectivity.md runbook for application integration patterns
+- 2026-01-06: Created for the Bitnami deployment (Story 5.1)
+- 2026-09-28: Rewritten for CloudNativePG with two instances

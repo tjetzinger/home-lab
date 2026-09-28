@@ -4,7 +4,9 @@ Replaces the Bitnami `postgresql` chart in namespace `data`. See
 [ADR-014](../../docs/adrs/ADR-014-postgres-off-bitnami.md).
 
 **Operator:** CloudNativePG 1.30.0, chart `cnpg/cloudnative-pg` 0.29.0, namespace `cnpg-system`
-**Cluster:** `postgres-cnpg` in namespace `data`, 1 instance, PostgreSQL 18.6, 8Gi on `nfs-client`
+**Cluster:** `postgres-cnpg` in namespace `data`, 2 instances (primary + replica, since 2026-09-28), PostgreSQL 18.6, 8Gi each on `nfs-client`
+
+Day-to-day operation: [postgres-setup.md](../../docs/runbooks/postgres-setup.md). Connecting a new app: [postgres-connectivity.md](../../docs/runbooks/postgres-connectivity.md).
 
 ## Why this replaced Bitnami
 
@@ -27,7 +29,7 @@ CNPG publishes its own maintained, versioned images, so the problem does not rec
 | Service | Use |
 |---------|-----|
 | `postgres-cnpg-rw.data.svc.cluster.local` | read-write (primary) — this is what consumers use |
-| `postgres-cnpg-ro.data.svc.cluster.local` | read-only replicas (none configured) |
+| `postgres-cnpg-ro.data.svc.cluster.local` | the read-only replica (nothing uses it yet) |
 | `postgres-cnpg-r.data.svc.cluster.local` | any instance |
 
 ## Consumers
@@ -45,8 +47,6 @@ Five, all connecting to `postgres-cnpg-rw`:
 LiteLLM connects as the `postgres` superuser, which is why `enableSuperuserAccess: true` is set.
 Giving it its own role is a worthwhile follow-up, but was deliberately kept out of the migration
 so that only the host changed.
-
-Supabase in namespace `backend` runs its **own** PostgreSQL and is unaffected by any of this.
 
 ## Secrets
 
@@ -94,6 +94,7 @@ the first attempt at this comparison reported `gitea old=-50`, a negative row co
 
 ```bash
 kubectl --context default get cluster postgres-cnpg -n data
-kubectl --context default cnpg status postgres-cnpg -n data   # needs the cnpg kubectl plugin
-kubectl --context default exec -n data postgres-cnpg-1 -c postgres -- psql -U postgres -c '\l+'
+# the primary moves on every switchover - find it by label, never by pod name
+PRIMARY=$(kubectl --context default -n data get pod -l cnpg.io/cluster=postgres-cnpg,cnpg.io/instanceRole=primary -o name)
+kubectl --context default exec -n data $PRIMARY -c postgres -- psql -U postgres -c '\l+'
 ```

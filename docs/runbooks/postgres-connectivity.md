@@ -1,631 +1,173 @@
-# PostgreSQL Application Connectivity
+# PostgreSQL Application Connectivity (CloudNativePG)
 
-**Purpose:** Guide for connecting applications to PostgreSQL within the home-lab cluster
-
-**Story:** 5.5 - Test Application Connectivity to PostgreSQL
-**Date Created:** 2026-01-06
-**Last Updated:** 2026-01-06
+**Purpose:** Connect a new application to the cluster's PostgreSQL, and debug an existing connection
+**Cluster:** `postgres-cnpg` in namespace `data` - see [postgres-setup.md](postgres-setup.md)
+**Rewritten:** 2026-09-28 for CloudNativePG. The Bitnami version (Story 5.5) is in git history.
 
 ---
 
-## Overview
+## The one rule
 
-This runbook provides step-by-step instructions for connecting applications deployed in the cluster to the PostgreSQL database service. All connections use Kubernetes internal service discovery and secure credential management via Secrets.
-
-**PostgreSQL Service Details:**
-- **Internal DNS:** `postgres-postgresql.data.svc.cluster.local`
-- **Port:** 5432
-- **Namespace:** data
-- **Service Type:** ClusterIP (internal cluster access only)
-
-**Validated Configuration:**
-- ✅ Cross-namespace connectivity (apps → data)
-- ✅ DNS resolution and service discovery
-- ✅ Connection latency: ~30ms (well under 100ms target)
-- ✅ CRUD operations functional
-- ✅ Kubernetes Secret-based credential management
+**Connect to `postgres-cnpg-rw.data.svc.cluster.local:5432`.** It always points at the primary,
+including after a switchover. Never use a pod name or pod IP, and never the old
+`postgres-postgresql.data` - that service no longer exists.
 
 ---
 
-## Prerequisites
+## New application checklist
 
-- Application deployed in a Kubernetes namespace (typically `apps`)
-- PostgreSQL database and user created for your application
-- Kubernetes Secret created with application credentials
+1. Create the role and database (below), one role per application.
+2. Store the password in a Secret in the **application's** namespace.
+3. Point the application at `postgres-cnpg-rw.data.svc.cluster.local`, port `5432`.
+4. Put the non-secret settings (host, port, database, user) in the app's `values-homelab.yaml`,
+   with a comment naming ADR-014. Only the password goes in the Secret.
+5. Test from a pod in the app's namespace (below).
+6. Add the database to the consumer table in [postgres-setup.md](postgres-setup.md) and
+   [`applications/postgres-cnpg/README.md`](../../applications/postgres-cnpg/README.md).
+7. Confirm the nightly `pg_dumpall` picks it up the next morning - it dumps every database, so no
+   backup change is needed. See [postgres-backup.md](postgres-backup.md).
 
----
-
-## Application Deployment Checklist
-
-**Use this checklist when deploying any new application that requires PostgreSQL:**
-
-- [ ] **Step 1:** Create application-specific database and user (see Step 1 below)
-- [ ] **Step 2:** Store credentials in Kubernetes Secret in application's namespace (see Step 2 below)
-- [ ] **Step 3:** Configure application to use PostgreSQL via environment variables (see Step 3 below)
-- [ ] **Step 4:** Deploy test pod to validate connectivity before application deployment (see Testing Connectivity section)
-- [ ] **Step 5:** Verify DNS resolution to `postgres-postgresql.data.svc.cluster.local`
-- [ ] **Step 6:** Test CRUD operations with application user credentials
-- [ ] **Step 7:** Measure connection latency (should be < 100ms for internal cluster)
-- [ ] **Step 8:** Verify application user has correct privileges (not superuser)
-- [ ] **Step 9:** Deploy application with database connection configured
-- [ ] **Step 10:** Monitor application logs for successful database connection
-
-**Quick Validation Command:**
-```bash
-# Test connectivity from application namespace
-kubectl run test-db --image=postgres:latest --rm -it --restart=Never -n apps -- \
-  psql -h postgres-postgresql.data.svc.cluster.local -U <app_user> -d <app_db> -c "SELECT version();"
-```
-
----
-
-## Quick Start - Application Connection
-
-### Step 1: Create Application Database and User
-
-Connect to PostgreSQL and create dedicated database and user for your application:
+### Step 1: Create role and database
 
 ```bash
-# Get PostgreSQL admin password
-export POSTGRES_PASSWORD=$(kubectl get secret postgres-postgresql -n data -o jsonpath="{.data.postgres-password}" | base64 -d)
-
-# Connect to PostgreSQL
-kubectl exec -it postgres-postgresql-0 -n data -- env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres
-
-# Create application database
-CREATE DATABASE myapp_db;
-
-# Create application user
-CREATE USER myapp_user WITH PASSWORD 'secure_password_here';
-
-# Grant privileges
-GRANT ALL PRIVILEGES ON DATABASE myapp_db TO myapp_user;
-
-# Connect to the new database and grant schema privileges
-\c myapp_db
-GRANT ALL ON SCHEMA public TO myapp_user;
-
-# Exit psql
-\q
+PRIMARY=$(kubectl --context default -n data get pod \
+  -l cnpg.io/cluster=postgres-cnpg,cnpg.io/instanceRole=primary -o name)
+kubectl --context default -n data exec -it $PRIMARY -c postgres -- psql -U postgres
 ```
 
-### Step 2: Store Credentials in Kubernetes Secret
+```sql
+-- Generate the password outside psql, e.g. `openssl rand -base64 24`
+CREATE ROLE myapp LOGIN PASSWORD '<generated>';
+CREATE DATABASE myapp OWNER myapp;
+```
 
-Create a Secret in your application's namespace with connection details:
+Making the application's role the **owner** gives it full rights in its own database and none in
+anyone else's - no extra GRANTs needed. (`legacy_use` is set up this way. The older databases are
+owned by `postgres`, carried over from the Bitnami import.)
+
+Do not give an application the `postgres` superuser. LiteLLM still uses it; that is a known
+follow-up, not a pattern to copy.
+
+The role is created **by hand**, so it exists only in the database - it is not in `cluster.yaml`.
+It survives switchovers (replication copies it) and is in the nightly dump.
+
+### Step 2: Store the password
+
+Create the Secret directly - there is nothing to overwrite yet:
 
 ```bash
-kubectl create secret generic myapp-db-credentials \
-  -n apps \
-  --from-literal=username=myapp_user \
-  --from-literal=password=secure_password_here \
-  --from-literal=database=myapp_db \
-  --from-literal=host=postgres-postgresql.data.svc.cluster.local \
-  --from-literal=port=5432
+kubectl --context default -n <app-namespace> create secret generic myapp-db \
+  --from-literal=password='<generated>'
 ```
 
-### Step 3: Configure Application to Use PostgreSQL
+If the app has a `secret.yaml` template in the repo, keep its value **empty** there. To change the
+password later, patch only that key:
 
-Reference the Secret in your application deployment:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: myapp
-  namespace: apps
-spec:
-  template:
-    spec:
-      containers:
-      - name: myapp
-        image: myapp:latest
-        env:
-        - name: DB_HOST
-          valueFrom:
-            secretKeyRef:
-              name: myapp-db-credentials
-              key: host
-        - name: DB_PORT
-          valueFrom:
-            secretKeyRef:
-              name: myapp-db-credentials
-              key: port
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: myapp-db-credentials
-              key: username
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: myapp-db-credentials
-              key: password
-        - name: DB_NAME
-          valueFrom:
-            secretKeyRef:
-              name: myapp-db-credentials
-              key: database
+```bash
+kubectl --context default -n <app-namespace> patch secret myapp-db --type=merge \
+  -p '{"stringData":{"password":"<new>"}}'
 ```
+
+Never `kubectl apply` a secret template with empty placeholders over a live Secret.
+
+### Step 3: Connection settings
+
+| Setting | Value |
+|---|---|
+| Host | `postgres-cnpg-rw.data.svc.cluster.local` |
+| Port | `5432` |
+| Database / user | `myapp` / `myapp` |
+| TLS | offered by the server; set `sslmode=require` |
+
+The server accepts password logins (`scram-sha-256`) with **or without** TLS. Whether a client uses it
+depends on the client. Checked 2026-09-28: LiteLLM and Legacy-Use connect with TLS, **n8n and Gitea
+without**. Their traffic still crosses nodes inside flannel, which runs over the WireGuard-encrypted
+`tailscale0`, but inside a node it is plaintext. For new apps, set `sslmode=require`; `verify-full`
+would also need the cluster CA from secret `postgres-cnpg-ca`.
 
 ---
 
-## Connection String Examples
-
-### PostgreSQL CLI (psql)
+## Connection string examples
 
 ```bash
-psql -h postgres-postgresql.data.svc.cluster.local -U myapp_user -d myapp_db -p 5432
+# URL form (LiteLLM, Legacy-Use, most ORMs)
+postgresql://myapp:<password>@postgres-cnpg-rw.data.svc.cluster.local:5432/myapp?sslmode=require
 ```
-
-### Python (psycopg2)
 
 ```python
-import psycopg2
-import os
-
-conn = psycopg2.connect(
-    host=os.environ['DB_HOST'],
-    port=os.environ['DB_PORT'],
-    database=os.environ['DB_NAME'],
-    user=os.environ['DB_USER'],
-    password=os.environ['DB_PASSWORD']
+# Python (psycopg)
+import os, psycopg
+conn = psycopg.connect(
+    host="postgres-cnpg-rw.data.svc.cluster.local", port=5432,
+    dbname="myapp", user="myapp", password=os.environ["DB_PASSWORD"], sslmode="require",
 )
 ```
 
-**Connection String Format:**
-```python
-DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-```
-
-### Node.js (pg)
-
 ```javascript
-const { Pool } = require('pg');
-
+// Node.js (pg)
+const { Pool } = require('pg')
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-});
-
-// Test connection
-pool.query('SELECT NOW()', (err, res) => {
-  console.log(err ? err : res.rows[0]);
-});
+  host: 'postgres-cnpg-rw.data.svc.cluster.local', port: 5432,
+  database: 'myapp', user: 'myapp', password: process.env.DB_PASSWORD,
+  ssl: { rejectUnauthorized: false }, // encrypt; verifying needs the postgres-cnpg-ca cert
+})
 ```
 
-**Connection String Format:**
-```javascript
-const connectionString = `postgres://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
+```text
+# JDBC
+jdbc:postgresql://postgres-cnpg-rw.data.svc.cluster.local:5432/myapp?sslmode=require
 ```
 
-### Go (pgx)
-
-```go
-import (
-    "context"
-    "fmt"
-    "os"
-    "github.com/jackc/pgx/v5"
-)
-
-func connectDB() (*pgx.Conn, error) {
-    connString := fmt.Sprintf(
-        "postgres://%s:%s@%s:%s/%s",
-        os.Getenv("DB_USER"),
-        os.Getenv("DB_PASSWORD"),
-        os.Getenv("DB_HOST"),
-        os.Getenv("DB_PORT"),
-        os.Getenv("DB_NAME"),
-    )
-
-    return pgx.Connect(context.Background(), connString)
-}
-```
-
-### Java (JDBC)
-
-```java
-import java.sql.Connection;
-import java.sql.DriverManager;
-
-String url = String.format(
-    "jdbc:postgresql://%s:%s/%s",
-    System.getenv("DB_HOST"),
-    System.getenv("DB_PORT"),
-    System.getenv("DB_NAME")
-);
-
-Connection conn = DriverManager.getConnection(
-    url,
-    System.getenv("DB_USER"),
-    System.getenv("DB_PASSWORD")
-);
-```
+**Reconnect on failure.** A switchover drops every connection once (about 8 seconds of refused
+writes, measured 2026-09-28). Apps with a connection pool that retries recover by themselves;
+n8n did in 7 seconds. An app that connects once at startup and never retries needs a restart.
 
 ---
 
-## Service Discovery Details
-
-### Internal DNS Resolution
-
-Kubernetes provides automatic DNS resolution for services. The PostgreSQL service is accessible via:
-
-**Full DNS Name (works from any namespace):**
-```
-postgres-postgresql.data.svc.cluster.local
-```
-
-**Components:**
-- `postgres-postgresql`: Service name
-- `data`: Namespace where PostgreSQL is deployed
-- `svc.cluster.local`: Kubernetes service DNS suffix
-
-**Short DNS Names (namespace-dependent):**
-- From `data` namespace: `postgres-postgresql` or `postgres-postgresql.data`
-- From other namespaces: Must use full name `postgres-postgresql.data.svc.cluster.local`
-
-**DNS Resolution Test:**
-```bash
-# From any pod in the cluster
-getent hosts postgres-postgresql.data.svc.cluster.local
-
-# Expected output:
-# 10.43.x.x postgres-postgresql.data.svc.cluster.local
-```
-
-### Service Endpoints
-
-| Service | DNS | Port | Purpose |
-|---------|-----|------|---------|
-| postgres-postgresql | postgres-postgresql.data.svc.cluster.local | 5432 | Primary database connection |
-| postgres-postgresql-hl | postgres-postgresql-hl.data.svc.cluster.local | 5432 | Headless service (StatefulSet) |
-| postgres-postgresql-metrics | postgres-postgresql-metrics.data.svc.cluster.local | 9187 | Prometheus metrics (monitoring only) |
-
----
-
-## Retrieving Credentials from Secrets
-
-### Get PostgreSQL Admin Password
+## Test from the application's namespace
 
 ```bash
-# Extract password from Secret
-kubectl get secret postgres-postgresql -n data -o jsonpath="{.data.postgres-password}" | base64 -d
+kubectl --context default -n <app-namespace> run pgtest --rm -it --restart=Never \
+  --image=ghcr.io/cloudnative-pg/postgresql:18.6 -- \
+  psql "host=postgres-cnpg-rw.data.svc.cluster.local dbname=myapp user=myapp sslmode=require" \
+  -c 'select current_user, inet_server_addr(), ssl from pg_stat_ssl where pid = pg_backend_pid();'
+# psql prompts for the password; expect one row with ssl = t
 ```
 
-### Get Application User Credentials
-
-```bash
-# Get username
-kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.username}" | base64 -d
-
-# Get password
-kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.password}" | base64 -d
-
-# Get database name
-kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.database}" | base64 -d
-
-# Get all connection details as environment variables
-export DB_HOST=$(kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.host}" | base64 -d)
-export DB_PORT=$(kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.port}" | base64 -d)
-export DB_USER=$(kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.username}" | base64 -d)
-export DB_PASSWORD=$(kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.password}" | base64 -d)
-export DB_NAME=$(kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.database}" | base64 -d)
-```
-
----
-
-## Application User Creation Procedure
-
-**Best Practices:**
-- Create one database per application
-- Create one user per application (do NOT share postgres superuser)
-- Use strong, randomly generated passwords
-- Store credentials only in Kubernetes Secrets (never in code or ConfigMaps)
-- Grant minimum required privileges (principle of least privilege)
-
-**Standard User Creation Pattern:**
-
-```sql
--- 1. Create database
-CREATE DATABASE app_name_db;
-
--- 2. Create user with secure password
-CREATE USER app_name_user WITH PASSWORD 'generate-secure-password';
-
--- 3. Grant database-level privileges
-GRANT ALL PRIVILEGES ON DATABASE app_name_db TO app_name_user;
-
--- 4. Grant schema-level privileges
-\c app_name_db
-GRANT ALL ON SCHEMA public TO app_name_user;
-
--- 5. (Optional) Grant table privileges for existing tables
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app_name_user;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO app_name_user;
-
--- 6. (Optional) Set default privileges for future objects
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO app_name_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO app_name_user;
-```
-
-**Read-Only User Pattern:**
-
-```sql
--- Create read-only user
-CREATE USER readonly_user WITH PASSWORD 'secure-password';
-
--- Grant connect privilege
-GRANT CONNECT ON DATABASE app_name_db TO readonly_user;
-
--- Grant usage on schema
-\c app_name_db
-GRANT USAGE ON SCHEMA public TO readonly_user;
-
--- Grant select on all existing tables
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;
-
--- Set default privileges for future tables
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO readonly_user;
-```
-
----
-
-## Testing Connectivity
-
-### Deploy Test Pod
-
-Create a test pod to validate connectivity before deploying your application:
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: postgres-test-client
-  namespace: apps
-spec:
-  containers:
-  - name: postgres-client
-    image: registry-1.docker.io/bitnami/postgresql:latest
-    command: ["sleep", "infinity"]
-    env:
-    - name: PGHOST
-      value: "postgres-postgresql.data.svc.cluster.local"
-    - name: PGPORT
-      value: "5432"
-    - name: PGUSER
-      valueFrom:
-        secretKeyRef:
-          name: myapp-db-credentials
-          key: username
-    - name: PGPASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: myapp-db-credentials
-          key: password
-    - name: PGDATABASE
-      valueFrom:
-        secretKeyRef:
-          name: myapp-db-credentials
-          key: database
-  restartPolicy: Never
-```
-
-### Run Connectivity Tests
-
-```bash
-# Deploy test pod
-kubectl apply -f test-pod.yaml
-
-# Wait for pod to be ready
-kubectl wait --for=condition=ready pod/postgres-test-client -n apps --timeout=60s
-
-# Test connection
-kubectl exec -n apps postgres-test-client -- psql -c "SELECT version();"
-
-# Test CRUD operations
-kubectl exec -n apps postgres-test-client -- psql -c "CREATE TABLE test (id SERIAL, name TEXT);"
-kubectl exec -n apps postgres-test-client -- psql -c "INSERT INTO test (name) VALUES ('test1'), ('test2');"
-kubectl exec -n apps postgres-test-client -- psql -c "SELECT * FROM test;"
-kubectl exec -n apps postgres-test-client -- psql -c "UPDATE test SET name = 'updated' WHERE id = 1;"
-kubectl exec -n apps postgres-test-client -- psql -c "DELETE FROM test WHERE id = 2;"
-kubectl exec -n apps postgres-test-client -- psql -c "DROP TABLE test;"
-
-# Verify connection latency
-kubectl exec -n apps postgres-test-client -- bash -c "time psql -c 'SELECT 1;'"
-# Expected: < 100ms
-
-# Clean up test pod
-kubectl delete pod postgres-test-client -n apps
-```
+`inet_server_addr()` shows which pod answered. After a switchover it changes; the hostname does not.
 
 ---
 
 ## Troubleshooting
 
-### Connection Refused
+| Symptom | Likely cause | Check |
+|---|---|---|
+| `could not translate host name` | Typo, or the old `postgres-postgresql` name | `kubectl -n data get svc` |
+| `connection refused` | No primary right now (switchover in progress, or cluster down) | `kubectl -n data get cluster postgres-cnpg`; see [postgres-setup.md](postgres-setup.md) |
+| `password authentication failed for user` | Secret and database disagree | Reset with `ALTER ROLE myapp PASSWORD '...'` on the primary, then patch the Secret |
+| `permission denied for schema public` | The database is owned by `postgres`, not the app role | `ALTER DATABASE myapp OWNER TO myapp;` or grant on schema `public` |
+| `database "myapp" does not exist` | Step 1 skipped, or ran on the replica | Replicas are read-only; always exec into the pod labelled `primary` |
+| `cannot execute ... in a read-only transaction` | Connected to `-ro` or `-r` | Use `-rw` |
+| Errors for a few seconds, then fine | A switchover (drain, config change, minor upgrade) | Expected; check `kubectl -n data get events` |
 
-**Symptoms:**
-```
-psql: error: connection to server at "postgres-postgresql.data.svc.cluster.local" (10.43.x.x), port 5432 failed: Connection refused
-```
+Who is connected right now:
 
-**Diagnosis:**
 ```bash
-# Verify PostgreSQL is running
-kubectl get pods -n data -l app.kubernetes.io/name=postgresql
-
-# Check pod status
-kubectl describe pod postgres-postgresql-0 -n data
-
-# Check service endpoints
-kubectl get endpoints postgres-postgresql -n data
+kubectl --context default -n data exec $PRIMARY -c postgres -- psql -U postgres -c \
+  "select datname, usename, client_addr, ssl from pg_stat_activity
+   join pg_stat_ssl using (pid) where backend_type = 'client backend';"
 ```
-
-**Resolution:**
-- Ensure PostgreSQL pod is Running with 2/2 containers ready
-- Verify service has endpoints matching pod IP
-- Check pod logs: `kubectl logs -n data postgres-postgresql-0 -c postgresql`
-
-### DNS Resolution Failure
-
-**Symptoms:**
-```
-psql: error: could not translate host name "postgres-postgresql.data.svc.cluster.local" to address: Name or service not known
-```
-
-**Diagnosis:**
-```bash
-# From application pod, test DNS
-kubectl exec -n apps <pod-name> -- getent hosts postgres-postgresql.data.svc.cluster.local
-
-# Check CoreDNS is running
-kubectl get pods -n kube-system -l k8s-app=kube-dns
-```
-
-**Resolution:**
-- Verify DNS resolution works from pod
-- Check CoreDNS logs if resolution fails
-- Ensure service exists: `kubectl get svc postgres-postgresql -n data`
-
-### Authentication Failed
-
-**Symptoms:**
-```
-psql: error: connection to server at "postgres-postgresql.data.svc.cluster.local", port 5432 failed: FATAL:  password authentication failed for user "myapp_user"
-```
-
-**Diagnosis:**
-```bash
-# Verify secret contents
-kubectl get secret myapp-db-credentials -n apps -o yaml
-
-# Check username and password are correct
-kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.username}" | base64 -d
-kubectl get secret myapp-db-credentials -n apps -o jsonpath="{.data.password}" | base64 -d
-
-# Verify user exists in PostgreSQL
-kubectl exec -it postgres-postgresql-0 -n data -- env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -c "\du"
-```
-
-**Resolution:**
-- Verify credentials in Secret match PostgreSQL user
-- Recreate Secret with correct credentials
-- Ensure application user was created with correct password
-
-### Permission Denied on Database
-
-**Symptoms:**
-```
-ERROR:  permission denied for schema public
-ERROR:  permission denied for table xyz
-```
-
-**Diagnosis:**
-```bash
-# Check user privileges
-kubectl exec -it postgres-postgresql-0 -n data -- env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -d myapp_db -c "\du myapp_user"
-
-# Check schema privileges
-kubectl exec -it postgres-postgresql-0 -n data -- env PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -d myapp_db -c "\dn+"
-```
-
-**Resolution:**
-```sql
--- Grant schema privileges
-GRANT ALL ON SCHEMA public TO myapp_user;
-
--- Grant table privileges
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO myapp_user;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO myapp_user;
-
--- Set default privileges for future objects
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO myapp_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO myapp_user;
-```
-
-### Secret Not Found in Application Namespace
-
-**Symptoms:**
-```
-Error from server (NotFound): secrets "postgres-postgresql" not found
-```
-
-**Resolution:**
-- Secrets are namespace-scoped and cannot be shared across namespaces
-- Create application-specific secret in application's namespace
-- Do NOT copy postgres-postgresql secret (contains superuser password)
-- Follow "Application User Creation Procedure" above
-
-### Slow Connection Performance
-
-**Symptoms:**
-- Queries take > 100ms
-- Application timeouts
-
-**Diagnosis:**
-```bash
-# Measure connection latency
-kubectl exec -n apps <pod-name> -- bash -c "time psql -h postgres-postgresql.data.svc.cluster.local -U myapp_user -d myapp_db -c 'SELECT 1;'"
-
-# Check PostgreSQL pod resources
-kubectl top pod postgres-postgresql-0 -n data
-
-# Check for network policies blocking traffic
-kubectl get networkpolicies -n data
-kubectl get networkpolicies -n apps
-```
-
-**Resolution:**
-- Expected connection latency: 20-50ms (internal cluster network)
-- If > 100ms, investigate pod resource constraints
-- Check network policies aren't blocking traffic
-- Verify PostgreSQL isn't under heavy load
 
 ---
 
-## Security Best Practices
+## Related
 
-1. **Never Share Superuser Password:**
-   - Each application gets its own database and user
-   - Never use `postgres` superuser from applications
-   - Limit superuser access to DBAs only
+- [postgres-setup.md](postgres-setup.md) - cluster overview, health, maintenance, rebuild
+- [postgres-backup.md](postgres-backup.md) / [postgres-restore.md](postgres-restore.md)
+- [secret-rotation.md](secret-rotation.md) - rotating a database password
+- [ADR-014](../adrs/ADR-014-postgres-off-bitnami.md)
 
-2. **Use Kubernetes Secrets:**
-   - Store credentials only in Secrets (never in ConfigMaps or code)
-   - Mount Secrets as environment variables or volumes
-   - Avoid logging credentials
+## Change log
 
-3. **Principle of Least Privilege:**
-   - Grant minimum required privileges to application users
-   - Use read-only users when writes aren't needed
-   - Separate users for different access levels
-
-4. **Network Security:**
-   - PostgreSQL exposed only as ClusterIP (no external access)
-   - All communication happens within cluster network
-   - Future: Add NetworkPolicies for additional network isolation
-
-5. **Password Rotation:**
-   - Periodically rotate application user passwords
-   - Update Secrets when passwords change
-   - Restart application pods to pick up new credentials
-
----
-
-## Related Documentation
-
-- [PostgreSQL Setup Runbook](postgres-setup.md) - PostgreSQL deployment and configuration
-- [PostgreSQL Backup Runbook](postgres-backup.md) - Automated backup procedures
-- [PostgreSQL Restore Runbook](postgres-restore.md) - Disaster recovery procedures
-- [PostgreSQL README](../../applications/postgres/README.md) - Application overview
-- [Story 5.5 - Test Application Connectivity](../implementation-artifacts/5-5-test-application-connectivity-to-postgresql.md)
-
----
-
-## Change Log
-
-- 2026-01-06: Initial connectivity runbook creation - Validated cross-namespace connectivity with 30ms latency (Story 5.5)
-- 2026-01-06: Added Application Deployment Checklist - 10-step checklist for future application deployments requiring PostgreSQL
+- 2026-01-06: Created for the Bitnami deployment (Story 5.5)
+- 2026-09-28: Rewritten for CloudNativePG
