@@ -121,8 +121,22 @@ The master's first reboot in 258 days. The 2500 rule came back, and `192.168.2.2
 reconfig failed. I have not proven that, nor ruled out the new unit's ordering. The rule unit only
 runs `ip rule add` and does not touch tailscaled.
 
-**Open risk:** any master reboot can leave the control plane down until someone restarts tailscaled.
-k3s has no guard that waits for `tailscale0` to have its IPv4 address.
+### Boot guard (added the same day)
+
+k3s now waits for the address: a drop-in
+([`k3s-wait-tailscale.conf`](../../infrastructure/k3s/k3s-wait-tailscale.conf)) runs
+[`wait-tailscale-ip.sh`](../../infrastructure/k3s/wait-tailscale-ip.sh) as `ExecStartPre`. The script
+waits up to 60 s for `tailscale ip -4` to appear on `tailscale0`. If it does not, it restarts
+tailscaled once, then waits again. If that also fails it exits 1, and `Restart=always` retries k3s.
+Both paths were tested on the master: 0.03 s when the address is present, and restart-then-fail
+against a missing interface.
+
+Second reboot (10:12 UTC): clean. tailscaled got its address, the guard logged nothing, and k3s was
+active 47 s after the reboot. So the boot race did not recur, and the guard's restart path has
+**not** yet run for real. Recovery from that path is expected to take about 60-70 s, not 8 minutes.
+
+`ssh k3s-master` resolves through Tailscale. When the master's Tailscale is broken, use
+`ssh root@192.168.2.20`.
 
 ## Consequences
 

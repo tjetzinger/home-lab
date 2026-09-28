@@ -272,12 +272,15 @@ prometheus-node-exporter:
     app.kubernetes.io/part-of: home-lab
 
   # Resource limits
+  # No CPU limit, on purpose (removed 2026-09-28). node-exporter averages ~2m CPU, but
+  # each scrape is a short burst. The old 200m limit throttled 22-37% of CFS periods
+  # on the CPU workers and the master (7-day average) and kept CPUThrottlingHigh
+  # pending/firing, while protecting nothing. The memory limit stays.
   resources:
     requests:
       cpu: 50m
       memory: 64Mi
     limits:
-      cpu: 200m
       memory: 128Mi
 
   # Ensure node-exporter runs on ALL nodes (master + workers)

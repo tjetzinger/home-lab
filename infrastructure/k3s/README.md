@@ -295,6 +295,16 @@ sudo systemctl daemon-reload && sudo systemctl enable --now tailscale-lan-rule
 ip rule show | grep 2500          # 2500: from all to 192.168.2.0/24 lookup main
 ip route get 192.168.2.22         # must say dev eth0, never dev tailscale0
 
+# On k3s-master - REQUIRED: hold k3s until tailscale0 has its IPv4 address.
+# k3s uses flannel-iface: tailscale0. If tailscaled comes up without its address
+# (seen on the 2026-09-28 reboot), k3s loops until tailscaled is restarted. The guard
+# waits 60s, restarts tailscaled once, and otherwise lets systemd retry k3s.
+sudo install -m 0755 wait-tailscale-ip.sh /usr/local/bin/wait-tailscale-ip
+sudo install -d /etc/systemd/system/k3s.service.d
+sudo install -m 0644 k3s-wait-tailscale.conf /etc/systemd/system/k3s.service.d/10-wait-tailscale.conf
+sudo systemctl daemon-reload
+journalctl -b -t wait-tailscale-ip   # empty on a clean boot; a line means it had to act
+
 # On k3s-gpu-worker - configure subnet route advertisement
 sudo tailscale set --advertise-routes=192.168.0.0/24 --accept-routes
 
