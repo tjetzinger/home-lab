@@ -149,18 +149,24 @@ SSH to the GPU worker and verify nvidia-smi:
 ssh tt@100.80.98.64 nvidia-smi
 ```
 
-**Expected Output:**
+**Expected Output** (captured 2026-09-28; the Bus-Id can change after a hot-plug, and memory use
+depends on whether vLLM holds the GPU):
 ```
-+-----------------------------------------------------------------------------+
-| NVIDIA-SMI 535.274.02    Driver Version: 535.274.02    CUDA Version: 12.2   |
-|-------------------------------+----------------------+----------------------+
-| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
-| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
-|===============================+======================+======================|
-|   0  NVIDIA GeForce ...  Off  | 00000000:06:00.0 Off |                  N/A |
-|  0%   38C    P8    10W / 170W |      0MiB / 12288MiB |      0%      Default |
-+-------------------------------+----------------------+----------------------+
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.211.01             Driver Version: 570.211.01     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 3060        Off |   00000000:2F:00.0 Off |                  N/A |
+|  0%   35C    P8             10W /  170W |   10818MiB /  12288MiB |      0%      Default |
 ```
+
+The host runs **only** the `nvidia-driver-570-server` branch. Leftover 535 and 580 packages were
+purged on 2026-09-28. If `nvidia-smi` reports a different version, or
+`Failed to initialize NVML: Driver/library version mismatch`, a stray driver package has come back:
+check `dpkg -l | grep -E 'nvidia.*(535|580)'`.
 
 If nvidia-smi fails, wait 30 seconds and retry. May need to restart containerd:
 
@@ -340,6 +346,11 @@ ensure the node's IP is present in `monitoring/prometheus/kube-proxy-endpoints.y
 - Blocked DaemonSet rollouts finish, and the new pods collect whatever config they missed.
 - The NVIDIA driver is safe: `gpu-operator` runs `driver.enabled: false` and
   `toolkit.enabled: false`, so the host-installed driver and toolkit are left alone.
+- `nvidia-operator-validator` should reach `1/1 Running`. Its CUDA test workload is switched off
+  (`WITH_WORKLOAD=false` in `infrastructure/gpu-operator/values-homelab.yaml`): the test ships CUDA
+  libraries newer than driver 570, which a GeForce card cannot run (CUDA error 804). A
+  `nvidia-cuda-validator-*` pod in `Init:CrashLoopBackOff` means that setting was lost - re-run the
+  Helm upgrade from that file.
 
 ### Expected noise, not a fault
 
