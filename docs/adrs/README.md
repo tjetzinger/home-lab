@@ -51,6 +51,7 @@ These ADRs document decisions for the OpenClaw personal AI assistant platform:
 | [ADR-015](ADR-015-retire-openclaw-and-supabase.md) | Retire OpenClaw and self-hosted Supabase | Both deployed, validated, then unused — OpenClaw dead 8 months while still backing up 3.8GB nightly; Supabase had 0 app tables and no traffic since Feb. Removes an EOL Kong and a PG 15→17 migration | Accepted |
 | [ADR-016](ADR-016-cluster-update-campaign.md) | Cluster-wide update campaign | Six-phase pass over every workload: data tier off Bitnami, two unused stacks removed, floating tags pinned, 5 apps and the observability stack upgraded, k3s 1.34.3 → 1.34.11. Records the recurring traps — chart ownership changes, stale pins, state in emptyDir | Accepted |
 | [ADR-017](ADR-017-retire-dev-containers.md) | Retire the dev containers and nginx proxy | Three dev containers running only sshd since February, fronted by a proxy whose last request returned 502. ~60GB reclaimed, 192.168.2.101 released, and k3s ServiceLB disabled - it cannot serve two LoadBalancers sharing a port, which MetalLB does trivially | Accepted |
+| [ADR-019](ADR-019-tailscale-lan-policy-rule.md) | Keep k3s-master's own LAN out of Tailscale's routing table | The master accepted a route to its own LAN through the tunnel whenever `nas` held primary for 192.168.2.0/24, so replies to LAN clients left via tailscale0 and all 5 master scrape targets went dark for 4 days. A priority-2500 policy rule keeps the LAN on eth0 | Accepted |
 
 ## ADR Lifecycle
 

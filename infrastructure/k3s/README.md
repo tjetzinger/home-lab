@@ -274,12 +274,26 @@ Both k3s-master and k3s-gpu-worker are configured as Tailscale subnet routers, a
 | Node | Subnet | Tailscale IP | Purpose |
 |------|--------|--------------|---------|
 | k3s-master | 192.168.2.0/24 | 100.84.89.67 | Main cluster network (Proxmox VMs, NAS) |
+| nas (Synology) | 192.168.2.0/24 | 100.86.124.27 | Second advertiser of the main network |
 | k3s-gpu-worker | 192.168.0.0/24 | 100.80.98.64 | GPU worker network (Intel NUC) |
+
+k3s-master and `nas` advertise the same subnet, so Tailscale treats them as a high-availability
+pair and elects **one primary**. It does not fail back on its own. Whenever `nas` is primary, the
+master accepts `192.168.2.0/24 dev tailscale0` into table 52 - a route to its own LAN, through the
+tunnel. See the policy-rule step below and [ADR-019](../../docs/adrs/ADR-019-tailscale-lan-policy-rule.md).
 
 **Configuration Commands (already applied):**
 ```bash
 # On k3s-master - configure subnet route advertisement
 sudo tailscale set --advertise-routes=192.168.2.0/24 --accept-routes
+
+# On k3s-master - REQUIRED with --accept-routes: keep the master's own LAN on eth0.
+# Without it, whenever nas is primary, replies to LAN clients leave via tailscale0 and
+# every inbound LAN connection to 192.168.2.20 times out (kubelet, kube-proxy, node-exporter).
+sudo install -m 0644 tailscale-lan-rule.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now tailscale-lan-rule
+ip rule show | grep 2500          # 2500: from all to 192.168.2.0/24 lookup main
+ip route get 192.168.2.22         # must say dev eth0, never dev tailscale0
 
 # On k3s-gpu-worker - configure subnet route advertisement
 sudo tailscale set --advertise-routes=192.168.0.0/24 --accept-routes
@@ -295,7 +309,7 @@ tailscale debug prefs | grep -E "AdvertiseRoutes|RouteAll"
 4. Under "Subnet routes", approve the advertised route
 5. Save changes
 
-**Verify Route is Working:**
+**Verify Route is Working** (from a remote Tailscale client, NOT from the master):
 ```bash
 # Check route path
 ip route get 192.168.2.10
@@ -304,7 +318,7 @@ ip route get 192.168.2.10
 
 # Trace route to verify path
 traceroute 192.168.2.21
-# Should show: hop 1 = k3s-master Tailscale IP (100.x.x.x)
+# Should show: hop 1 = the current primary's Tailscale IP (k3s-master or nas)
 ```
 
 **Troubleshooting Subnet Routes:**

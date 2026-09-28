@@ -1,0 +1,17 @@
+# Install on k3s-master: /etc/systemd/system/tailscale-lan-rule.service
+# See docs/adrs/ADR-019-tailscale-lan-policy-rule.md
+[Unit]
+Description=Route the master's own LAN via main, ahead of Tailscale's table 52
+Documentation=https://tailscale.com/docs/reference/troubleshooting/network-configuration/lan-traffic-overlapping-subnets
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/ip rule del to 192.168.2.0/24 priority 2500 lookup main
+ExecStart=/usr/sbin/ip rule add to 192.168.2.0/24 priority 2500 lookup main
+ExecStop=/usr/sbin/ip rule del to 192.168.2.0/24 priority 2500 lookup main
+
+[Install]
+WantedBy=multi-user.target
