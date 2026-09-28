@@ -36,9 +36,12 @@ This directory contains the configuration for the NFS dynamic storage provisione
 
 #### Why "No mapping" (2026-09-28)
 
-**Status 2026-09-28:** "No mapping" is the required setting, but the verify check below still
-returned `uid=1024` after the first attempt to change it. Until it returns `uid=0`, PVC deletion
-leaves data behind - use the manual cleanup under Troubleshooting.
+**Applied 2026-09-28.** `/etc/exports` on the NAS now reads
+`/volume1/k8s-data 192.168.2.20/30(rw,...,no_root_squash,...)` (was `192.168.2.0/24` with
+`root_squash,anonuid=1024`). Verified: the check below returns `uid=0`, and a throwaway PVC written
+as UID 1001 with a `0700` folder and a `0600` file was deleted cleanly - PV gone, folder gone
+from the NAS, provisioner logged `succeeded`. To read the export yourself, run
+`ssh -t nas 'sudo cat /etc/exports'` in a real terminal (sudo needs one for the password).
 
 This README used to prescribe "Map all users to admin". The NAS did not actually do that: files
 kept their owners (valkey wrote as UID 1001; CNPG's `pgdata` is UID 26, mode 0700), and only **root** was
