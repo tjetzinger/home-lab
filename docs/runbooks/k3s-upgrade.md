@@ -219,6 +219,21 @@ encrypted. Re-pass all three and confirm afterwards that its `InternalIP` is sti
 Also preserve `K3S_URL` and `K3S_TOKEN`; read them from
 `/etc/systemd/system/k3s-agent.service.env` rather than retyping them.
 
+**k3s-master also has two host-only pieces the installer does not own** (ADR-019, added
+2026-09-28). The installer rewrites `k3s.service` itself, but not drop-ins or other units, so
+both should survive. They have not yet been through an upgrade, so verify after Phase 1:
+
+```bash
+# on k3s-master, after the upgrade
+systemctl cat k3s | grep wait-tailscale-ip        # boot guard drop-in still applied
+systemctl is-enabled tailscale-lan-rule           # enabled
+ip route get 192.168.2.22                         # dev eth0, never dev tailscale0
+```
+
+If the drop-in is missing, reinstall it from `infrastructure/k3s/README.md` (Subnet Router
+Configuration). Without it, a master reboot can leave k3s looping on
+`no IPv4 address found for interface tailscale0`.
+
 ### 5. Notify Users (if applicable)
 
 If other users access the cluster:

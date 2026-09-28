@@ -44,6 +44,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `legacy-use` - Legacy-Use browser automation platform
 - `kubernetes-dashboard` - Cluster dashboard
 
+**k3s-master host-only pieces** (ADR-019, files in `infrastructure/k3s/`): `tailscale-lan-rule.service`
+keeps the master's own LAN on `eth0`, and a k3s drop-in (`wait-tailscale-ip`) holds k3s until `tailscale0`
+has its IPv4. `ssh k3s-master` goes via Tailscale; when that is broken, use `ssh root@192.168.2.20`.
+
 **Storage:** NFS via Synology DS920+ for shared workloads; `local-path` (Rancher) for node-local PVCs
 **Access:** Tailscale VPN only (no public API exposure)
 **Ingress:** `{service}.home.jetzinger.com` via Traefik + Let's Encrypt
@@ -116,7 +120,7 @@ Operational runbooks are in `docs/runbooks/`:
 ## Repository Structure
 
 ```
-infrastructure/     # Core cluster (k3s/, nfs/, metallb/, cert-manager/, traefik/)
+infrastructure/     # Core cluster (k3s/, nfs/, metallb/, cert-manager/, traefik/, gpu-operator/, agent-vms/)
 applications/       # Workloads (vllm/, litellm/, ollama/, paperless/, open-webui/, gitea/, n8n/, postgres-cnpg/, legacy-use/)
 monitoring/         # Observability (prometheus/, loki/)
 docs/              # ADRs (docs/adrs/), runbooks (docs/runbooks/), planning/implementation artifacts
