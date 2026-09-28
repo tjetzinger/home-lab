@@ -103,8 +103,26 @@ Its `ExecStartPre` deletes any existing copy first, because `ip rule add` does n
 | Firing alerts | 11 | 6 - GPU operator, Watchdog, InfoInhibitor only |
 
 Persistence: the rule survives `systemctl restart tailscaled`; two restarts of the unit leave exactly
-one 2500 rule; the unit is enabled. A full master reboot was **not** tested - it is a control-plane
-outage.
+one 2500 rule; the unit is enabled.
+
+### Reboot test (2026-09-28 09:47 UTC) - rule held, the control plane did not
+
+The master's first reboot in 258 days. The 2500 rule came back, and `192.168.2.22` routed via
+`eth0`. But the control plane stayed down for about **8 minutes**, for a reason unrelated to the rule:
+
+- At boot, tailscaled logged `wgcfg.Reconfig failed: IPC error -22 ... ParseEndpoint: unknown peer`
+  at 09:47:19. After that it never put `100.84.89.67` on `tailscale0` - only a link-local IPv6.
+  Tailscale itself looked healthy: peers connected, `tailscale status` listed the node.
+- k3s then looped: `flannel exited: failed to find IPv4 address for interface tailscale0`.
+- `systemctl restart tailscaled` assigned the address at once, and k3s came up by itself.
+  kube-state-metrics had crash-looped during the outage and needed one pod delete.
+
+**I think** this is a tailscaled boot race: its router setup was skipped when the first WireGuard
+reconfig failed. I have not proven that, nor ruled out the new unit's ordering. The rule unit only
+runs `ip rule add` and does not touch tailscaled.
+
+**Open risk:** any master reboot can leave the control plane down until someone restarts tailscaled.
+k3s has no guard that waits for `tailscale0` to have its IPv4 address.
 
 ## Consequences
 
