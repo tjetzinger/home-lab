@@ -37,7 +37,8 @@ helm repo add gitea-charts https://dl.gitea.com/charts/
 helm repo update
 
 # Deploy Gitea
-helm upgrade --install gitea gitea-charts/gitea \
+helm --kube-context default upgrade --install gitea gitea-charts/gitea \
+  --version 12.7.0 \
   -f values-homelab.yaml \
   -n dev
 
@@ -115,7 +116,7 @@ kubectl port-forward svc/gitea-http -n dev 3000:3000
 | Setting | Value |
 |---------|-------|
 | Chart | gitea-charts/gitea |
-| Chart Version | Latest |
+| Chart Version | 12.7.0 (Gitea 1.27.3) |
 | Namespace | dev |
 | HTTP Service Type | ClusterIP |
 | HTTP Port | 3000 |

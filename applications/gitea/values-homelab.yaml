@@ -100,6 +100,11 @@ gitea:
       HOST: postgres-cnpg-rw.data.svc.cluster.local:5432
       NAME: gitea
       USER: gitea
+      # TLS to PostgreSQL (2026-09-28). Gitea's default is `disable`, and pg_stat_ssl
+      # showed ssl=f. `require` encrypts without verifying the certificate: verifying
+      # needs CNPG's CA (secret postgres-cnpg-ca in `data`), and a copy in `dev` would
+      # go stale when CNPG renews it. Protects against sniffing, not impersonation.
+      SSL_MODE: require
       # PASSWD deliberately absent. It is injected as GITEA__database__PASSWD from
       # secret `gitea-db-secret` in namespace `dev` — see additionalConfigFromEnvs
       # below, and applications/gitea/db-secret.yaml for the placeholder template.

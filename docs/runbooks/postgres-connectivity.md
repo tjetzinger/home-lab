@@ -80,10 +80,11 @@ Never `kubectl apply` a secret template with empty placeholders over a live Secr
 | TLS | offered by the server; set `sslmode=require` |
 
 The server accepts password logins (`scram-sha-256`) with **or without** TLS. Whether a client uses it
-depends on the client. Checked 2026-09-28: LiteLLM and Legacy-Use connect with TLS, **n8n and Gitea
-without**. Their traffic still crosses nodes inside flannel, which runs over the WireGuard-encrypted
-`tailscale0`, but inside a node it is plaintext. For new apps, set `sslmode=require`; `verify-full`
-would also need the cluster CA from secret `postgres-cnpg-ca`.
+depends on the client, so set it explicitly. Since 2026-09-28 every consumer uses TLS: LiteLLM
+and Legacy-Use by default, n8n (`DB_POSTGRESDB_SSL_ENABLED`) and Gitea (`SSL_MODE: require`) after
+they were found connecting in plaintext. None verifies the certificate: `verify-full` needs the
+cluster CA from secret `postgres-cnpg-ca`, and a copy in another namespace goes stale when CNPG
+renews it. Check any time with the "who is connected" query below - every row should read `ssl = t`.
 
 ---
 

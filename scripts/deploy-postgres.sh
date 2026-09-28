@@ -4,6 +4,10 @@
 
 set -e
 
+echo "RETIRED: PostgreSQL runs on CloudNativePG (ADR-014), not the Bitnami chart." >&2
+echo "See docs/runbooks/postgres-setup.md. Refusing to deploy bitnami/postgresql." >&2
+exit 1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
