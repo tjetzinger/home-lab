@@ -131,6 +131,9 @@ Snapshots hold thin-pool blocks. Delete old ones — `local-lvm` is overcommitte
 
 ## Rebuild from scratch
 
+Importing a VM disk saturates `local-lvm`, which also holds etcd on `k3s-master`. On 2026-09-28 a rebuild
+made k3s restart (`NFSProvisionerUnreachable` fired for 5 minutes). Rebuild when a short API outage is fine.
+
 1. `ssh pve 'qm stop 104 && qm destroy 104 --purge 1 --destroy-unreferenced-disks 1'` — **deletes the disk
    and everything on it.** Note the MAC first (`qm config 104 | grep net0`).
 2. Follow [`infrastructure/agent-vms/README.md`](../../infrastructure/agent-vms/README.md), reusing the MAC.

@@ -74,6 +74,13 @@ If the Cowork sandbox fails on Linux (GH #77348), use the existing Windows 11 VM
   logged-in session. A disconnect is fine; a reboot is not.
 - Real RAM use on `pve` goes from ~22 GB to ~40 GB of 62.7 GB. Allocations (VMs + LXC limits) exceed
   physical RAM; this relies on the LXC limits not being reached together.
+- **The extra memory pushed `pve` into swap, and etcd stalled during the nightly backup.** On
+  2026-09-28 the 21:00 vzdump of VM 101 (~280 MB/s reads) met a full 8 GB swap. etcd on `k3s-master` had
+  pages swapped out, requests took 6.5 s, k3s lost its leader lease and restarted, and
+  `NFSProvisionerUnreachable` fired. The same backup had run daily since July without a crash. Fixed on
+  `pve` with `vm.swappiness = 10` (`/etc/sysctl.d/80-swappiness.conf`) and `bwlimit: 102400` (100 MiB/s)
+  in `/etc/vzdump.conf`. Large disk jobs on `local-lvm` (VM rebuilds, restores) can still stall etcd:
+  one VM rebuild caused the same restart at 18:01 that day.
 - **`local-lvm` is overcommitted**: thin volumes add up to far more than the 335.6 GB pool. A full thin pool
   corrupts every volume on it, so it must be watched. The k3s containers slowly re-fill it until trimming
   runs on a schedule.
