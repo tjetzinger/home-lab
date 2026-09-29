@@ -81,6 +81,14 @@ If the Cowork sandbox fails on Linux (GH #77348), use the existing Windows 11 VM
   `pve` with `vm.swappiness = 10` (`/etc/sysctl.d/80-swappiness.conf`) and `bwlimit: 102400` (100 MiB/s)
   in `/etc/vzdump.conf`. Large disk jobs on `local-lvm` (VM rebuilds, restores) can still stall etcd:
   one VM rebuild caused the same restart at 18:01 that day.
+- **A third restart (22:53 UTC) had no load behind it**: disk traffic was flat, yet etcd logged
+  `slow fdatasync` for up to 9.9 s. Suspected causes: the shared SSD (`sdb`, "Protectli 480GB M.2")
+  stalling internally, and `k3s-master` pinned at its 6 GB limit (2,196 hard-limit hits), which kept
+  evicting etcd's cached pages. On 2026-09-29: `k3s-master` raised to 10 GB (`pct set 100 --memory 10240`,
+  live), and `/etc/rancher/k3s/config.yaml` got leader-election leases of 60 s / renew 40 s / retry 5 s
+  for kube-controller-manager, kube-scheduler and the cloud-controller-manager (defaults 15/10/2), so a
+  disk stall under 40 s no longer restarts k3s. Backup of the old config: `config.yaml.bak-20260929`.
+  Moving etcd off the shared SSD is still open.
 - **`local-lvm` is overcommitted**: thin volumes add up to far more than the 335.6 GB pool. A full thin pool
   corrupts every volume on it, so it must be watched. The k3s containers slowly re-fill it until trimming
   runs on a schedule.
