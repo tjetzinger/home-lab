@@ -51,14 +51,16 @@ Then, from Tom's laptop, in this order:
 
 | Step | Script | Does |
 |---|---|---|
-| 1 | [`provision-cowork.sh`](provision-cowork.sh) — copy to the VM, run with `sudo bash` | `ubuntu-desktop-minimal`, QEMU/OVMF/virtiofsd for the Cowork sandbox, Tailscale, `claude-desktop` from Anthropic's apt repo (signing key fingerprint checked) |
+| 1 | [`provision-cowork.sh`](provision-cowork.sh) — copy to the VM, run with `sudo bash` | `ubuntu-desktop-minimal`, QEMU/OVMF/virtiofsd for the Cowork sandbox, Tailscale, `claude-desktop` from Anthropic's apt repo (signing key fingerprint checked), Claude Code CLI for `tt` |
 | 1 | [`provision-codex.sh`](provision-codex.sh) — same | `ubuntu-desktop-minimal`, Tailscale, the ChatGPT desktop `.deb` (package metadata checked), the Codex CLI |
+| 1b | [`provision-common.sh`](provision-common.sh) — same, both VMs | German keyboard, `no-kvmapf` kernel parameter, drop-in that restarts the RDP handover daemon after the system daemon restarts |
 | 2 | [`setup-remote-login.sh`](setup-remote-login.sh) `<ip>` — run locally | Linux password for `tt`, system RDP daemon with its own TLS certificate, shared RDP credentials |
 | 3 | `ssh pve 'qm reboot <vmid>'` | Starts the GDM login screen that RDP hands over to |
 
 ```bash
 scp provision-cowork.sh tt@192.168.2.99:/tmp/provision.sh
 ssh tt@192.168.2.99 'sudo bash /tmp/provision.sh > /tmp/provision.log 2>&1'   # ~10 min
+ssh tt@192.168.2.99 'sudo bash -s' < provision-common.sh
 bash setup-remote-login.sh 192.168.2.99
 ssh pve 'qm reboot 104'
 ```

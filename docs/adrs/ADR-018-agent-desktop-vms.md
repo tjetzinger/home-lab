@@ -89,6 +89,19 @@ If the Cowork sandbox fails on Linux (GH #77348), use the existing Windows 11 VM
   for kube-controller-manager, kube-scheduler and the cloud-controller-manager (defaults 15/10/2), so a
   disk stall under 40 s no longer restarts k3s. Backup of the old config: `config.yaml.bak-20260929`.
   Moving etcd off the shared SSD is still open.
+- **Host swap can hang the VMs (2026-10-02).** After `pve` swapped out VM memory, processes in
+  `agent-cowork` hung forever in `kvm_async_pf_task_wait_schedule`, including `tt`'s systemd user
+  manager. RDP showed only a white/black picture and a clean shutdown failed. Cause: a KVM bug that
+  loses the async page-fault "page ready" notification for guests using SMM (OVMF). The fix landed
+  upstream in Nov 2025 (kvm-x86 `ab4e41eb9fab`), but `pve` runs kernel 6.8, without it. Both VMs boot
+  with `no-kvmapf` (GRUB), which turns paravirtual async page faults off.
+- **Daily updates broke reconnecting (2026-10-03).** unattended-upgrades installed a new libssl and
+  restarted the system RDP daemon. The handover daemon in the running session lost it, logged
+  `Could not get session id`, and never retried. A correct password then bounced back to the login
+  screen. A systemd drop-in now restarts `tt`'s handover service whenever the system daemon starts.
+- **Remmina needs fullscreen view mode** (`viewmode=4`). The windowed mode (`viewmode=1`) showed
+  white/black under X11 with dynamic resolution. Not understood; the fullscreen view works.
+- **German keyboard layout** on both VMs, matching the laptop.
 - **`local-lvm` is overcommitted**: thin volumes add up to far more than the 335.6 GB pool. A full thin pool
   corrupts every volume on it, so it must be watched. The k3s containers slowly re-fill it until trimming
   runs on a schedule.

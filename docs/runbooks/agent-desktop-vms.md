@@ -26,6 +26,8 @@ Reasoning: [ADR-018](../adrs/ADR-018-agent-desktop-vms.md).
 |---|---|---|
 | Profiles | `~/.local/share/remmina/group_rdp_agent-{cowork,codex}_*.remmina` | Server = LAN IP, user `tt` |
 | `scale` | `2` (dynamic resolution) | The VM creates its screen at the window size and resizes with it |
+| `viewmode` | `4` (fullscreen) | Windowed mode (`1`) showed only a white/black picture |
+| `colordepth` | `99` (automatic) | |
 | Password | `password=.` → keyring item, schema `org.remmina.Password`, attributes `filename` + `key=password` | Set from the credentials file, see below |
 | Launcher | `~/.local/share/applications/org.remmina.Remmina.desktop` with `env GDK_BACKEND=x11` | See below |
 
@@ -73,6 +75,10 @@ If `rdp=` changed, store it in Remmina again (snippet above, once per profile).
 | Connection refused | System daemon not running, or new DHCP address | `sudo grdctl --system status`; check the IP (see Access) |
 | Login screen rejects the password | `login=` not applied on this VM | Run `setup-remote-login.sh <ip>` |
 | Picture too big, right side cut off | Remmina runs native Wayland on the fractionally scaled laptop screen | Start Remmina with `GDK_BACKEND=x11` |
+| Login screen white/black | Remmina profile in windowed mode | Set `viewmode=4` in the profile (Remmina closed first) |
+| Correct password → back to the user list | Handover daemon in the running session lost the system daemon after a restart (`Could not get session id`) | Should not recur (drop-in from `provision-common.sh`). Manually: `ssh tt@<ip> 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user restart gnome-remote-desktop-handover'` |
+| Still white/black, processes in state `D` (`ps -eLo stat,comm \| grep ^D`) | KVM async page-fault hang (ADR-018) | Only a reboot helps: `ssh pve 'qm reboot <vmid> --timeout 120 \|\| qm reset <vmid>'`. Check `no-kvmapf` is in `/proc/cmdline` |
+| Remmina window will not close | Fullscreen window ignores the close request under niri | `pkill -x remmina` — the VM sessions keep running |
 
 Server log: `ssh tt@<ip> 'sudo journalctl -u gnome-remote-desktop -n 30'`. A good connect shows
 `Sending server redirection`, then the user service `gnome-remote-desktop-handover.service` starting.
