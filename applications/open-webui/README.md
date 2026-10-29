@@ -105,14 +105,13 @@ Open-WebUI draws models from **two independent connections**:
 | `kimi-k3` | Cloud | Most powerful available: 1M ctx, vision + thinking + tools |
 | `deepseek-v4-pro:0813` | Cloud | Top-tier reasoning, 1M ctx |
 | `glm-5.3` | Cloud | Current GLM flagship, 1M ctx |
-| `mistral-large-3:675b` | Cloud | Best German of the catalogue, vision |
 | `minimax-m3` | Cloud | Current MiniMax flagship, 512K ctx, vision |
 | `kimi-k2.7-code` | Cloud | Dedicated coding model |
 | `deepseek-v4.1-flash` | Cloud | Fast tier, 1M ctx, vision |
 | `gpt-oss:120b` | Cloud | Open-weight option |
 | `gemma4:31b` | Cloud | Small and quick, strong multilingual |
 | `nemotron-3-ultra` | Cloud | NVIDIA flagship |
-| `cloud-docs` | LiteLLM | `mistral-large-3` + automatic fallback chain |
+| `cloud-docs` | LiteLLM | `nemotron-3-super` + automatic fallback chain |
 | `cloud-fast` | LiteLLM | `deepseek-v4.1-flash` + automatic fallback chain |
 | `cloud-smart` | LiteLLM | `kimi-k3` + automatic fallback chain (**default model**) |
 

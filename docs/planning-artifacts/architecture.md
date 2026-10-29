@@ -1950,6 +1950,12 @@ kubectl patch secret openclaw-secrets -n apps --type='merge' \
 
 **Supersedes:** the model names in [Ollama Pro Cloud Model Integration Architecture (Epic 26)](#ollama-pro-cloud-model-integration-architecture-epic-26).
 
+> **Partially superseded by ADR-021 (2026-10-29):** Ollama retired `mistral-large-3:675b` on
+> 2026-11-09. The whole cloud catalogue is now thinking models, so ADR-013's "`cloud-docs` has no
+> thinking capability" guarantee no longer holds. `cloud-docs` moved to `nemotron-3-super` with
+> `think: false` (verified to be honoured). The role-based-alias and vendor-diversity decisions below
+> still stand; only the `cloud-docs` backing model and its "no thinking" rationale changed.
+
 **Trigger:** Ollama retired `kimi-k2.5`, `minimax-m2.5` and `qwen3-coder:480b` (HTTP 410) and announced
 `qwen3.5:397b` retirement for 2026-09-25. Because LiteLLM falls through a 410 transparently, every
 Paperless-GPT request had been silently served by `cloud-qwen3.5` for weeks while the configured
@@ -1970,7 +1976,7 @@ primary `cloud-kimi` was dead.
 **Current Routing Architecture:**
 ```
 LiteLLM (gatekeeper)
-├── cloud-docs   → mistral-large-3:675b  → cloud-fast → cloud-smart → vllm-qwen → ollama-qwen
+├── cloud-docs   → nemotron-3-super      → cloud-fast → cloud-smart → vllm-qwen → ollama-qwen
 ├── cloud-fast   → deepseek-v4.1-flash   → cloud-smart → vllm-qwen → ollama-qwen
 ├── cloud-smart  → kimi-k3               → cloud-fast → vllm-qwen → ollama-qwen
 ├── vllm-qwen    → vLLM GPU              → ollama-qwen
@@ -1991,13 +1997,15 @@ LiteLLM (gatekeeper)
 **LiteLLM Config (as implemented):**
 ```yaml
 model_list:
-  # mistral-large-3 has NO thinking capability — no extra_body needed
+  # ADR-021: nemotron-3-super replaced mistral-large-3 (retired 2026-11-09). It is a thinking
+  # model but honours think:false, so reasoning never runs and cannot leak into content.
   - model_name: cloud-docs
     litellm_params:
-      model: ollama_chat/mistral-large-3:675b
+      model: ollama_chat/nemotron-3-super
       api_base: https://ollama.com
       api_key: os.environ/OLLAMA_API_KEY
       timeout: 90
+      extra_body: {think: false}
     model_info: {mode: chat}
 
   - model_name: cloud-fast

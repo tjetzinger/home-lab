@@ -25,6 +25,8 @@
 # - FR216: Three Ollama Pro cloud models added to model_list (Story 26.1)
 #   ADR-013: repointed to cloud-docs/cloud-fast/cloud-smart after Ollama retired the
 #   kimi-k2.5, minimax-m2.5 and qwen3.5:397b tags
+#   ADR-021: cloud-docs moved mistral-large-3:675b → nemotron-3-super after Ollama retired
+#   mistral-large-3 on 2026-11-09 (whole catalogue now thinking models; think:false required)
 # - FR217: Cloud-primary fallback chains configured (Story 26.1)
 # - FR218: openai-gpt4o removed from auto-fallback, explicit selection only (Story 26.1)
 #
@@ -188,14 +190,21 @@ data:
       # ============================================================
 
       # cloud-docs: document metadata extraction (Paperless-GPT primary)
-      # mistral-large-3 has NO thinking capability — no extra_body needed, and the
-      # empty-content/reasoning_content failure mode is structurally impossible
+      # ADR-021: mistral-large-3:675b retired by Ollama 2026-11-09. The whole cloud catalogue
+      # is now thinking models, so ADR-013's "no thinking mode = leak structurally impossible"
+      # guarantee is gone. nemotron-3-super (NVIDIA) was verified to honour think:false fully
+      # (empty thinking trace on the German + English invoice prompts), so reasoning never runs
+      # and cannot leak into an empty content field. think:false is REQUIRED here — without it
+      # the model reasons. mistral-large-4 (the email's recommendation) 403s as "rolling out",
+      # so it would silently fall through the chain; revisit it if account access opens.
       - model_name: cloud-docs
         litellm_params:
-          model: ollama_chat/mistral-large-3:675b
+          model: ollama_chat/nemotron-3-super
           api_base: https://ollama.com
           api_key: os.environ/OLLAMA_API_KEY
-          timeout: 90  # 675b on large OCR prompts; heavier than the retired 397b
+          timeout: 90  # full OCR prompts; ample headroom over measured latency
+          extra_body:
+            think: false  # nemotron-3-super honours this (verified via /api/chat) — reasoning never runs
         model_info:
           mode: chat
 

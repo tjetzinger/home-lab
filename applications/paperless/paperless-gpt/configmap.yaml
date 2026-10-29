@@ -13,7 +13,8 @@
 # - FR194: LiteLLM integration for LLM-based metadata generation
 # - FR197: Manual review (paperless-gpt tag) and automatic processing (paperless-gpt-auto tag)
 # - FR219: Paperless-GPT uses a cloud-tier model for document metadata generation (Story 26.2)
-#   ADR-013: now cloud-docs (mistral-large-3) — verified on German and English invoices
+#   ADR-013/ADR-021: cloud-docs (nemotron-3-super since 2026-11-09, was mistral-large-3) —
+#   verified on German and English invoices
 #
 # NFRs:
 # - NFR112: Prompt template changes take effect without pod restart
@@ -51,8 +52,8 @@ data:
   # LLM Provider - LiteLLM (OpenAI-compatible proxy)
   # Cloud-tier primary: cloud-docs (Ollama Pro) with LiteLLM fallback chain
   # Fallback: cloud-docs → cloud-fast → cloud-smart → vllm-qwen (GPU) → ollama-qwen (CPU)
-  # cloud-docs = mistral-large-3: strongest German of the catalogue, and the only
-  # candidate with no thinking mode, so it cannot leak reasoning into an empty content field
+  # cloud-docs = nemotron-3-super (ADR-021, replaced mistral-large-3 retired 2026-11-09):
+  # honours think:false fully, so reasoning never runs and cannot leak into an empty content field
   # Service DNS: litellm.ml.svc.cluster.local:4000
   LLM_PROVIDER: "openai"
   OPENAI_BASE_URL: "http://litellm.ml.svc.cluster.local:4000/v1"

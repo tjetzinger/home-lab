@@ -58,7 +58,7 @@ Cloud-primary architecture with automatic failover via LiteLLM:
 
 ```
 LiteLLM Proxy (litellm.ml.svc)
-  cloud-docs  (mistral-large-3)     ─┐
+  cloud-docs  (nemotron-3-super)    ─┐
   cloud-fast  (deepseek-v4.1-flash) ─┼─→ vLLM (GPU) → Ollama (CPU)
   cloud-smart (kimi-k3)             ─┘
 ```
@@ -69,7 +69,7 @@ Each alias is the newest model of a different lab so one retirement wave cannot 
 
 | Alias | Backing model | Used by |
 |-------|---------------|---------|
-| `cloud-docs` | `mistral-large-3:675b` | Paperless-GPT metadata (German/English) |
+| `cloud-docs` | `nemotron-3-super` | Paperless-GPT metadata (German/English) |
 | `cloud-fast` | `deepseek-v4.1-flash` | Quick general inference |
 | `cloud-smart` | `kimi-k3` | Open-WebUI default, reasoning/agentic |
 

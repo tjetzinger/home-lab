@@ -38,10 +38,6 @@
           "why": "755GB, 1M ctx \u2014 current GLM flagship"
         },
         {
-          "id": "mistral-large-3:675b",
-          "why": "Best German of the catalogue; vision; no thinking-mode quirks"
-        },
-        {
           "id": "minimax-m3",
           "why": "Current MiniMax flagship, 512K ctx, vision"
         },
@@ -92,6 +88,10 @@
           "why": "Retired by Ollama 2026-09-25"
         },
         {
+          "id": "mistral-large-3:675b",
+          "why": "Retired by Ollama 2026-11-09 (ADR-021)"
+        },
+        {
           "id": "nemotron-3-super",
           "why": "Superseded by nemotron-3-ultra"
         },
@@ -115,7 +115,7 @@
       "keep": [
         {
           "id": "cloud-docs",
-          "why": "mistral-large-3 + automatic fallback chain"
+          "why": "nemotron-3-super + automatic fallback chain"
         },
         {
           "id": "cloud-fast",

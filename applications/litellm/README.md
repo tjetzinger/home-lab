@@ -36,11 +36,11 @@ name: when Ollama retires a tag, only the `model:` line in `configmap.yaml` chan
 
 | Model Name | Backing model | Timeout | Description |
 |------------|---------------|---------|-------------|
-| `cloud-docs` | `mistral-large-3:675b` | 90s | Document metadata extraction (Paperless-GPT). Strongest German; no thinking mode, so it cannot leak reasoning into an empty `content` field |
+| `cloud-docs` | `nemotron-3-super` | 90s | Document metadata extraction (Paperless-GPT). `think:false` honoured, so reasoning never runs and cannot leak into `content` (ADR-021, replaced retired `mistral-large-3`) |
 | `cloud-fast` | `deepseek-v4.1-flash` | 60s | Quick general inference, 1M context |
 | `cloud-smart` | `kimi-k3` | 60s | Frontier reasoning / agentic work (Open-WebUI default), 1M context |
 
-Each alias is the newest model of a **different lab** (Mistral AI / DeepSeek / Moonshot) so a single
+Each alias is the newest model of a **different lab** (NVIDIA / DeepSeek / Moonshot) so a single
 lab's retirement wave cannot break the whole chain.
 
 ### Local Tier (fallback)
