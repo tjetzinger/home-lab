@@ -1,6 +1,6 @@
 # ADR-021: cloud-docs Moves to nemotron-3-super After mistral-large-3 Retirement
 
-**Status:** Accepted
+**Status:** Accepted — applied 2026-10-29, follow-ups closed 2026-11-02
 **Date:** 2026-10-29
 **Decision Makers:** Tom, Claude (AI Assistant)
 **Relates to:** [ADR-013](ADR-013-cloud-model-tier-refresh.md) (partially supersedes)
@@ -111,19 +111,45 @@ German-first document alias.
 - German titles/correspondents keep OCR-stripped umlauts (`Muenchen`) instead of restoring them.
 
 ### Follow-ups
-- **Revisit `mistral-large-4`** once account access opens (it is "rolling out"). It is the natural
-  same-family successor, but it is a thinking model, so re-run the extraction test with `think: false`
-  before adopting — do not assume it honours the flag.
-- **Apply after review:** `kubectl --context default -n ml apply -f applications/litellm/configmap.yaml`
-  then `kubectl --context default -n ml rollout restart deployment/litellm`. Re-apply the Open-WebUI
-  curation with `scripts/open-webui/apply-model-curation.sh` so the retired `mistral-large-3:675b`
-  drops out of the picker.
+
+Both closed on **2026-11-02**. The decision is unchanged.
+
+- ~~**Revisit `mistral-large-4`** once account access opens.~~ **Closed: re-tested and rejected.**
+  Account access has opened — `POST /api/chat` now returns **200**, where it returned 403 "rolling out"
+  on 2026-10-29 — so the condition for revisiting was met. Re-ran the ADR-013 extraction test (same
+  German utility invoice, umlauts stripped, `think: false`):
+
+  | | `/api/chat` | `think: false` honoured | German tags | `created_date` | latency |
+  |---|---|---|---|---|---|
+  | `nemotron-3-super` (live) | 200 | **yes** — `thinking` and `reasoning_content` both empty | German kept | extracted | 1.6s |
+  | `mistral-large-4` | 200 (was 403) | **no** — full chain-of-thought in `thinking` | **translated to English**: `invoice, utility, municipal` | `null` | 9.0s |
+
+  `mistral-large-4` fails the single property this alias is selected on: it reasons despite
+  `think: false`. It also translates German tags to English — the exact reason `gemma4:31b` was
+  rejected above — dropped the date field, and is 5.6x slower. **Do not adopt it.** The "natural
+  same-family successor" argument does not survive measurement. Nothing short of a new non-thinking
+  model, or `mistral-large-4` starting to honour the flag, should reopen this.
+
+- ~~**Apply after review.**~~ **Closed: applied 2026-10-29, verified 2026-11-02.**
+  `deployment/litellm` carries `kubectl.kubernetes.io/restartedAt: 2026-10-29T21:18:47+01:00` and the
+  running pod started `2026-10-29T20:18:47Z`, so the restart followed the apply and the proxy is on
+  this config. End-to-end through the proxy today: `cloud-docs` → HTTP 200 in 1.6s, valid JSON in
+  `content`, `reasoning_content` and `thinking` both `None`. Open-WebUI curation verified with
+  `apply-model-curation.sh --verify-only` → 12 models visible, exit 0, and `mistral-large-3:675b` is
+  no longer in the picker.
+
+### Amendment 2026-11-02
+
+The Negative consequence "German titles/correspondents keep OCR-stripped umlauts" is **partly too
+pessimistic**, measured on the same invoice: `correspondent` does stay `Stadtwerke Muenchen GmbH`, but
+`nemotron-3-super` restored umlauts inside the tag list (`München`, `Fälligkeit 15.11.2026`). So the
+limitation applies to fields copied verbatim from the OCR text, not to generated tags.
 
 ## Alternatives Considered
 
 | Alternative | Why rejected |
 |---|---|
-| `mistral-large-4` (Ollama's recommendation) | HTTP 403 "rolling out" — unavailable, would silently fall through |
+| `mistral-large-4` (Ollama's recommendation) | HTTP 403 "rolling out" on 2026-10-29 — unavailable, would silently fall through. Re-tested 2026-11-02 once access opened: reachable, but ignores `think: false` and translates German tags to English, so still rejected (see Follow-ups) |
 | `minimax-m3.1-flash` | Best German, but does not honour `think:false` and makes all three aliases Chinese-lab |
 | `gemma4:31b` | Translated German tags to English — wrong for a German document alias |
 | Keep `mistral-large-3:675b` | Retires 2026-11-09; would 410 and silently fall through |
