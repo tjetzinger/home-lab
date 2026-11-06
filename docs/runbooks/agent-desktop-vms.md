@@ -13,7 +13,11 @@ Reasoning: [ADR-018](../adrs/ADR-018-agent-desktop-vms.md).
   (mode 600, not in git):
   - `rdp=` — RDP password, user `tt`. Stored in Remmina's keyring entry, so Remmina never asks.
   - `login=` — Linux password of `tt`, typed at the login screen.
-- **SSH:** `ssh tt@<ip>` or `ssh tt@agent-cowork` over Tailscale — key-only, set by cloud-init.
+- **SSH:** `ssh tt@192.168.2.99` (cowork) or `ssh tt@192.168.2.93` (codex) — key-only, set by cloud-init.
+  The VMs are **not on Tailscale**. A bare `ssh agent-cowork` resolves through the laptop's
+  `jetzinger.com` search domain to the wildcard `192.168.2.2`, a different host. The laptop's
+  `~/.ssh/config` pins both names to their IPs, so `ssh agent-cowork` works there and nowhere else.
+  Before trusting a new host key, compare it with `ssh pve "qm guest exec 104 -- ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub"`.
 - **LAN IPs** come from DHCP (cowork `.99`, codex `.93`). A rebuild keeps the MAC, so they stay. Check:
   `ssh pve 'qm guest cmd 104 network-get-interfaces'`.
 - **Fallback:** the noVNC console of the VM in the Proxmox UI shows the VM's own login screen.
