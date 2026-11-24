@@ -28,7 +28,13 @@
     "",
     "local-uncensored stays on legacy (ADR-023). Native was tested 2026-11-24: with tools present and",
     "thinking off, Gemma looped on empty <|channel>thought blocks until max tokens on 1 of 3 prompts;",
-    "with thinking on it never called a tool. Legacy + Zimi's deep_search answered correctly."
+    "with thinking on it never called a tool. Legacy + Zimi's deep_search answered correctly.",
+    "",
+    "MODEL META (2026-11-24): `model_meta` is merged into every kept model's meta.",
+    "defaultFeatureIds [web_search] starts the chat with the web search toggle ON, per model.",
+    "It replaced the admin default DEFAULT_INTERFACE_SETTINGS {webSearch: always}: with 'always'",
+    "the frontend searches regardless of the toggle (Chat.svelte webSearchActive =",
+    "toggle || always), so switching search off in a chat did nothing."
   ],
   "connections": {
     "ollama": {
@@ -191,5 +197,10 @@
   "default_model": "cloud-smart",
   "model_params": {
     "function_calling": "legacy"
+  },
+  "model_meta": {
+    "defaultFeatureIds": [
+      "web_search"
+    ]
   }
 }

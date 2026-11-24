@@ -141,55 +141,48 @@ on an existing install the database value wins and the env vars are ignored. Cha
 live via `POST /api/v1/retrieval/config/update` or Admin → Settings → Web Search. This is
 the same trap documented under Model curation below.
 
-### Default-on: use the admin default, not the user record
+### Default-on: per model, so the toggle still works
 
-Engine config alone does not switch search on for a chat. The composer gate in the frontend is:
+Engine config alone does not switch search on for a chat. The frontend decides per request
+(`Chat.svelte:495`, app 0.13.4):
 
 ```
-permissions.features.web_search && (<per-chat toggle> || settings.webSearch === "always")
+webSearchActive = enable_web_search && permission &&
+                  (<chat toggle> || (model supports web_search && settings.webSearch === "always"))
 ```
 
-**Do not set `ui.webSearch` on the user record.** `POST /api/v1/users/user/settings/update`
-works and the value lands in the database, but it does not survive: the frontend rewrites the
-whole `ui` object from its own state on every change and drops keys it never loaded. Observed
-on 2026-09-20 — set to `always`, confirmed in the DB, found back at `None` after a browser
-session.
+**Do not use `webSearch: "always"`.** It was the admin default here from 2026-09-20
+(`DEFAULT_INTERFACE_SETTINGS`) until 2026-11-24. It is OR-ed with the toggle, so a chat with the toggle
+switched off still searched Exa — noticed when `local-uncensored` searched with search "off".
 
-The durable equivalent is the admin-level default, `DEFAULT_INTERFACE_SETTINGS`:
+Default-on now comes from each model: `meta.defaultFeatureIds = ["web_search"]` (`Chat.svelte:1397`).
+A new chat starts with the toggle **on**, and switching it off really stops the search. It is set for
+every kept model by [`apply-model-curation.sh`](../../scripts/open-webui/apply-model-curation.sh) from
+the `model_meta` block in [`model-curation.json`](model-curation.json), and verified from SQLite.
+
+What was cleared on 2026-11-24, for the record:
+
+- Admin `DEFAULT_INTERFACE_SETTINGS` → `{}`. `POST /api/v1/auths/admin/config` is read-modify-write, and
+  since 0.13 an **API-key** call must leave out `ENABLE_MFA`, `MFA_ALLOW_OAUTH_BYPASS` and
+  `MFA_ALLOW_TRUSTED_HEADER_BYPASS`, or it fails with 403 "A human administrator session is required
+  to change MFA settings".
+- The user record's `ui.webSearch` → `null` via `POST /api/v1/users/user/settings/update` (a missing
+  key is merged, not removed; `null` is what `merge_user_ui_settings` skips).
+- The `DEFAULT_INTERFACE_SETTINGS` env var in `values-homelab.yaml`, which would re-seed "always" on a
+  fresh install.
+
+A browser tab opened before the change still holds `webSearch: "always"` in memory: reload it.
+
+Verify with both forms of the settings endpoint (`raw=true` is what is stored, the plain call is what
+the frontend receives; both should now show no `webSearch`):
 
 ```bash
-# read-modify-write — this endpoint rewrites EVERY admin field it receives, so a
-# blind POST resets ENABLE_SIGNUP, DEFAULT_USER_ROLE and the rest
-CUR=$(curl -s .../api/v1/auths/admin/config -H "Authorization: Bearer $OPENWEBUI_API_KEY")
-jq -c '.DEFAULT_INTERFACE_SETTINGS = {"webSearch":"always"}' <<<"$CUR" \
-  | curl -s -X POST .../api/v1/auths/admin/config -H "Authorization: Bearer $OPENWEBUI_API_KEY" \
-      -H 'Content-Type: application/json' -d @-
-```
-
-Two backend paths make this stick:
-
-- `routers/users.py:482` merges the default into the user's settings on every read of
-  `GET /api/v1/users/user/settings`.
-- `routers/users.py:71` (`strip_default_interface_settings`) removes any per-user value equal
-  to the default on write — so there is nothing left for the browser to clobber.
-
-Verify with both forms of that endpoint. `raw=true` shows what is stored, the plain call shows
-what the frontend receives:
-
-```bash
-# expect: merged "always", raw absent
 curl -s .../api/v1/users/user/settings          -H "Authorization: Bearer $KEY" | jq .ui.webSearch
 curl -s '.../api/v1/users/user/settings?raw=true' -H "Authorization: Bearer $KEY" | jq .ui.webSearch
 ```
 
-**The browser still needs its own copy.** The server side being correct does not flip the
-toggle in an already-loaded tab — the frontend seeds its settings store from browser storage.
-Set web search to "always" once in Open-WebUI's interface settings so both agree.
-
-**`GET /api/config` is not usable for verifying any of this from a script.** Its whole
-authenticated block is gated on `if user is not None` (`main.py:2340`), and an API-key call
-does not populate `user` there. `enable_web_search` and `default_interface_settings` both read
-as absent even when correctly set. Use the endpoints above instead.
+**`GET /api/config` is not usable for verifying any of this from a script.** Its authenticated block is
+gated on `if user is not None`, and an API-key call does not populate `user` there.
 
 ### Query generation: one Exa call per question
 
@@ -342,7 +335,7 @@ makes web search actually run. See the web search section above.
 - `builtin_tools` is read server-side (`middleware.py:2089`), so the model is never offered memory, skills
   or other builtin tools. These made small local models slow.
 - `web_search` is enforced by the browser: `MessageInput.svelte` turns the search toggle off when a
-  selected model lacks the capability, including the admin "always" default. It was `false` at first,
+  selected model lacks the capability. It was `false` at first,
   to keep prompts local, and set to `true` on 2026-11-24 on request: Gemma now runs Exa like the rest.
   Under legacy function calling that adds the search results to every prompt, inside Gemma's 8K context.
 - Thinking is switched off in LiteLLM (`chat_template_kwargs.enable_thinking: false`), not here.

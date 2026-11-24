@@ -140,21 +140,12 @@ extraEnvVars:
       secretKeyRef:
         name: open-webui-secrets
         key: WEBUI_SECRET_KEY
-  # Admin-level default for per-user interface settings. `webSearch: always` makes
-  # every chat run Exa without touching the composer toggle.
-  #
-  # This is the ONLY durable place for it. Writing ui.webSearch on the user record
-  # via /api/v1/users/user/settings/update does not survive: the frontend rewrites
-  # the whole `ui` object from its own state and drops keys it did not load. The
-  # admin default is applied server-side instead, and routers/users.py:71
-  # (strip_default_interface_settings) removes any per-user value that matches it,
-  # so there is nothing left for the browser to clobber.
-  #
-  # PersistentConfig: seeds a fresh install only. On an existing install set it via
-  # POST /api/v1/auths/admin/config (read-modify-write — that endpoint rewrites
-  # every admin field it receives).
-  - name: DEFAULT_INTERFACE_SETTINGS
-    value: '{"webSearch":"always"}'
+  # NO `DEFAULT_INTERFACE_SETTINGS: {"webSearch":"always"}` any more (removed 2026-11-24).
+  # With "always" the frontend searches whatever the chat's web-search toggle says
+  # (Chat.svelte: webSearchActive = toggle || webSearch === 'always'), so switching
+  # search off in a chat did nothing. Default-on now comes from each model's
+  # meta.defaultFeatureIds = ["web_search"], set by apply-model-curation.sh
+  # (model_meta in model-curation.json): the toggle starts on and really turns it off.
   # Search query generation. The stock template says "prioritize generating 1-3
   # broad and relevant search queries", so one question cost three Exa calls.
   # This caps it at one while keeping the rewriting that matters: the model still

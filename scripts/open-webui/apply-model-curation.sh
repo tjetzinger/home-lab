@@ -51,11 +51,13 @@ OLLAMA_IDS="$(jq -c '[.connections.ollama.keep[].id]' "$MANIFEST")"
 OPENAI_IDS="$(jq -c '[.connections.openai.keep[].id]' "$MANIFEST")"
 DEFAULT_MODEL="$(jq -r '.default_model' "$MANIFEST")"
 MODEL_PARAMS="$(jq -c '.model_params // {}' "$MANIFEST")"
+MODEL_META="$(jq -c '.model_meta // {}' "$MANIFEST")"
 
 echo "Keep (ollama, $(jq 'length' <<<"$OLLAMA_IDS")): $(jq -r 'join(", ")' <<<"$OLLAMA_IDS")"
 echo "Keep (openai, $(jq 'length' <<<"$OPENAI_IDS")): $(jq -r 'join(", ")' <<<"$OPENAI_IDS")"
 echo "Default model: $DEFAULT_MODEL"
 echo "Model params:  $MODEL_PARAMS"
+echo "Model meta:    $MODEL_META"
 
 if [[ "$DRY_RUN" == true ]]; then
   echo "--dry-run: no changes made"
@@ -132,9 +134,9 @@ if [[ "$VERIFY_ONLY" != true ]]; then
   # meta.capabilities, `params` is merged over the shared model_params.
   if [[ "$(jq 'length' <<<"$MODEL_PARAMS")" -gt 0 ]]; then
     echo "Applying model params..."
-    import_payload="$(jq -c --argjson params "$MODEL_PARAMS" \
+    import_payload="$(jq -c --argjson params "$MODEL_PARAMS" --argjson meta "$MODEL_META" \
       '{models: [.connections[].keep[] | {id: .id, name: .id, base_model_id: null,
-                                          meta: ({description: .why}
+                                          meta: ({description: .why} + $meta
                                                  + (if .capabilities then {capabilities: .capabilities} else {} end)),
                                           params: ($params + (.params // {}))}]}' "$MANIFEST")"
     check "import model params" "$(in_pod POST /api/v1/models/import "$import_payload")"
@@ -227,6 +229,28 @@ print(' '.join(bad))
     fi
     echo "  capabilities: overrides stored on $(jq -r 'map(.id) | join(", ")' <<<"$want_caps")"
   fi
+fi
+
+if [[ "$(jq 'length' <<<"$MODEL_META")" -gt 0 ]]; then
+  bad="$(kubectl --context "$CONTEXT" exec -n "$NAMESPACE" "$POD" -c open-webui -- \
+    python3 -c "
+import json, sqlite3, sys
+want = json.loads(sys.argv[1])
+ids = json.loads(sys.argv[2])
+db = sqlite3.connect('/app/backend/data/webui.db')
+bad = []
+for i in ids:
+    row = db.execute('select meta from model where id = ?', (i,)).fetchone()
+    meta = (json.loads(row[0] or '{}') or {}) if row else {}
+    if any(meta.get(k) != v for k, v in want.items()):
+        bad.append(i)
+print(' '.join(bad))
+" "$MODEL_META" "$(jq -c '[.connections[].keep[].id]' "$MANIFEST")")"
+  if [[ -n "$bad" ]]; then
+    echo "ERROR: model_meta not stored on: $bad" >&2
+    exit 4
+  fi
+  echo "  model_meta: $MODEL_META on all kept models"
 fi
 
 echo "Model curation applied and verified ($(jq '[.connections[].keep[]] | length' "$MANIFEST") models visible)."
