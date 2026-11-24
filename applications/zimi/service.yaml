@@ -1,0 +1,45 @@
+# Zimi Services
+# ADR-023
+#
+# zimi       - the web app, published through Traefik (ingressroute.yaml)
+# zimi-mcpo  - the MCP tools as OpenAPI, cluster-internal only. Open WebUI calls it from its backend.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zimi
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-web
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zimi-mcpo
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-mcpo
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-server
+  ports:
+    - name: mcpo
+      port: 8000
+      targetPort: mcpo

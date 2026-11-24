@@ -1,0 +1,199 @@
+# Zimi Deployment for home-lab
+# Namespace: docs
+#
+# ADR-023 - Offline knowledge library (Zimi) on the NAS worker, wired into Open WebUI
+#
+# Zimi (https://github.com/epheterson/Zimi) serves Kiwix ZIM files — offline Wikipedia and more —
+# as a web app, a JSON API and an MCP server. Based on upstream's deploy/kubernetes.yaml.
+#
+# Two containers share the volumes:
+#   zimi  - the web app at zimi.home.jetzinger.com; builds the title indexes in /config
+#   mcpo  - Open WebUI's MCP-to-OpenAPI proxy. Zimi's MCP server speaks stdio only, and Open WebUI
+#           only reaches tools over HTTP, so mcpo launches `zimi-mcp` as a subprocess and exposes
+#           its tools as OpenAPI on :8000 (cluster-internal, bearer key required).
+#           zimi-mcp is fetched from PyPI by uvx at container start, pinned to the same version as
+#           the zimi image so both read the same index format. Upstream's own remote recipe runs
+#           the MCP server against the serving instance's data dir (`docker exec ... zimi mcp`);
+#           this is the same sharing, across two containers.
+#
+# Single replica, Recreate: Zimi keeps state in files, and two writers would corrupt the indexes.
+#
+# Placement: k3s-nas-worker (Celeron J4125, 2 vCPU, ~5GiB). Its workload-type=lightweight taint
+# keeps general pods off; this pod tolerates it. Index builds there are slow (hours for a full
+# Wikipedia) but run once and yield to load (ZIMI_INDEX_THROTTLE default).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zimi
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-server
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: knowledge-library
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zimi
+      app.kubernetes.io/instance: zimi-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zimi
+        app.kubernetes.io/instance: zimi-server
+        app.kubernetes.io/part-of: home-lab
+        app.kubernetes.io/component: knowledge-library
+    spec:
+      # REQUIRED. Kubernetes injects {SERVICE}_PORT=tcp://... for every Service in the namespace,
+      # and the Service `zimi` becomes ZIMI_PORT=tcp://10.43.x.x:80 — which is Zimi's own port
+      # setting. Both containers crashed on it ("ZIMI_PORT: port must be a number"). Same trap as
+      # n8n's N8N_PORT; here we switch the injection off rather than rename the Service.
+      enableServiceLinks: false
+      nodeSelector:
+        kubernetes.io/hostname: k3s-nas-worker
+      tolerations:
+        - key: workload-type
+          operator: Equal
+          value: lightweight
+          effect: NoSchedule
+      securityContext:
+        # The image's user. Running as it directly skips the entrypoint's root chown step.
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        # Never walk 176GB of ZIMs on NFS to re-own them at every start.
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: zimi
+          image: epheterson/zimi:1.16.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8899
+          env:
+            - name: ZIM_DIR
+              value: /zims
+            - name: ZIMI_DATA_DIR
+              value: /config
+            - name: ZIMI_MANAGE
+              value: "1"
+            - name: ZIMI_MANAGE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zimi-secrets
+                  key: ZIMI_MANAGE_PASSWORD
+            # BitTorrent and LAN discovery need a real LAN; pod networking has none (upstream note).
+            - name: ZIMI_TORRENT
+              value: "0"
+            - name: ZIMI_NEARBY
+              value: "off"
+          volumeMounts:
+            - name: library
+              mountPath: /zims
+            - name: config
+              mountPath: /config
+          startupProbe:
+            # First boot builds title indexes; 60 x 10s before Kubernetes gives up (upstream).
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+        - name: mcpo
+          # v0.0.20 (mcpo publishes no version tags; git-788ff92 is the v0.0.20 release commit)
+          image: ghcr.io/open-webui/mcpo:git-788ff92
+          imagePullPolicy: IfNotPresent
+          args:
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+            - --api-key
+            - $(MCPO_API_KEY)
+            - --
+            - uvx
+            - --from
+            - zimi-mcp==1.16.0
+            - zimi-mcp
+            - /zims
+            # Full toolset, for deep_search (search + read the top hits in ONE call). Open WebUI
+            # runs every model with function_calling: legacy (needed for Exa web search), and legacy
+            # makes a single tool round with no follow-up: with the lean set the model only ever got
+            # search snippets, and Gemma invented the rest. Open WebUI narrows the ~20 tools back to
+            # three via function_name_filter_list in applications/open-webui/tool-servers.json.
+            - --tools
+            - full
+          ports:
+            - name: mcpo
+              containerPort: 8000
+          env:
+            - name: MCPO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zimi-secrets
+                  key: MCPO_API_KEY
+            - name: ZIMI_DATA_DIR
+              value: /config
+            - name: UV_CACHE_DIR
+              value: /uv-cache
+            - name: HOME
+              value: /uv-cache
+          volumeMounts:
+            - name: library
+              mountPath: /zims
+              readOnly: true
+            - name: config
+              mountPath: /config
+            - name: uv-cache
+              mountPath: /uv-cache
+          readinessProbe:
+            tcpSocket:
+              port: mcpo
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: mcpo
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      volumes:
+        - name: library
+          persistentVolumeClaim:
+            claimName: zimi-library
+        - name: config
+          persistentVolumeClaim:
+            claimName: zimi-config
+        - name: uv-cache
+          emptyDir:
+            sizeLimit: 1Gi

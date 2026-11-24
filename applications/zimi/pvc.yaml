@@ -1,0 +1,52 @@
+# Zimi Persistent Volumes
+# ADR-023 - Offline knowledge library (Zimi) on the NAS worker
+#
+# Two volumes with different jobs, so two storage classes:
+#
+# zimi-library (nfs-client, 300Gi): the ZIM files. Large, re-downloadable, read by memory-map.
+#   Lives on the Synology, which has the space; the NAS worker VM runs on that same box, so the
+#   traffic never leaves it. Sized for EN + DE Wikipedia with images (~176GB) plus room to grow.
+#
+# zimi-config (local-path, 10Gi): Zimi's state — SQLite title indexes, users, bookmarks.
+#   SQLite over NFS has unreliable locking, so this stays on the NAS VM's own disk. local-path
+#   binds at first use (WaitForFirstConsumer), i.e. on k3s-nas-worker, and pins the pod there.
+#   NOT covered by Synology share snapshots. Everything in it can be rebuilt (indexes) or is
+#   minor (bookmarks); Zimi's docs call it the volume to back up if that ever changes.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zimi-library
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-library
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 300Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zimi-config
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-config
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi

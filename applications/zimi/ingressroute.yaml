@@ -1,0 +1,65 @@
+# Zimi IngressRoute for Traefik
+# ADR-023 - zimi.home.jetzinger.com (Tailscale-only like every *.home.jetzinger.com host)
+# Only the web app is published. The mcpo tool API stays cluster-internal.
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: zimi-tls
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-tls
+    app.kubernetes.io/part-of: home-lab
+spec:
+  secretName: zimi-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - zimi.home.jetzinger.com
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: zimi-ingress
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-ingress
+    app.kubernetes.io/component: knowledge-library
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`zimi.home.jetzinger.com`)
+      services:
+        - name: zimi
+          port: 80
+  tls:
+    secretName: zimi-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: zimi-ingress-redirect
+  namespace: docs
+  labels:
+    app.kubernetes.io/name: zimi
+    app.kubernetes.io/instance: zimi-redirect
+    app.kubernetes.io/component: knowledge-library
+    app.kubernetes.io/part-of: home-lab
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`zimi.home.jetzinger.com`)
+      middlewares:
+        - name: https-redirect
+          namespace: docs
+      services:
+        - name: zimi
+          port: 80

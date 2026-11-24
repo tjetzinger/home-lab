@@ -1,0 +1,45 @@
+{
+  "_comment": [
+    "Open-WebUI external tool servers - version-controlled source of truth (ADR-023).",
+    "",
+    "Like model-curation.json, this lives in the Open-WebUI DB (PersistentConfig",
+    "tool_server.connections), not in Helm values: TOOL_SERVER_CONNECTIONS only seeds a",
+    "fresh install. Apply with: ./scripts/open-webui/apply-tool-servers.sh",
+    "",
+    "`key_from` names the Secret holding the bearer key; the script fills `key` at apply",
+    "time so no secret is ever in git.",
+    "",
+    "Empty access_grants = admin-only (open_webui/utils/access_control has_connection_access).",
+    "This instance has a single admin user, so that is everyone who uses it.",
+    "",
+    "function_name_filter_list: mcpo serves Zimi's full toolset (~20 tools); only these",
+    "three reach the model. deep_search matters most: under function_calling legacy a model gets",
+    "ONE tool round, and deep_search returns article text, not just search snippets.",
+    "The filter matches Open-WebUI's tool NAME, which is mcpo's OpenAPI operationId",
+    "(tool_<name>_post), by suffix. A bare `deep_search` matches nothing and silently",
+    "drops every tool: the model then answers without calling Zimi at all."
+  ],
+  "connections": [
+    {
+      "url": "http://zimi-mcpo.docs.svc.cluster.local:8000",
+      "path": "openapi.json",
+      "type": "openapi",
+      "auth_type": "bearer",
+      "key_from": {
+        "namespace": "docs",
+        "secret": "zimi-secrets",
+        "key": "MCPO_API_KEY"
+      },
+      "config": {
+        "enable": true,
+        "access_grants": [],
+        "function_name_filter_list": "tool_deep_search_post,tool_search_post,tool_read_post"
+      },
+      "info": {
+        "id": "zimi",
+        "name": "Zimi",
+        "description": "Offline Wikipedia (EN + DE) from the Zimi ZIM library. deep_search finds and reads the best articles in one call"
+      }
+    }
+  ]
+}

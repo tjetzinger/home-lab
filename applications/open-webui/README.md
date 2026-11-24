@@ -278,6 +278,20 @@ Asserting against either endpoint reports a false failure on a correct config.
 To confirm search actually ran, check the response for citation sources: `sources` non-empty via the
 API, or a sources block under the answer in the browser. Config values only prove it *can* run.
 
+## Tool servers (ADR-023)
+
+External tool servers are PersistentConfig too, so they live in
+[`tool-servers.json`](tool-servers.json) and are applied by
+[`apply-tool-servers.sh`](../../scripts/open-webui/apply-tool-servers.sh). Bearer keys are read from
+Kubernetes Secrets at apply time (`key_from`) and never stored in git. The script verifies each server
+through Open WebUI's own `/api/v1/configs/tool_servers/verify`.
+
+| Server | URL | Tools |
+|---|---|---|
+| Zimi | `http://zimi-mcpo.docs.svc.cluster.local:8000` | `deep_search`, `search`, `read` over offline Wikipedia (filtered from Zimi's full set, ADR-023) |
+
+Empty `access_grants` means admin-only, which on this single-user instance is everyone.
+
 ## Security settings
 
 Scoped to what matters for a single-admin instance reachable only over Tailscale. The upstream
