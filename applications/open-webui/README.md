@@ -114,7 +114,7 @@ Open-WebUI draws models from **two independent connections**:
 | `cloud-docs` | LiteLLM | `nemotron-3-super` + automatic fallback chain |
 | `cloud-fast` | LiteLLM | `deepseek-v4.1-flash` + automatic fallback chain |
 | `cloud-smart` | LiteLLM | `kimi-k3` + automatic fallback chain (**default model**) |
-| `local-uncensored` | LiteLLM | Gemma 4 12B abliterated on vLLM. Works only in `gpu-mode gemma`. No fallback, no web search, no builtin tools (ADR-022) |
+| `local-uncensored` | LiteLLM | Gemma 4 12B abliterated on vLLM. Works only in `gpu-mode gemma`. No fallback, no builtin tools; Exa web search on like the other models (ADR-022) |
 
 **Fallback Chain (LiteLLM aliases only):** Ollama Pro cloud → vLLM (GPU) → Ollama (CPU).
 `local-uncensored` is outside every chain: it never stands in for a cloud alias, and nothing stands in for it.
@@ -337,14 +337,14 @@ makes web search actually run. See the web search section above.
 
 **Per-model overrides (ADR-022).** A `keep` entry can carry `capabilities` (stored as
 `meta.capabilities`) and `params` (merged over `model_params`). `local-uncensored` sets
-`builtin_tools: false` and `web_search: false`:
+`builtin_tools: false` and `web_search: true`:
 
 - `builtin_tools` is read server-side (`middleware.py:2089`), so the model is never offered memory, skills
   or other builtin tools. These made small local models slow.
 - `web_search` is enforced by the browser: `MessageInput.svelte` turns the search toggle off when a
-  selected model lacks the capability, including the admin "always" default. An API client that sends
-  `features.web_search: true` itself would still get a search. The point is that ordinary chats keep
-  prompts local instead of sending them to Exa.
+  selected model lacks the capability, including the admin "always" default. It was `false` at first,
+  to keep prompts local, and set to `true` on 2026-11-24 on request: Gemma now runs Exa like the rest.
+  Under legacy function calling that adds the search results to every prompt, inside Gemma's 8K context.
 - Thinking is switched off in LiteLLM (`chat_template_kwargs.enable_thinking: false`), not here.
 
 The script verifies stored capabilities from SQLite, the same way it verifies `function_calling`.

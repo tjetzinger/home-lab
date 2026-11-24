@@ -22,9 +22,9 @@
     "",
     "PER-MODEL OVERRIDES (ADR-022):",
     "A keep entry may carry `capabilities` (stored as meta.capabilities) and `params`",
-    "(merged over model_params). local-uncensored uses this to switch off builtin tools",
-    "and web search: builtin tools made small local models slow, and web search would",
-    "send every prompt to Exa, which defeats the point of a local model.",
+    "(merged over model_params). local-uncensored uses this to switch off builtin tools,",
+    "which made small local models slow. Its web search was off at first (prompts stay local) and",
+    "was switched on 2026-11-24 at Tom's request: it now searches Exa like every other model.",
     "",
     "local-uncensored stays on legacy (ADR-023). Native was tested 2026-11-24: with tools present and",
     "thinking off, Gemma looped on empty <|channel>thought blocks until max tokens on 1 of 3 prompts;",
@@ -137,10 +137,10 @@
         },
         {
           "id": "local-uncensored",
-          "why": "Gemma 4 12B abliterated on vLLM (gpu-mode gemma only), no fallback (ADR-022)",
+          "why": "Gemma 4 12B abliterated on vLLM (gpu-mode gemma only), no fallback, Exa web search on (ADR-022)",
           "capabilities": {
             "builtin_tools": false,
-            "web_search": false
+            "web_search": true
           }
         }
       ],

@@ -83,6 +83,9 @@ small local models slow on the laptop) and `web_search: false` (would send every
 `web_search` is enforced by the browser, not the server: an API client sending `features.web_search`
 itself still gets a search.
 
+> **Amended 2026-11-24:** web search switched **on** for `local-uncensored` at Tom's request
+> (`web_search: true`). Prompts now go to Exa like every other model's; builtin tools stay off.
+
 ### 6. Same pass: Open WebUI and the CPU Ollama to current releases
 
 | Component | Before | After |
@@ -118,7 +121,7 @@ Gemma runs with `--enforce-eager` like the other modes; CUDA graphs would cost m
 
 - One engine, one switch: all three GPU models are vLLM manifests selected by `gpu-mode`
 - vLLM is current instead of 19 months behind; the eGPU runbook's open upgrade item is closed
-- Prompts to the uncensored model stay on the cluster: no fallback, no web search
+- No fallback in either direction. (Web search was off to keep prompts local; switched on 2026-11-24)
 
 ### Negative
 
