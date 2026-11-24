@@ -1,5 +1,13 @@
 # Zimi ZIM download Job
-# ADR-023 - Loads the initial library: English + German Wikipedia with images (~176GB)
+# ADR-023 - Seeds the library: every ZIM installed as of 2026-11-24 (~215GB), so a lost library
+# volume comes back the same. EN + DE Wikipedia were the initial load; the rest Tom added through
+# Zimi's Manage pages and were copied here afterwards.
+#
+# Zimi auto-updates the library daily (Manage setting, /config/auto_update.json), so the files on
+# disk move ahead of the names below. That is fine: a ZIM counts as present when ANY dump of it is
+# there (same name, any date), so a re-run never fetches an older dump over a newer one.
+# To add a ZIM here, find its directory on https://download.kiwix.org/zim/ (community/ and
+# videos/ included) and add "dir/file.zim".
 #
 # Why a Job instead of Zimi's own catalog downloader: it is in git, it resumes (curl -C -), and it
 # verifies Kiwix's published sha256 before a file becomes visible to Zimi. A .zim appears in
@@ -8,10 +16,11 @@
 # Runs on k3s-nas-worker next to Zimi, so the data goes internet -> NAS VM -> Synology without a
 # second LAN hop. Idempotent: a finished, verified file is skipped on re-run.
 #
-# Re-run (e.g. for a new dump): edit FILES, then
+# Re-run (recovery, or after adding entries): edit FILES, then
 #   kubectl delete job zimi-download -n docs --ignore-not-found
 #   kubectl apply -f applications/zimi/download-job.yaml
-# Zimi picks up new files on its own; old dumps are removed by hand after the new one is in.
+# Zimi registers files from outside its own downloader only at startup, so afterwards:
+#   kubectl rollout restart deployment/zimi -n docs
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -50,18 +59,38 @@ spec:
           image: curlimages/curl:8.23.0
           env:
             - name: BASE_URL
-              value: https://download.kiwix.org/zim/wikipedia
+              value: https://download.kiwix.org/zim
+            # "dir/file.zim", one per line. Smallest last is not required: each file is independent.
             - name: FILES
-              value: wikipedia_de_all_maxi_2026-10.zim wikipedia_en_all_maxi_2026-08.zim
+              value: |
+                wikipedia/wikipedia_de_all_maxi_2026-10.zim
+                wikipedia/wikipedia_en_all_maxi_2026-08.zim
+                community/gutenberg_en_top_2026-11.zim
+                maps/maps_en_europe_2026-08.zim
+                other/mdwiki_en_all_maxi_2025-11.zim
+                zimit/medlineplus.gov_en_all_2025-01.zim
+                videos/quickguidesformedicine_en_all_2026-06.zim
+                zimit/wwwnc.cdc.gov_en_all_2024-11.zim
+                community/sermonindex.net_en_bible_2026-10.zim
+                stack_exchange/writing.stackexchange.com_en_all_2026-10.zim
+                other/librepathology_en_all_maxi_2026-09.zim
+                stack_exchange/pets.stackexchange.com_en_all_2026-10.zim
+                other/zimgit-medicine_en_2024-08.zim
+                zimit/irp.fas.org_en_military-medicine_2026-10.zim
+                zimit/nhs.uk_en_medicines_2026-09b.zim
           command: ["/bin/sh", "-ec"]
           args:
             - |
               cd /zims
-              for f in $FILES; do
-                if [ -f "$f" ]; then echo "$f: present, skipping"; continue; fi
+              for entry in $FILES; do
+                f=${entry##*/}
+                # wikipedia_en_all_maxi_2026-08.zim -> wikipedia_en_all_maxi: any dump of it counts
+                base=${f%.zim}; base=${base%_*}
+                present=$(ls "${base}"_*.zim 2>/dev/null | head -1 || true)
+                if [ -n "$present" ]; then echo "$f: $present present, skipping"; continue; fi
                 echo "$f: downloading (resumes a .part if one exists)"
-                curl -fL --retry 10 --retry-delay 30 --retry-all-errors -C - -o "$f.part" "$BASE_URL/$f"
-                want=$(curl -fsSL "$BASE_URL/$f.sha256" | cut -d' ' -f1)
+                curl -fL --retry 10 --retry-delay 30 --retry-all-errors -C - -o "$f.part" "$BASE_URL/$entry"
+                want=$(curl -fsSL "$BASE_URL/$entry.sha256" | cut -d' ' -f1)
                 echo "$f: verifying sha256"
                 got=$(sha256sum "$f.part" | cut -d' ' -f1)
                 if [ "$want" != "$got" ]; then

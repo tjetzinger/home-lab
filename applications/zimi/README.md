@@ -77,14 +77,33 @@ model is unreliable with it: thinking off, it made 2 of 3 tool calls correctly a
 
 ## Library content
 
-| File | Size | Source |
-|---|---|---|
-| `wikipedia_de_all_maxi_2026-10.zim` | 48.6 GB | download.kiwix.org (sha256 verified) |
-| `wikipedia_en_all_maxi_2026-08.zim` | 127.4 GB | download.kiwix.org (sha256 verified) |
+15 ZIMs, ~215 GB, as of 2026-11-24. All of them are listed in `download-job.yaml` (`FILES`, as
+`dir/file.zim` under https://download.kiwix.org/zim/), so a lost library comes back the same.
 
-Zimi also ships two built-in ZIMs (games, almanac). New dumps: edit `FILES` in `download-job.yaml`
-and re-run it; delete the old file afterwards. Zimi's own catalog (Manage) works too, but downloads
-started there are not in git.
+| ZIM | Size | Kiwix dir |
+|---|---|---|
+| `wikipedia_en_all_maxi_2026-08` | 127.4 GB | `wikipedia/` |
+| `wikipedia_de_all_maxi_2026-10` | 48.6 GB | `wikipedia/` |
+| `maps_en_europe_2026-08` | 26.7 GB | `maps/` |
+| `gutenberg_en_top_2026-11` | 7.3 GB | `community/` |
+| `mdwiki_en_all_maxi_2025-11` | 2.3 GB | `other/` |
+| `medlineplus.gov_en_all_2025-01` | 1.9 GB | `zimit/` |
+| `quickguidesformedicine_en_all_2026-06` | 0.5 GB | `videos/` |
+| 8 small ones (CDC, Stack Exchange, LibrePathology, NHS medicines, …) | < 0.2 GB each | `zimit/`, `other/`, `stack_exchange/`, `community/` |
+
+Zimi also ships two built-in ZIMs (games, almanac).
+
+**Updates are automatic.** Auto-update is on in Manage (`/config/auto_update.json`: daily,
+`wikipedia_de` skipped), and Zimi replaces a ZIM with the newest dump of the **same flavor**. That
+includes files the Job placed. So the dates on disk move ahead of `FILES`; the Job treats any dump of
+a ZIM as present and never downloads an older one over it. Zimi's own downloads are not checked
+against the published sha256 by this repo.
+
+**Adding a ZIM:** through Manage is fine (registered live, no restart). To keep the repo complete,
+also add it to `FILES`. A ZIM placed by the Job needs `kubectl rollout restart deployment/zimi -n docs`.
+
+Space: the 300Gi PVC is a label; the NFS provisioner does not enforce it. While Zimi replaces the
+English Wikipedia, old and new dump coexist briefly (~255 GB for that one ZIM).
 
 The first title-index build of each large ZIM runs on a Celeron J4125 and takes hours. Search works
 meanwhile; a result line `Incomplete: ... title index building NN%` says which sources are not done.
