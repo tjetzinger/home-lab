@@ -61,7 +61,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.8.5.post1
+          image: vllm/vllm-openai:v0.34.0  # ADR-022: CUDA 13 image, needs host driver >= 580 (GeForce has no CUDA forward compat)
           args:
             - --model
             - casperhansen/deepseek-r1-distill-qwen-7b-awq

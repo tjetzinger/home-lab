@@ -128,12 +128,15 @@ if [[ "$VERIFY_ONLY" != true ]]; then
   # 'native' (main.py builds metadata.params with that fallback), and on native the
   # forced web-search path in middleware.py is skipped. /models/import is a batch
   # upsert, so this both creates missing records and updates existing ones.
+  # A keep entry may override per model (ADR-022): `capabilities` lands in
+  # meta.capabilities, `params` is merged over the shared model_params.
   if [[ "$(jq 'length' <<<"$MODEL_PARAMS")" -gt 0 ]]; then
     echo "Applying model params..."
     import_payload="$(jq -c --argjson params "$MODEL_PARAMS" \
       '{models: [.connections[].keep[] | {id: .id, name: .id, base_model_id: null,
-                                          meta: {description: .why},
-                                          params: $params}]}' "$MANIFEST")"
+                                          meta: ({description: .why}
+                                                 + (if .capabilities then {capabilities: .capabilities} else {} end)),
+                                          params: ($params + (.params // {}))}]}' "$MANIFEST")"
     check "import model params" "$(in_pod POST /api/v1/models/import "$import_payload")"
   fi
 fi
@@ -196,6 +199,27 @@ print(' '.join(bad))
       exit 4
     fi
     echo "  function_calling: $want_fc on all stored models"
+  fi
+
+  want_caps="$(jq -c '[.connections[].keep[] | select(.capabilities) | {id, capabilities}]' "$MANIFEST")"
+  if [[ "$(jq 'length' <<<"$want_caps")" -gt 0 ]]; then
+    bad="$(kubectl --context "$CONTEXT" exec -n "$NAMESPACE" "$POD" -c open-webui -- \
+      python3 -c "
+import json, sqlite3, sys
+db = sqlite3.connect('/app/backend/data/webui.db')
+bad = []
+for want in json.loads(sys.argv[1]):
+    row = db.execute('select meta from model where id = ?', (want['id'],)).fetchone()
+    caps = (json.loads(row[0] or '{}') or {}).get('capabilities') or {} if row else {}
+    if any(caps.get(k) != v for k, v in want['capabilities'].items()):
+        bad.append(want['id'])
+print(' '.join(bad))
+" "$want_caps")"
+    if [[ -n "$bad" ]]; then
+      echo "ERROR: stored capabilities do not match the manifest on: $bad" >&2
+      exit 4
+    fi
+    echo "  capabilities: overrides stored on $(jq -r 'map(.id) | join(", ")' <<<"$want_caps")"
   fi
 fi
 

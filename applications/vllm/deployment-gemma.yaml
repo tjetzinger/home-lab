@@ -1,0 +1,137 @@
+# vLLM Deployment for Gemma 4 12B abliterated (Gemma Mode)
+# Namespace: ml
+#
+# ADR-022 - Local uncensored chat model on the GPU worker via vLLM
+#
+# GPU Worker: Intel NUC + RTX 3060 eGPU (12GB VRAM)
+# Model: nicklas373/Huihui-gemma-4-12B-it-abliterated-AWQ
+#   W4A16 compressed-tensors (group size 32) of huihui-ai/Huihui-gemma-4-12B-it-abliterated,
+#   quantized by a third party with llm-compressor 0.12.0. 8.25GB on disk; the embedding and
+#   lm_head stay unquantized, which is most of that size.
+#   NOT the same weights as Ollama's huihui_ai/gemma-4-abliterated:12b-qat (a GGUF of the QAT
+#   variant, which has no vLLM-loadable 4-bit build).
+# Context: 8192 tokens at gpu-memory-utilization 0.97 (bf16 KV cache). Weights take 8.11 GiB.
+#   --max-num-seqs 4 / --max-num-batched-tokens 2048 are what make it fit: v0.34 sizes the KV cache
+#   AFTER warmup, and warming the default 256-sequence sampler over Gemma's 262k vocabulary cost
+#   ~1.2 GiB (1.83 GiB KV estimate shrank to 0.59 GiB). One chat user needs no batch of 256.
+#   Measured budget with 4 seqs: 8.17 GiB weights + 1.31 GiB kept for activations + 1.71 GiB KV
+#   = 11.19 GiB of 11.63 GiB on paper, but at 2048 batched tokens vLLM still capped KV at 0.95 GiB
+#   by physical free memory. Prefill chunks of 512 tokens shrink the activation reserve so the
+#   8K KV cache fits. Long prompts prefill in more, smaller steps.
+#   8192 needs 1.71 GiB of KV and 6144 still needs 1.68 GiB: the sliding-window layers are a
+#   near-fixed cost, so shortening the context barely helps. At 0.92 only 1.36 GiB was left, at 0.94
+#   1.59 GiB. An FP8 KV cache would halve it, but vLLM's Triton backend needs SM89+ for FP8 and the
+#   RTX 3060 is SM86. The full-attention layers use 512-dim heads, sliding layers 256.
+#
+# --language-model-only skips the vision and audio encoders. The checkpoint carries both, and
+# loading them costs VRAM this card does not have to spare. Text chat only.
+#
+# Thinking is off by default in this model's chat template (enable_thinking defaults to false).
+# LiteLLM's local-uncensored alias also sends enable_thinking: false explicitly.
+#
+# Usage: applied by `gpu-mode gemma`, the same way deployment-r1.yaml is applied by `gpu-mode r1`.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+  namespace: ml
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: vllm-server
+    app.kubernetes.io/part-of: home-lab
+    app.kubernetes.io/component: llm-inference
+    gpu-mode: gemma
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server
+  strategy:
+    type: Recreate  # GPU workloads need exclusive access
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+        app.kubernetes.io/name: vllm
+        app.kubernetes.io/instance: vllm-server
+        app.kubernetes.io/part-of: home-lab
+        app.kubernetes.io/component: llm-inference
+        gpu-mode: gemma
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        nvidia.com/gpu: "true"
+      tolerations:
+        - key: gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.34.0  # ADR-022: CUDA 13 image, needs host driver >= 580 (GeForce has no CUDA forward compat)
+          args:
+            - --model
+            - nicklas373/Huihui-gemma-4-12B-it-abliterated-AWQ
+            - --quantization
+            - compressed-tensors
+            - --language-model-only
+            - --gpu-memory-utilization
+            - "0.97"
+            - --max-num-seqs
+            - "4"
+            - --max-num-batched-tokens
+            - "512"
+            - --max-model-len
+            - "8192"
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8000"
+            - --enforce-eager
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "1"
+              memory: 8Gi
+              nvidia.com/gpu: 1
+            limits:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+            - name: shm
+              mountPath: /dev/shm
+          env:
+            - name: HUGGING_FACE_HUB_TOKEN
+              value: ""  # Not gated; tokenizer and chat template ship with the checkpoint
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 240  # 8.25GB load; first start also downloads unless pre-pulled
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 24      # 60 + (24*10) = 300s max wait
+      volumes:
+        - name: model-cache
+          hostPath:
+            path: /var/lib/vllm/huggingface
+            type: DirectoryOrCreate
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi

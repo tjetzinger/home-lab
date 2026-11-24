@@ -123,9 +123,11 @@ Now safe to physically disconnect the eGPU:
 >    `graphics` permanently, in ML mode too. It says nothing about `gpu-mode`. The real state is
 >    `ssh k3s-gpu-worker "gpu-mode status"`; run `gpu-mode ml` (or `r1`) only if that shows
 >    vLLM scaled to 0.
-> 2. **vLLM is pinned at `v0.8.5.post1`; upstream is `v0.29.0`.** The `vllm-server` pod has been
->    `Pending` since February, so it will start fresh on whatever `applications/vllm/` specifies.
->    Choose that version deliberately — do not let a seven-month-old image come back by default.
+> 2. ~~**vLLM is pinned at `v0.8.5.post1`; upstream is `v0.29.0`.**~~ **Done 2026-11-24 (ADR-022):**
+>    vLLM is on `v0.34.0`, a CUDA 13 image. That needs host driver >= 580; the NUC runs
+>    `nvidia-driver-580-server` 580.178.04. A GeForce card has no CUDA forward compatibility, so
+>    an image built for a newer CUDA than the driver fails with `Error 804`. Check `nvidia-smi`
+>    before changing either the image or the driver.
 > 3. **Seven pods are stuck pending this node's return:** 2 nvidia operator validators,
 >    `vllm-server` (one Terminating, one Pending) and 3 `svclb` DaemonSet pods. They should clear
 >    on their own once the node goes `Ready`; if they do not, delete them individually.

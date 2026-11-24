@@ -9,10 +9,11 @@ GPU-accelerated inference server running on Intel NUC with RTX 3060 eGPU.
 | Namespace | `ml` |
 | ML Model | `Qwen/Qwen3-8B-AWQ` |
 | R1 Model | `casperhansen/deepseek-r1-distill-qwen-7b-awq` |
+| Gemma Model | `nicklas373/Huihui-gemma-4-12B-it-abliterated-AWQ` (ADR-022) |
 | Quantization | AWQ 4-bit (marlin kernel) |
-| vLLM Version | v0.8.5.post1 |
+| vLLM Version | v0.34.0 (CUDA 13, needs host driver >= 580) |
 | VRAM Usage | ~6 GB (ML), ~5.2 GB (R1) |
-| Performance | 30-50 tok/s (ML), ~55 tok/s (R1) |
+| Performance | 36.9 tok/s (ML), 59.3 tok/s (R1), 22.9 tok/s (Gemma), measured 2026-11-24 |
 | Endpoint | https://vllm.home.jetzinger.com |
 
 ## Models
@@ -33,6 +34,15 @@ GPU-accelerated inference server running on Intel NUC with RTX 3060 eGPU.
 - Optimized for chain-of-thought reasoning tasks
 - Explicit tokenizer override: `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B`
 - Outputs reasoning with `<think>` tags
+
+### Gemma 4 12B abliterated AWQ (Gemma Mode, ADR-022)
+
+- Local uncensored chat, reached through the LiteLLM alias `local-uncensored` only
+- Third-party W4A16 quant of huihui-ai's abliterated Gemma 4 12B (not the QAT variant)
+- Text only: `--language-model-only` skips the vision and audio encoders
+- Fills the card: 8.11 GiB weights, util 0.97, `--max-num-seqs 4`, `--max-num-batched-tokens 512`,
+  8192 context. The manifest header records every setting that did not fit and why
+- Thinking off: LiteLLM sends `chat_template_kwargs.enable_thinking: false`
 
 ## API Endpoints
 

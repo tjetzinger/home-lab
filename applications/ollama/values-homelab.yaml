@@ -28,8 +28,9 @@ replicaCount: 1  # Single instance (CPU-only MVP)
 image:
   repository: ollama/ollama
   pullPolicy: IfNotPresent
-  # Pinned 2026-09-21 (Phase 3). 0.13.5 is the version that was running.
-  tag: "0.13.5"
+  # Pinned 2026-11-24 with chart 1.96.0 (ADR-022). Was 0.13.5 (chart 1.37.0).
+  # 0.40.18 was skipped: released the same day, mostly Apple-silicon/MLX changes.
+  tag: "0.40.17"
 
 # Ollama-specific configuration
 ollama:

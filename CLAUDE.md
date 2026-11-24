@@ -73,11 +73,15 @@ Each alias is the newest model of a different lab so one retirement wave cannot 
 | `cloud-fast` | `deepseek-v4.1-flash` | Quick general inference |
 | `cloud-smart` | `kimi-k3` | Open-WebUI default, reasoning/agentic |
 
+`local-uncensored` (ADR-022) is Gemma 4 12B abliterated on vLLM. It answers only in `gpu-mode gemma`,
+and it is outside every fallback chain in both directions.
+
 `openai-gpt4o` is explicit-selection only and NOT in the auto-fallback chain.
 
 **GPU Modes** (on k3s-gpu-worker):
 - `ml` - Qwen3-8B-AWQ (general inference)
 - `r1` - DeepSeek-R1-Distill-Qwen-7B-AWQ (reasoning tasks)
+- `gemma` - Gemma 4 12B abliterated AWQ (local uncensored chat, `local-uncensored`, ADR-022)
 - `gaming` - vLLM scaled to 0, GPU released
 
 ```bash
@@ -85,6 +89,7 @@ Each alias is the newest model of a different lab so one retirement wave cannot 
 ssh k3s-gpu-worker "gpu-mode status"
 ssh k3s-gpu-worker "gpu-mode ml"    # Switch to Qwen
 ssh k3s-gpu-worker "gpu-mode r1"    # Switch to DeepSeek-R1
+ssh k3s-gpu-worker "gpu-mode gemma" # Switch to Gemma 4 abliterated
 ssh k3s-gpu-worker "gpu-mode gaming"
 ```
 

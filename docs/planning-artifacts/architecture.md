@@ -294,6 +294,12 @@ RTX 3060: 12GB VRAM total
 | **ML Mode** | K8s (vLLM) | Running on GPU | GPU-accelerated (30-50 tok/s) | Default, AI/ML workloads |
 | **Gaming Mode** | Host (Steam) | Scaled to 0 | Ollama CPU fallback → OpenAI cloud | Any gaming session |
 
+> **ADR-022 (2026-11-24):** a third model mode, **`gemma`**, serves Gemma 4 12B abliterated (AWQ) on vLLM
+> for local uncensored chat via the LiteLLM alias `local-uncensored`, which sits outside every fallback
+> chain. vLLM moved v0.8.5.post1 → v0.34.0 and the NUC's driver 570 → 580 to get there. Gemma fills the
+> card: util 0.97, `--max-num-seqs 4`, `--max-num-batched-tokens 512`, 8K context, ~23 tok/s.
+> Measured on v0.34: ML 36.9 tok/s, R1 59.3 tok/s.
+
 **Mode Switching Architecture:**
 ```
 ┌─────────────────────────────────────────────────────────────┐

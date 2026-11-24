@@ -5,7 +5,7 @@
 # Epic: 25 - Document Processing Pipeline Upgrade
 #
 # FRs:
-# - FR203: vLLM upgrade to v0.8.5.post1 with Qwen3-8B-AWQ
+# - FR203: vLLM upgrade to v0.8.5.post1 with Qwen3-8B-AWQ (since 2026-11-24: v0.34.0, ADR-022)
 # - FR204: Model downloads and loads within 120 seconds
 #
 # NFRs:
@@ -55,7 +55,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.8.5.post1
+          image: vllm/vllm-openai:v0.34.0  # ADR-022: CUDA 13 image, needs host driver >= 580 (GeForce has no CUDA forward compat)
           args:
             - --model
             - Qwen/Qwen3-8B-AWQ

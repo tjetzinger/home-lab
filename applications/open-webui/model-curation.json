@@ -18,7 +18,13 @@
     "`function_calling: legacy` is required for web search to actually run \u2014 on the",
     "default 'native' setting Open-WebUI only offers the model a web_search tool and",
     "lets it decide, and that tool is skipped entirely unless the request carries a",
-    "websocket session_id. Legacy makes Exa results deterministic. See the README."
+    "websocket session_id. Legacy makes Exa results deterministic. See the README.",
+    "",
+    "PER-MODEL OVERRIDES (ADR-022):",
+    "A keep entry may carry `capabilities` (stored as meta.capabilities) and `params`",
+    "(merged over model_params). local-uncensored uses this to switch off builtin tools",
+    "and web search: builtin tools made small local models slow, and web search would",
+    "send every prompt to Exa, which defeats the point of a local model."
   ],
   "connections": {
     "ollama": {
@@ -124,6 +130,14 @@
         {
           "id": "cloud-smart",
           "why": "kimi-k3 + automatic fallback chain (default model)"
+        },
+        {
+          "id": "local-uncensored",
+          "why": "Gemma 4 12B abliterated on vLLM (gpu-mode gemma only), no fallback (ADR-022)",
+          "capabilities": {
+            "builtin_tools": false,
+            "web_search": false
+          }
         }
       ],
       "hide": [
@@ -133,11 +147,11 @@
         },
         {
           "id": "vllm-qwen",
-          "why": "Fallback plumbing; GPU worker currently NotReady"
+          "why": "Fallback plumbing; local chat goes through local-uncensored (ADR-022)"
         },
         {
           "id": "vllm-r1",
-          "why": "Fallback plumbing; GPU worker currently NotReady"
+          "why": "Fallback plumbing; local chat goes through local-uncensored (ADR-022)"
         },
         {
           "id": "ollama-qwen",

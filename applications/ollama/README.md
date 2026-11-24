@@ -88,8 +88,8 @@ kubectl run -it --rm curl-test --image=curlimages/curl --restart=Never -- \
 
 | Setting | Value |
 |---------|-------|
-| Chart | ollama-helm/ollama (v1.36.0) |
-| App Version | 0.13.3 |
+| Chart | ollama-helm/ollama (v1.96.0) |
+| App Version | 0.40.17 (pinned in `values-homelab.yaml`) |
 | Namespace | ml |
 | Service Type | ClusterIP (internal only) |
 | Port | 11434 |
@@ -702,3 +702,7 @@ Current performance:
 - 2026-02-13: Story 25.2 - Upgraded to phi4-mini (Microsoft 3.8B) replacing qwen2.5:3b
 - 2026-02-13: Removed qwen3:4b (thinking mode blocker) and qwen2.5:3b
 - 2026-02-13: Classification latency: ~27s on CPU (NFR111 target: <60s)
+- 2026-11-24: ADR-022 - Upgraded 0.13.5 (chart 1.37.0) -> 0.40.17 (chart 1.96.0). 0.40.18 skipped (same-day release).
+  phi4-mini (`ollama-qwen`) and granite-docling re-verified through LiteLLM. phi4-mini measured 5.3 tok/s
+  generation, 9.2 tok/s prompt on the 2-CPU limit. The image has no `curl`; use `wget` or `ollama` inside the pod.
+- 2026-11-24: The local uncensored chat model runs on vLLM (gpu-mode gemma), NOT on this Ollama - see ADR-022.

@@ -71,18 +71,22 @@ The vLLM backend can serve different models depending on the active GPU mode. Th
 | Model Name | Backend | Timeout | Description | GPU Mode Required |
 |------------|---------|---------|-------------|-------------------|
 | `vllm-r1` | vLLM (GPU) | 60s | DeepSeek-R1 7B reasoning model | R1-Mode |
+| `local-uncensored` | vLLM (GPU) | 120s | Gemma 4 12B abliterated, thinking off, no fallback (ADR-022) | Gemma-Mode |
 
 #### Mode-Dependent Availability
 
-| GPU Mode | `vllm-qwen` | `vllm-r1` |
-|----------|-------------|-----------|
-| ML-Mode | Available | ❌ HTTP 404 |
-| R1-Mode | ❌ HTTP 404 | Available |
-| Gaming-Mode | ❌ HTTP 503 | ❌ HTTP 503 |
+| GPU Mode | `vllm-qwen` | `vllm-r1` | `local-uncensored` |
+|----------|-------------|-----------|--------------------|
+| ML-Mode | Available | ❌ HTTP 404 | ❌ HTTP 404 |
+| R1-Mode | ❌ HTTP 404 | Available | ❌ HTTP 404 |
+| Gemma-Mode | ❌ HTTP 404 | ❌ HTTP 404 | Available |
+| Gaming-Mode | ❌ HTTP 503 | ❌ HTTP 503 | ❌ HTTP 503 |
+
+`local-uncensored` has no fallback on purpose: a cloud model must never answer a prompt meant to stay local.
 
 Check current mode: `ssh k3s-gpu-worker "gpu-mode status"`
 
-Switch modes: `ssh k3s-gpu-worker "gpu-mode ml"` or `gpu-mode r1` or `gpu-mode gaming`
+Switch modes: `ssh k3s-gpu-worker "gpu-mode ml"` or `gpu-mode r1`, `gpu-mode gemma` or `gpu-mode gaming`
 
 #### DeepSeek-R1 Response Format
 DeepSeek-R1 outputs its reasoning process in `<think>` tags before the final answer:

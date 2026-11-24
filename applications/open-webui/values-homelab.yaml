@@ -17,6 +17,11 @@
 # - NFR76: Chat history persisted to NFS storage surviving pod restarts
 # - NFR124: Cloud models auto-visible in model picker without per-model config
 
+# Pinned 2026-11-24 with chart 18.4.0 (ADR-022). Never leave this empty: an empty tag
+# follows the chart's appVersion, so a chart bump would silently change the app.
+image:
+  tag: "0.13.4"
+
 # Disable bundled Ollama (using LiteLLM role aliases + direct Ollama Pro cloud connection)
 ollama:
   enabled: false
@@ -160,6 +165,11 @@ extraEnvVars:
   # POST /api/v1/tasks/config/update (read-modify-write — it rewrites every field).
   # Set ENABLE_SEARCH_QUERY_GENERATION=false instead to skip generation entirely
   # and search the raw message; cheaper again, but loses the date resolution.
+  #
+  # The chart runs extraEnvVars through Helm's `tpl`, so Open-WebUI's own
+  # {{CURRENT_DATE}} / {{MESSAGES:...}} placeholders must be escaped as Go-template
+  # string literals. Unescaped, `helm template` fails with
+  # 'function "CURRENT_DATE" not defined' and no upgrade can run.
   - name: QUERY_GENERATION_PROMPT_TEMPLATE
     value: |
       ### Task:
@@ -170,7 +180,7 @@ extraEnvVars:
       - Respond in the format: { "queries": ["query1"] }. Never return more than one query.
       - If and only if it is entirely certain that no useful results can be retrieved by a search, return: { "queries": [] }.
       - Make the single query broad enough to cover the question on its own, since it is the only one that will run.
-      - Today's date is: {{CURRENT_DATE}}. Resolve relative time references such as "heute", "today" or "this week" into the query.
+      - Today's date is: {{ "{{CURRENT_DATE}}" }}. Resolve relative time references such as "heute", "today" or "this week" into the query.
       - Be concise. No elaboration, commentary, or assumptions.
 
       ### Output:
@@ -181,7 +191,7 @@ extraEnvVars:
 
       ### Chat History:
       <chat_history>
-      {{MESSAGES:END:6}}
+      {{ "{{MESSAGES:END:6}}" }}
       </chat_history>
   # Hardening. Defaults are CORS_ALLOW_ORIGIN='*' and non-secure, lax cookies;
   # this instance is HTTPS-only behind Tailscale, so tighten all three.

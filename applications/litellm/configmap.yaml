@@ -29,6 +29,8 @@
 #   mistral-large-3 on 2026-11-09 (whole catalogue now thinking models; think:false required)
 # - FR217: Cloud-primary fallback chains configured (Story 26.1)
 # - FR218: openai-gpt4o removed from auto-fallback, explicit selection only (Story 26.1)
+# - ADR-022: local-uncensored alias (Gemma 4 12B abliterated on vLLM, gpu-mode gemma),
+#   explicit selection only, not in any fallback chain
 #
 # NFRs:
 # - NFR65: Failover detection within 5 seconds
@@ -85,6 +87,25 @@ data:
           api_base: http://vllm-api.ml.svc.cluster.local:8000/v1
           api_key: sk-none  # vLLM doesn't require auth, but LiteLLM needs a value
           timeout: 60  # Extended for longer reasoning chains
+        model_info:
+          mode: chat
+
+      # local-uncensored: Gemma 4 12B abliterated on vLLM (ADR-022)
+      # Available only when gpu-mode is set to "gemma"; otherwise vllm-api serves another
+      # model and this alias returns a 404 "model does not exist" from vLLM.
+      # Explicit selection only — NOT in any fallback chain, in either direction: an
+      # uncensored model must never answer for a cloud alias, and a cloud model must never
+      # silently answer a prompt that was meant to stay local.
+      # Role-named per ADR-013, so a later model swap changes only the `model:` line.
+      - model_name: local-uncensored
+        litellm_params:
+          model: openai/nicklas373/Huihui-gemma-4-12B-it-abliterated-AWQ
+          api_base: http://vllm-api.ml.svc.cluster.local:8000/v1
+          api_key: sk-none  # vLLM doesn't require auth, but LiteLLM needs a value
+          timeout: 120
+          extra_body:
+            chat_template_kwargs:
+              enable_thinking: false  # template default is already false; pinned so a template change cannot turn it on
         model_info:
           mode: chat
 

@@ -1,9 +1,12 @@
 [Unit]
 Description=Set GPU to ML Mode at boot (Qwen general model)
 Documentation=https://github.com/tjetzinger/home-lab
-# Start after display manager so login isn't blocked
-After=graphical.target k3s-agent.service
-Wants=graphical.target
+# Start after the display manager so login isn't blocked.
+# Do NOT order After=graphical.target: a target is implicitly ordered after every unit it wants,
+# so After=graphical.target plus WantedBy=<any target graphical.target depends on> is an ordering
+# cycle. systemd broke it by deleting this job at every boot ("Found ordering cycle"), so ML mode
+# never came up on its own (found 2026-11-24, ADR-022).
+After=display-manager.service k3s-agent.service
 
 [Service]
 Type=oneshot
@@ -19,4 +22,4 @@ StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
