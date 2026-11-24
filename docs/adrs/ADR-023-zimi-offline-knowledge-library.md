@@ -67,9 +67,14 @@ Every model runs with `function_calling: legacy` (ADR-013, for deterministic Exa
 one tool round. With Zimi's lean tools that round was a `search` returning snippets only; Gemma then
 invented an answer (a fictitious opera director) and `cloud-smart` declined. mcpo therefore serves the
 full set and Open WebUI's `function_name_filter_list` passes three tools. `deep_search` reads the top hits
-in the same call; with it Gemma answered correctly with a citation. Switching models to native function
-calling was not done: it would make Exa optional, needs a websocket session, and needs vLLM tool-call
-flags for Gemma.
+in the same call; with it Gemma answered correctly with a citation.
+
+Native function calling for Gemma was tried and rejected. vLLM got `--enable-auto-tool-choice
+--tool-call-parser gemma4 --reasoning-parser gemma4` (kept: harmless, and API clients can use tools).
+Direct tests: thinking off, 2 of 3 prompts produced a correct tool call in ~1 s and the third looped on
+empty `<|channel>thought` blocks to the 600-token cap (24 s); thinking on, no tool calls at all. The
+reasoning parser only moved the loop out of `content`. Cloud models stay on legacy too: native would
+make Exa search optional.
 
 ## Traps found during the install
 

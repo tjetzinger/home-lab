@@ -76,6 +76,19 @@ spec:
             - --quantization
             - compressed-tensors
             - --language-model-only
+            # Native tool calling (ADR-023). Without these vLLM rejects any request that carries
+            # tools: '"auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser'.
+            # Open WebUI does NOT use it: tested 2026-11-24, thinking off, Gemma made 2 of 3 tool calls
+            # in ~1s but looped on empty thought blocks until max tokens on the third; with thinking
+            # on it never called a tool. Open WebUI keeps it on legacy + Zimi's deep_search.
+            - --enable-auto-tool-choice
+            - --tool-call-parser
+            - gemma4
+            # Gemma 4 writes <|channel>thought ... <channel|> blocks (the template pre-fills an empty
+            # one when thinking is off). Without this parser they leaked into content, and with tools
+            # present the model looped on empty thought blocks until max tokens.
+            - --reasoning-parser
+            - gemma4
             - --gpu-memory-utilization
             - "0.97"
             - --max-num-seqs

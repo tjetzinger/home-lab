@@ -52,8 +52,11 @@ default lean tools that meant one `search` and only snippets: `cloud-smart` said
 and Gemma (`local-uncensored`) **invented** a director of the Vienna State Opera. `deep_search` searches
 and reads the top hits in that single call; with it Gemma answered correctly with a citation.
 
-Native function calling would allow search-then-read, but it turns Exa into an optional tool, needs a
-browser websocket session, and needs `--enable-auto-tool-choice --tool-call-parser` on vLLM for Gemma.
+Native function calling (search, then read, over several rounds) was tested for Gemma on 2026-11-24.
+vLLM now has `--enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4`, but the
+model is unreliable with it: thinking off, it made 2 of 3 tool calls correctly and looped on empty
+`<|channel>thought` blocks until max tokens on the third; thinking on, it never called a tool. So
+`local-uncensored` stays on legacy. For cloud models native would also turn Exa into an optional tool.
 
 ## Traps found during the install
 

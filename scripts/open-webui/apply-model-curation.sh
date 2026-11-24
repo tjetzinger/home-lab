@@ -184,21 +184,27 @@ if [[ "$(jq 'length' <<<"$MODEL_PARAMS")" -gt 0 ]]; then
     # stored and honoured at request time (main.py calls .model_dump()), but the
     # /api/models and /api/v1/models responses serialise params as {} and drop it.
     # Asserting against the API here reports a false failure on a correct config.
+    # Expected value per model: the shared model_params, overridden by a keep entry's params.
+    # Stored models not in the manifest are expected to carry the shared value.
+    want_map="$(jq -c --arg d "$want_fc" \
+      '[.connections[].keep[] | {(.id): (.params.function_calling // $d)}] | add' "$MANIFEST")"
     bad="$(kubectl --context "$CONTEXT" exec -n "$NAMESPACE" "$POD" -c open-webui -- \
       python3 -c "
 import json, sqlite3, sys
-want = sys.argv[1]
+default, want = sys.argv[1], json.loads(sys.argv[2])
 db = sqlite3.connect('/app/backend/data/webui.db')
 rows = db.execute('select id, params from model').fetchall()
-bad = [i for i, p in rows if (json.loads(p or '{}') or {}).get('function_calling') != want]
+bad = [f'{i}({want.get(i, default)})' for i, p in rows
+       if (json.loads(p or '{}') or {}).get('function_calling') != want.get(i, default)]
 print(' '.join(bad))
-" "$want_fc")"
+" "$want_fc" "$want_map")"
     if [[ -n "$bad" ]]; then
-      echo "ERROR: function_calling != '$want_fc' on: $bad" >&2
-      echo "Web search will silently not run on those models." >&2
+      echo "ERROR: function_calling differs from the manifest on (expected in brackets): $bad" >&2
+      echo "On a model expected to be legacy, web search will silently not run." >&2
       exit 4
     fi
-    echo "  function_calling: $want_fc on all stored models"
+    overrides="$(jq -r --arg d "$want_fc" 'to_entries | map(select(.value != $d) | "\(.key)=\(.value)") | join(", ")' <<<"$want_map")"
+    echo "  function_calling: $want_fc on all stored models${overrides:+, except $overrides}"
   fi
 
   want_caps="$(jq -c '[.connections[].keep[] | select(.capabilities) | {id, capabilities}]' "$MANIFEST")"

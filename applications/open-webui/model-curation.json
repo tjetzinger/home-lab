@@ -24,7 +24,11 @@
     "A keep entry may carry `capabilities` (stored as meta.capabilities) and `params`",
     "(merged over model_params). local-uncensored uses this to switch off builtin tools",
     "and web search: builtin tools made small local models slow, and web search would",
-    "send every prompt to Exa, which defeats the point of a local model."
+    "send every prompt to Exa, which defeats the point of a local model.",
+    "",
+    "local-uncensored stays on legacy (ADR-023). Native was tested 2026-11-24: with tools present and",
+    "thinking off, Gemma looped on empty <|channel>thought blocks until max tokens on 1 of 3 prompts;",
+    "with thinking on it never called a tool. Legacy + Zimi's deep_search answered correctly."
   ],
   "connections": {
     "ollama": {
